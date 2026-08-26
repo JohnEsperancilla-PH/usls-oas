@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
+import { getAuthAdmin, logAudit } from "@/lib/rbac";
 import QRCode from "qrcode";
 import crypto from "crypto";
 import { sendMail, generateApprovalEmail } from "@/lib/email";
@@ -29,9 +29,6 @@ export async function POST(request: Request) {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
 
-    const check = requireSuperAdmin(admin);
-    if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
-
     const body: ResetRequest = await request.json();
 
     if (!body.appointmentId) {
@@ -48,6 +45,10 @@ export async function POST(request: Request) {
 
     if (fetchError || !appointment) {
       return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+    }
+
+    if (admin.role === "office_admin" && admin.office_id !== appointment.office_id) {
+      return NextResponse.json({ message: "You can only reset QR for appointments in your office" }, { status: 403 });
     }
 
     if (appointment.status !== "completed") {
@@ -81,18 +82,18 @@ export async function POST(request: Request) {
     const qrBase64 = qrCodeDataUrl.split(",")[1];
     const qrBuffer = Buffer.from(qrBase64, "base64");
 
-    const emailHtml = generateApprovalEmail(
+    const emailResult = generateApprovalEmail(
       appointment.full_name,
       appointment.date,
       appointment.time_slot,
       appointment.offices?.name || "Unknown Office"
     );
 
-    const emailResult = await sendMail({
+    const mailResult = await sendMail({
       to: appointment.email,
       subject: "Appointment Re-approved — USLS OAS",
-      html: emailHtml,
-      attachments: [{
+      html: emailResult.html,
+      attachments: [...emailResult.attachments, {
         filename: "qrcode.png",
         content: qrBuffer,
         contentType: "image/png",
@@ -102,12 +103,12 @@ export async function POST(request: Request) {
 
     await logAudit(admin.id, admin.email, "approve", {
       appointment_id: appointment.id,
-      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, action: "reset_qr", email_sent: emailResult.success },
+      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, action: "reset_qr", email_sent: mailResult.success },
     });
 
     return NextResponse.json({
       message: "QR code reset successfully",
-      emailSent: emailResult.success,
+      emailSent: mailResult.success,
       appointment: { id: appointment.id, status: "approved" },
     });
   } catch (error) {

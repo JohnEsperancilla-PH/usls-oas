@@ -534,13 +534,23 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             {[
-              ["Visitor", appointment.full_name], ["Email", appointment.email], ["Phone", appointment.phone], ["Office", officeName],
+              ["Visitor", appointment.full_name],
+              ["Category", (appointment.visitor_category || "general_public").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())],
+              ["Email", appointment.email],
+              ["Phone", appointment.phone],
+              ["Office", officeName],
               ["Date", new Date(appointment.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
               ["Time", `${appointment.time_slot} (${appointment.duration} min)`],
             ].map(([l, v]) => (
               <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
             ))}
           </div>
+          {appointment.purpose_of_visit && (
+            <div>
+              <div className="text-xs text-gray-400 mb-1">Purpose of Visit</div>
+              <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">{appointment.purpose_of_visit}</div>
+            </div>
+          )}
           <div>
             <div className="text-xs text-gray-400 mb-1.5">ID Photo</div>
             <img src={appointment.id_image_url} alt="ID" className="w-full max-w-[200px] h-auto rounded-lg border border-gray-200" />

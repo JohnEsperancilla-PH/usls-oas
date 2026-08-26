@@ -47,6 +47,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   const [selectedDate, setSelectedDate] = useState(data.date);
   const [selectedTime, setSelectedTime] = useState(data.timeSlot);
   const [duration, setDuration] = useState<30 | 60>(data.duration);
+  const [purposeOfVisit, setPurposeOfVisit] = useState(data.purposeOfVisit || "");
 
   const [calendarMonth, setCalendarMonth] = useState(() => {
     if (data.date) {
@@ -159,7 +160,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validate()) {
-      onSubmit({ officeId: selectedOfficeId, date: selectedDate, timeSlot: selectedTime, duration });
+      onSubmit({ officeId: selectedOfficeId, date: selectedDate, timeSlot: selectedTime, duration, purposeOfVisit });
     }
   };
 
@@ -378,6 +379,21 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
           </div>
         )}
 
+        {/* Purpose of Visit */}
+        {selectedTime && (
+          <div className="animate-fade-in">
+            <label className="label flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">5</span>
+              Purpose of Visit
+              <span className="text-xs text-gray-400 font-normal">(optional)</span>
+            </label>
+            <textarea value={purposeOfVisit} onChange={(e) => setPurposeOfVisit(e.target.value)}
+              placeholder="Briefly describe the reason for your visit..."
+              className="input mt-2" rows={3} maxLength={500} />
+            <div className="text-xs text-gray-400 mt-1 text-right">{purposeOfVisit.length}/500</div>
+          </div>
+        )}
+
         {/* Summary */}
         {selectedOffice && selectedDate && selectedTime && (
           <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 animate-fade-in">
@@ -398,7 +414,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
 
         {/* Nav */}
         <div className="flex justify-between pt-2">
-          <button type="button" onClick={() => onBack({ officeId: selectedOfficeId, date: selectedDate, timeSlot: selectedTime, duration })} className="btn-ghost">
+          <button type="button" onClick={() => onBack({ officeId: selectedOfficeId, date: selectedDate, timeSlot: selectedTime, duration, purposeOfVisit })} className="btn-ghost">
             <svg className="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>

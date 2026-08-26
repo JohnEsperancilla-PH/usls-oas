@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
+import { getAuthAdmin, logAudit } from "@/lib/rbac";
 import { sendMail, generateDeclineEmail } from "@/lib/email";
 
 interface DeclineRequest {
@@ -12,9 +12,6 @@ export async function POST(request: Request) {
   try {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
-
-    const check = requireSuperAdmin(admin);
-    if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
     const body: DeclineRequest = await request.json();
     
@@ -34,6 +31,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
     }
 
+    if (admin.role === "office_admin" && admin.office_id !== appointment.office_id) {
+      return NextResponse.json({ message: "You can only decline appointments for your office" }, { status: 403 });
+    }
+
     if (appointment.status !== "pending") {
       return NextResponse.json({ message: "Appointment is not in pending status" }, { status: 400 });
     }
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
 
-    const emailHtml = generateDeclineEmail(
+    const emailContent = generateDeclineEmail(
       appointment.full_name,
       appointment.date,
       appointment.time_slot,
@@ -62,7 +63,8 @@ export async function POST(request: Request) {
     const emailResult = await sendMail({
       to: appointment.email,
       subject: "Appointment Declined - USLS OAS",
-      html: emailHtml,
+      html: emailContent.html,
+      attachments: emailContent.attachments,
     });
 
     await supabase.from("email_logs").insert({

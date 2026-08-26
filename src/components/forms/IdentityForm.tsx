@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useRef } from "react";
+import imageCompression from "browser-image-compression";
 import type { BookingData } from "@/app/page";
+
+const VISITOR_CATEGORIES = [
+  { value: "general_public", label: "General Public" },
+  { value: "student", label: "Student" },
+  { value: "faculty", label: "Faculty / Staff" },
+  { value: "alumni", label: "Alumni" },
+  { value: "vendor", label: "Vendor / Supplier" },
+] as const;
 
 interface IdentityFormProps {
   data: BookingData;
@@ -10,11 +19,13 @@ interface IdentityFormProps {
 
 export function IdentityForm({ data, onNext }: IdentityFormProps) {
   const [formData, setFormData] = useState({ fullName: data.fullName, phone: data.phone, email: data.email });
+  const [visitorCategory, setVisitorCategory] = useState(data.visitorCategory || "general_public");
   const [idImage, setIdImage] = useState<File | null>(data.idImage);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [previewUrl, setPreviewUrl] = useState<string | null>(data.idImageUrl || null);
   const [consent, setConsent] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -23,20 +34,32 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setErrors((prev) => ({ ...prev, idImage: "Please upload an image file (JPEG, PNG)" }));
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors((prev) => ({ ...prev, idImage: "File size must be less than 5MB" }));
-      return;
-    }
-    setIdImage(file);
     setErrors((prev) => ({ ...prev, idImage: "" }));
-    const reader = new FileReader();
-    reader.onload = () => setPreviewUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    setCompressing(true);
+    try {
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        initialQuality: 0.8,
+      });
+      setIdImage(compressed);
+      const reader = new FileReader();
+      reader.onload = () => setPreviewUrl(reader.result as string);
+      reader.readAsDataURL(compressed);
+    } catch {
+      setIdImage(file);
+      const reader = new FileReader();
+      reader.onload = () => setPreviewUrl(reader.result as string);
+      reader.readAsDataURL(file);
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,7 +95,7 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) onNext({ ...formData, idImage });
+    if (validate()) onNext({ ...formData, visitorCategory, idImage });
   };
 
   return (
@@ -104,6 +127,16 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
           </div>
         </div>
 
+        <div>
+          <label htmlFor="visitorCategory" className="label">Visitor Category</label>
+          <select id="visitorCategory" value={visitorCategory} onChange={(e) => setVisitorCategory(e.target.value)}
+            className="input">
+            {VISITOR_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+
         {/* ID Upload */}
         <div>
           <label className="label">Upload Valid Government or School ID</label>
@@ -133,8 +166,14 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
               <p className="text-sm text-gray-600 mb-1">
                 <span className="text-primary font-medium">Click to upload</span> or drag and drop
               </p>
-              <p className="text-xs text-gray-400">JPEG, PNG up to 5MB</p>
+              <p className="text-xs text-gray-400">JPEG, PNG up to 5MB (auto-compressed)</p>
               <input ref={fileInputRef} id="idImage" type="file" className="sr-only" accept="image/jpeg,image/png,image/webp" onChange={handleFileChange} />
+            </div>
+          )}
+          {compressing && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-primary">
+              <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              Compressing image...
             </div>
           )}
           {errors.idImage && <p className="error-text mt-1">{errors.idImage}</p>}

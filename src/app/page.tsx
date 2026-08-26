@@ -10,10 +10,12 @@ export interface BookingData {
   email: string;
   idImage: File | null;
   idImageUrl: string;
+  visitorCategory: string;
   officeId: string;
   date: string;
   timeSlot: string;
   duration: 30 | 60;
+  purposeOfVisit: string;
 }
 
 const initialData: BookingData = {
@@ -22,10 +24,12 @@ const initialData: BookingData = {
   email: "",
   idImage: null,
   idImageUrl: "",
+  visitorCategory: "general_public",
   officeId: "",
   date: "",
   timeSlot: "",
   duration: 30,
+  purposeOfVisit: "",
 };
 
 export default function BookPage() {
@@ -66,10 +70,12 @@ export default function BookPage() {
           phone: finalData.phone,
           email: finalData.email,
           idImageUrl: finalData.idImageUrl,
+          visitorCategory: finalData.visitorCategory,
           officeId: finalData.officeId,
           date: finalData.date,
           timeSlot: finalData.timeSlot,
           duration: finalData.duration,
+          purposeOfVisit: finalData.purposeOfVisit,
         }),
       });
       if (!response.ok) {

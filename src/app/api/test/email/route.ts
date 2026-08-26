@@ -17,9 +17,9 @@ export async function POST(request: Request) {
     });
     const qrBuffer = Buffer.from(qrDataUrl.split(",")[1], "base64");
 
-    const html = generateApprovalEmail(
+    const emailContent = generateApprovalEmail(
       "Juan Dela Cruz",
-      "August 30, 2026",
+      "2026-08-30",
       "10:00 AM - 11:00 AM",
       "Registrar"
     );
@@ -27,8 +27,8 @@ export async function POST(request: Request) {
     const result = await sendMail({
       to,
       subject: "USLS OAS - Sample Approval Email",
-      html,
-      attachments: [{ filename: "qrcode.png", content: qrBuffer, cid: "qrcode", contentType: "image/png" }],
+      html: emailContent.html,
+      attachments: [...emailContent.attachments, { filename: "qrcode.png", content: qrBuffer, cid: "qrcode", contentType: "image/png" }],
     });
 
     if (result.success) {

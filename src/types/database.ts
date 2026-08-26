@@ -1,5 +1,6 @@
 export type AppointmentStatus = "pending" | "approved" | "declined" | "completed" | "expired";
 export type AdminRole = "super_admin" | "office_admin";
+export type VisitorCategory = "general_public" | "student" | "faculty" | "alumni" | "vendor";
 export type AuditAction = "approve" | "decline" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time";
 
 export interface Office {
@@ -19,6 +20,8 @@ export interface Appointment {
   phone: string;
   email: string;
   id_image_url: string;
+  visitor_category: VisitorCategory;
+  purpose_of_visit: string | null;
   office_id: string;
   date: string;
   time_slot: string;

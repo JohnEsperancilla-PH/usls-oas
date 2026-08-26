@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
+import { getAuthAdmin, logAudit } from "@/lib/rbac";
 import QRCode from "qrcode";
 import crypto from "crypto";
 import { sendMail, generateApprovalEmail } from "@/lib/email";
@@ -29,9 +29,6 @@ export async function POST(request: Request) {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
 
-    const check = requireSuperAdmin(admin);
-    if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
-
     const body: ApproveRequest = await request.json();
     
     if (!body.appointmentId) {
@@ -48,6 +45,10 @@ export async function POST(request: Request) {
 
     if (fetchError || !appointment) {
       return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
+    }
+
+    if (admin.role === "office_admin" && admin.office_id !== appointment.office_id) {
+      return NextResponse.json({ message: "You can only approve appointments for your office" }, { status: 403 });
     }
 
     if (appointment.status !== "pending") {
@@ -81,18 +82,18 @@ export async function POST(request: Request) {
     const qrBase64 = qrCodeDataUrl.split(",")[1];
     const qrBuffer = Buffer.from(qrBase64, "base64");
 
-    const emailHtml = generateApprovalEmail(
+    const emailResult = generateApprovalEmail(
       appointment.full_name,
       appointment.date,
       appointment.time_slot,
       appointment.offices?.name || "Unknown Office"
     );
 
-    const emailResult = await sendMail({
+    const mailResult = await sendMail({
       to: appointment.email,
       subject: "Appointment Approved - USLS OAS",
-      html: emailHtml,
-      attachments: [{
+      html: emailResult.html,
+      attachments: [...emailResult.attachments, {
         filename: "qrcode.png",
         content: qrBuffer,
         contentType: "image/png",
@@ -100,27 +101,27 @@ export async function POST(request: Request) {
       }],
     });
 
-    if (!emailResult.success) {
-      console.error("Approval email failed:", emailResult.error);
+    if (!mailResult.success) {
+      console.error("Approval email failed:", mailResult.error);
     }
 
     await supabase.from("email_logs").insert({
       appointment_id: appointment.id,
       type: "approval",
-      status: emailResult.success ? "sent" : "failed",
-      sent_at: emailResult.success ? new Date().toISOString() : null,
-      error_message: emailResult.success ? null : emailResult.error || "Failed to send approval email",
+      status: mailResult.success ? "sent" : "failed",
+      sent_at: mailResult.success ? new Date().toISOString() : null,
+      error_message: mailResult.success ? null : mailResult.error || "Failed to send approval email",
     });
 
     await logAudit(admin.id, admin.email, "approve", {
       appointment_id: appointment.id,
-      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, email_sent: emailResult.success, email_error: emailResult.error || null },
+      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, email_sent: mailResult.success, email_error: mailResult.error || null },
     });
 
     return NextResponse.json({
       message: "Appointment approved successfully",
-      emailSent: emailResult.success,
-      emailError: emailResult.success ? null : emailResult.error,
+      emailSent: mailResult.success,
+      emailError: mailResult.success ? null : mailResult.error,
       appointment: { id: appointment.id, status: "approved" },
     });
   } catch (error) {

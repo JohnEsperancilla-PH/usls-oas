@@ -7,10 +7,12 @@ interface AppointmentRequest {
   phone: string;
   email: string;
   idImageUrl: string;
+  visitorCategory: string;
   officeId: string;
   date: string;
   timeSlot: string;
   duration: 30 | 60;
+  purposeOfVisit?: string;
 }
 
 export async function POST(request: Request) {
@@ -110,6 +112,8 @@ export async function POST(request: Request) {
         phone: body.phone,
         email: body.email,
         id_image_url: body.idImageUrl,
+        visitor_category: body.visitorCategory || "general_public",
+        purpose_of_visit: body.purposeOfVisit || null,
         office_id: body.officeId,
         date: body.date,
         time_slot: body.timeSlot,
@@ -128,7 +132,7 @@ export async function POST(request: Request) {
     }
 
     // Send confirmation email to visitor
-    const confirmationEmailHtml = generateBookingConfirmationEmail(
+    const confirmationEmail = generateBookingConfirmationEmail(
       body.fullName,
       body.date,
       body.timeSlot,
@@ -138,7 +142,8 @@ export async function POST(request: Request) {
     const confirmationResult = await sendMail({
       to: body.email,
       subject: "Appointment Confirmation - USLS OAS",
-      html: confirmationEmailHtml,
+      html: confirmationEmail.html,
+      attachments: confirmationEmail.attachments,
     });
 
     // Log the email
@@ -157,7 +162,7 @@ export async function POST(request: Request) {
       .or(`office_id.eq.${body.officeId},role.eq.super_admin`);
 
     if (admins && admins.length > 0) {
-      const adminEmailHtml = generateAdminAlertEmail(
+      const adminEmail = generateAdminAlertEmail(
         body.fullName,
         body.date,
         body.timeSlot,
@@ -169,7 +174,8 @@ export async function POST(request: Request) {
         const adminResult = await sendMail({
           to: admin.email,
           subject: "New Appointment Request - USLS OAS",
-          html: adminEmailHtml,
+          html: adminEmail.html,
+          attachments: adminEmail.attachments,
         });
 
         await supabase.from("email_logs").insert({
@@ -183,10 +189,12 @@ export async function POST(request: Request) {
     }
 
     if (office.email) {
+      const officeEmail = generateAdminAlertEmail(body.fullName, body.date, body.timeSlot, office.name, appointment.id);
       await sendMail({
         to: office.email,
         subject: `New Appointment - ${body.fullName} on ${body.date}`,
-        html: generateAdminAlertEmail(body.fullName, body.date, body.timeSlot, office.name, appointment.id),
+        html: officeEmail.html,
+        attachments: officeEmail.attachments,
       });
     }
 

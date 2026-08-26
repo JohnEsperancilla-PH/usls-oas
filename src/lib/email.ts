@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -10,6 +12,16 @@ function getTransporter() {
       pass: process.env.SMTP_PASS,
     },
   });
+}
+
+function getLogoAttachment() {
+  const logoPath = join(process.cwd(), "public", "oas-white.svg");
+  return {
+    filename: "oas-logo.svg",
+    content: readFileSync(logoPath),
+    cid: "logo",
+    contentType: "image/svg+xml",
+  };
 }
 
 interface SendMailAttachments {
@@ -58,85 +70,112 @@ export async function sendMail({ to, subject, html, attachments }: SendMailOptio
   return { success: false, error: errorMessage };
 }
 
-function wrap(title: string, body: string) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
-<div style="max-width:520px;margin:24px auto;background:#fff;border-radius:8px;overflow:hidden;">
-<div style="background:#006633;padding:20px;text-align:center;">
-<strong style="color:#fff;font-size:16px;">USLS Online Appointment System</strong>
+function wrap(title: string, body: string, extraAttachments: SendMailAttachments[] = []) {
+  return {
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<div style="max-width:520px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+  <div style="background:#006633;padding:36px 24px;text-align:center;">
+    <img src="cid:logo" alt="USLS OAS" style="width:200px;height:auto;display:block;margin:0 auto;" />
+  </div>
+  <div style="padding:32px 28px;color:#333;line-height:1.6;font-size:15px;">
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#111;">${title}</h2>
+    <div style="width:40px;height:3px;background:#006633;border-radius:2px;margin-bottom:24px;"></div>
+    ${body}
+  </div>
+  <div style="padding:18px 28px;text-align:center;color:#999;font-size:11px;border-top:1px solid #eee;background:#fafafa;">
+    This is an automated message from USLS OAS. Please do not reply.
+  </div>
 </div>
-<div style="padding:28px 32px;color:#333;line-height:1.6;font-size:15px;">
-${body}
-</div>
-<div style="padding:16px 32px;text-align:center;color:#999;font-size:12px;border-top:1px solid #eee;">
-This is an automated message. Please do not reply.
-</div>
-</div></body></html>`;
+</body></html>`,
+    attachments: [getLogoAttachment(), ...extraAttachments],
+  };
 }
 
 function detailRow(label: string, value: string) {
-  return `<tr><td style="padding:6px 0;color:#666;">${label}</td><td style="padding:6px 0;font-weight:600;text-align:right;">${value}</td></tr>`;
+  return `<tr>
+    <td style="padding:12px 16px;color:#666;font-size:13px;border-bottom:1px solid #f3f4f6;">${label}</td>
+    <td style="padding:12px 16px;font-weight:600;text-align:right;font-size:13px;border-bottom:1px solid #f3f4f6;">${value}</td>
+  </tr>`;
+}
+
+function statusBadge(status: string, color: string) {
+  return `<span style="display:inline-block;background:${color}15;color:${color};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">${status}</span>`;
 }
 
 export function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string) {
-  return wrap("Appointment Confirmation", `
-    <p>Dear ${name},</p>
-    <p>Your appointment request has been submitted and is pending review.</p>
-    <table style="width:100%;margin:20px 0;border-collapse:collapse;">
-      ${detailRow("Date", date)}
-      ${detailRow("Time", time)}
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const result = wrap("Appointment Submitted", `
+    <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
+    <p style="color:#555;margin:0 0 24px;">Your appointment request has been received and is pending review. You will be notified once it has been reviewed.</p>
+    <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
-      ${detailRow("Status", '<span style="color:#b45309;">Pending</span>')}
+      ${detailRow("Date", formattedDate)}
+      ${detailRow("Time", time)}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Pending", "#b45309")}</td></tr>
     </table>
-    <p>You will be notified once your appointment has been reviewed.</p>
+    <p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>
   `);
+  return { html: result.html, attachments: result.attachments };
 }
 
 export function generateAdminAlertEmail(name: string, date: string, time: string, office: string, _appointmentId: string) {
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/admin`;
-  return wrap("New Appointment Request", `
-    <p>A new appointment has been submitted and requires review.</p>
-    <table style="width:100%;margin:20px 0;border-collapse:collapse;">
-      ${detailRow("Visitor", name)}
-      ${detailRow("Date", date)}
-      ${detailRow("Time", time)}
+  const result = wrap("New Appointment Request", `
+    <p style="color:#555;margin:0 0 20px;">A new appointment has been submitted and requires your review.</p>
+    <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Visitor Information</td></tr>
+      ${detailRow("Name", name)}
       ${detailRow("Office", office)}
+      ${detailRow("Date", formattedDate)}
+      ${detailRow("Time", time)}
     </table>
-    <p style="text-align:center;margin:24px 0;">
-      <a href="${dashboardUrl}" style="background:#006633;color:#fff;padding:12px 28px;text-decoration:none;border-radius:6px;font-weight:600;">Review Appointment</a>
-    </p>
+    <div style="text-align:center;margin:28px 0 12px;">
+      <a href="${dashboardUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Review Appointment</a>
+    </div>
+    <p style="color:#999;font-size:12px;margin:0;">You are receiving this because you are an administrator for this office.</p>
   `);
+  return { html: result.html, attachments: result.attachments };
 }
 
-export function generateApprovalEmail(name: string, date: string, time: string, office: string) {
-  return wrap("Appointment Approved", `
-    <p>Dear ${name},</p>
-    <p>Your appointment has been approved.</p>
-    <table style="width:100%;margin:20px 0;border-collapse:collapse;">
-      ${detailRow("Date", date)}
-      ${detailRow("Time", time)}
+export function generateApprovalEmail(name: string, date: string, time: string, office: string, extraAttachments: SendMailAttachments[] = []) {
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const result = wrap("Appointment Approved", `
+    <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
+    <p style="color:#555;margin:0 0 24px;">Great news! Your appointment has been approved. Please present the QR code below at the gate for entry.</p>
+    <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
-      ${detailRow("Status", '<span style="color:#006633;">Approved</span>')}
+      ${detailRow("Date", formattedDate)}
+      ${detailRow("Time", time)}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Approved", "#006633")}</td></tr>
     </table>
-    <p>Present this QR code at the gate for entry:</p>
-    <div style="text-align:center;margin:24px 0;">
-      <img src="cid:qrcode" alt="QR Code" style="width:180px;border:2px solid #006633;border-radius:8px;padding:8px;background:#fff;">
+    <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
+      <p style="margin:0 0 12px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Entry QR Code</p>
+      <img src="cid:qrcode" alt="QR Code" style="width:240px;border:2px solid #006633;border-radius:8px;padding:6px;background:#fff;" />
     </div>
-    <p style="font-size:13px;color:#666;">This QR code is single-use and will be invalidated after scanning.</p>
-  `);
+    <p style="color:#999;font-size:12px;margin:0;text-align:center;">This QR code is single-use and will be invalidated after scanning.</p>
+  `, extraAttachments);
+  return { html: result.html, attachments: result.attachments };
 }
 
 export function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string) {
-  return wrap("Appointment Declined", `
-    <p>Dear ${name},</p>
-    <p>Your appointment has been declined.</p>
-    <table style="width:100%;margin:20px 0;border-collapse:collapse;">
-      ${detailRow("Date", date)}
-      ${detailRow("Time", time)}
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const result = wrap("Appointment Declined", `
+    <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
+    <p style="color:#555;margin:0 0 24px;">We regret to inform you that your appointment has been declined.</p>
+    <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#fef2f2;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
-      ${detailRow("Status", '<span style="color:#dc2626;">Declined</span>')}
+      ${detailRow("Date", formattedDate)}
+      ${detailRow("Time", time)}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Declined", "#dc2626")}</td></tr>
       ${reason ? detailRow("Reason", reason) : ""}
     </table>
-    <p>You may submit a new appointment request if needed.</p>
+    <p style="color:#555;margin:0 0 8px;">You may submit a new appointment request at any time if you would like to try again.</p>
+    <p style="color:#999;font-size:13px;margin:0;">If you believe this was an error, please contact the office directly.</p>
   `);
+  return { html: result.html, attachments: result.attachments };
 }
