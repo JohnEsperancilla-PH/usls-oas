@@ -85,7 +85,7 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
         <div>
           <label htmlFor="fullName" className="label">Full Name</label>
           <input type="text" id="fullName" name="fullName" value={formData.fullName} onChange={handleInputChange}
-            className={`input ${errors.fullName ? "input-error" : ""}`} placeholder="Juan Dela Cruz" />
+            className={`input ${errors.fullName ? "input-error" : ""}`} placeholder="e.g. Juan Dela Cruz" />
           {errors.fullName && <p className="error-text">{errors.fullName}</p>}
         </div>
 
@@ -93,13 +93,13 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
           <div>
             <label htmlFor="phone" className="label">Phone Number</label>
             <input type="tel" id="phone" name="phone" value={formData.phone} onChange={handleInputChange}
-              className={`input ${errors.phone ? "input-error" : ""}`} placeholder="0917 123 4567" />
+              className={`input ${errors.phone ? "input-error" : ""}`} placeholder="e.g. 0917 123 4567" />
             {errors.phone && <p className="error-text">{errors.phone}</p>}
           </div>
           <div>
             <label htmlFor="email" className="label">Email Address</label>
             <input type="email" id="email" name="email" value={formData.email} onChange={handleInputChange}
-              className={`input ${errors.email ? "input-error" : ""}`} placeholder="you@example.com" />
+              className={`input ${errors.email ? "input-error" : ""}`} placeholder="e.g. juan.delacruz@email.com" />
             {errors.email && <p className="error-text">{errors.email}</p>}
           </div>
         </div>

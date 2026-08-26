@@ -115,7 +115,7 @@ export default function BookPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 py-5">
         <div className="container mx-auto px-4 flex items-center justify-center">
-          <img src="/oas.svg" alt="USLS OAS" className="h-10 w-auto" />
+          <img src="/oas.svg" alt="USLS OAS" className="h-14 w-auto" />
         </div>
       </header>
 
@@ -125,19 +125,19 @@ export default function BookPage() {
           <div className="mb-8">
             <div className="flex items-center justify-center gap-0">
               {[
-                { num: 1, label: "Identity Info" },
-                { num: 2, label: "Appointment Details" },
+                { num: 1, label: "Personal Information" },
+                { num: 2, label: "Appointment Request" },
               ].map((s, i) => (
                 <div key={s.num} className="flex items-center">
                   <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
+                    <div className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-300 ${
                       step > s.num ? "bg-primary text-white" : step === s.num ? "bg-primary text-white ring-4 ring-primary/20" : "bg-gray-200 text-gray-500"
                     }`}>
                       {step > s.num ? (
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                         </svg>
-                      ) : s.num}
+                      ) : `Step ${s.num}`}
                     </div>
                     <span className={`text-sm font-medium hidden sm:inline ${step >= s.num ? "text-gray-900" : "text-gray-400"}`}>{s.label}</span>
                   </div>

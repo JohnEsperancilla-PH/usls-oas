@@ -102,8 +102,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="min-h-screen bg-gray-50 flex">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 z-30">
-          <div className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 flex-shrink-0">
-                  <img src="/oas.svg" alt="USLS OAS" className="h-7 w-auto" />
+          <div className="flex items-center justify-center px-5 py-5 border-b border-gray-100 flex-shrink-0">
+            <img src="/oas.svg" alt="USLS OAS" className="h-12 w-auto" />
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => (
@@ -135,8 +135,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
             <aside className="relative w-72 h-full bg-white shadow-xl animate-fade-in">
               <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100">
-                <div className="flex items-center gap-2.5">
-            <img src="/oas.svg" alt="USLS OAS" className="h-8 w-auto" />
+                <div className="flex items-center justify-center">
+            <img src="/oas.svg" alt="USLS OAS" className="h-10 w-auto" />
                 </div>
                 <button onClick={() => setSidebarOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -180,7 +180,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </svg>
             </button>
             <div className="flex items-center gap-2">
-              <img src="/oas.svg" alt="USLS OAS" className="h-6 w-auto" />
+              <img src="/oas.svg" alt="USLS OAS" className="h-8 w-auto" />
             </div>
           </header>
           <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">

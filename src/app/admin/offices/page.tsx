@@ -132,7 +132,7 @@ export default function OfficesPage() {
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2"><label className="label">Office Name</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Registrar" /></div>
-                <div><label className="label">Email</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="office@usls.edu.ph" /></div>
+                <div><label className="label">Email</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@email.com" /></div>
                 <div><label className="label">Capacity per Slot</label><input type="number" min={1} className="input" value={form.capacity_per_slot} onChange={(e) => setForm({ ...form, capacity_per_slot: parseInt(e.target.value) || 1 })} /></div>
                 <div className="sm:col-span-2"><label className="label">Operating Hours</label><input className="input" value={form.operating_hours} onChange={(e) => setForm({ ...form, operating_hours: e.target.value })} required placeholder="8:00 AM - 5:00 PM" /></div>
                 <div className="sm:col-span-2"><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of the office..." /></div>

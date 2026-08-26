@@ -154,7 +154,7 @@ export default function AccountsPage() {
             <form onSubmit={handleCreate} className="p-5 space-y-4">
               <div>
                 <label className="label">Email</label>
-                <input type="email" required className="input" placeholder="admin@usls.edu.ph" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                <input type="email" required className="input" placeholder="name@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
               <div>
                 <label className="label">Name</label>

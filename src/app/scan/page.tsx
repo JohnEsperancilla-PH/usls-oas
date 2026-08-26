@@ -86,7 +86,7 @@ export default function ScanPage() {
       <header className="bg-gray-900 border-b border-gray-800 py-3 px-4 flex-shrink-0">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/oas-white.svg" alt="USLS OAS" className="h-7 w-auto" />
+            <img src="/oas-white.svg" alt="USLS OAS" className="h-10 w-auto" />
             <div>
               <h1 className="text-sm font-bold">Gate Verification</h1>
               <p className="text-xs text-gray-500">USLS OAS</p>
