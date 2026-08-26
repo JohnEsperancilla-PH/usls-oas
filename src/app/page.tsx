@@ -117,6 +117,8 @@ export default function BookPage() {
     );
   }
 
+  const year = new Date().getFullYear();
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 py-5">
@@ -171,6 +173,14 @@ export default function BookPage() {
           </div>
         </div>
       </main>
+
+      <footer className="border-t border-gray-200 bg-white py-6">
+        <div className="container mx-auto px-4 text-center text-xs text-gray-400 space-y-0.5">
+          <p>&copy; {year} OAS &mdash; Online Appointment System</p>
+          <p><a href="https://www.usls.edu.ph/cmc" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Center for Marketing and Communications</a></p>
+          <p><a href="https://www.usls.edu.ph" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">University of St. La Salle</a></p>
+        </div>
+      </footer>
     </div>
   );
 }
