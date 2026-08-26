@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import type { BookingData } from "@/app/book/page";
+import type { BookingData } from "@/app/page";
 
 interface IdentityFormProps {
   data: BookingData;
