@@ -53,19 +53,26 @@ export default function AccountsPage() {
     finally { setSaving(false); }
   };
 
-  const handleDelete = async (account: AdminAccount) => {
-    if (!confirm(`Remove ${account.email}?`)) return;
-    setMessage(null);
+  const [deletingAccount, setDeletingAccount] = useState<AdminAccount | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    if (!deletingAccount || !deletePassword) return;
+    setDeleteLoading(true); setDeleteError(null);
     try {
       const res = await fetch("/api/admin/accounts", {
         method: "DELETE",
         headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" },
-        body: JSON.stringify({ id: account.id }),
+        body: JSON.stringify({ id: deletingAccount.id, password: deletePassword }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       setMessage({ type: "success", text: "Account removed" });
+      setDeletingAccount(null); setDeletePassword("");
       fetchData();
-    } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
+    } catch (err) { setDeleteError(err instanceof Error ? err.message : "Failed"); }
+    finally { setDeleteLoading(false); }
   };
 
   const getRoleBadge = (role: string) => role === "super_admin"
@@ -126,7 +133,7 @@ export default function AccountsPage() {
                   {offices.find((o) => o.id === a.office_id)?.name || "—"}
                 </div>
               )}
-              <button onClick={() => handleDelete(a)} className="w-full text-center text-xs font-medium text-red-500 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">
+              <button onClick={() => { setDeletingAccount(a); setDeletePassword(""); setDeleteError(null); }} className="w-full text-center text-xs font-medium text-red-500 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">
                 Remove
               </button>
             </div>
@@ -189,6 +196,33 @@ export default function AccountsPage() {
                 <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary btn-sm">Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deletingAccount && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md animate-fade-in">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900">Remove Account</h3>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                You are about to remove <strong>{deletingAccount.name || deletingAccount.email}</strong>. Enter your password to confirm.
+              </p>
+              <div>
+                <label className="label">Your Password</label>
+                <input type="password" className="input" placeholder="Enter your password" value={deletePassword} onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(null); }} autoFocus onKeyDown={(e) => { if (e.key === "Enter") handleDelete(); }} />
+              </div>
+              {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
+              <div className="flex gap-2 pt-1">
+                <button onClick={handleDelete} disabled={deleteLoading || !deletePassword} className="btn-danger flex-1 btn-sm disabled:opacity-50">
+                  {deleteLoading ? "Removing..." : "Confirm Remove"}
+                </button>
+                <button onClick={() => { setDeletingAccount(null); setDeletePassword(""); setDeleteError(null); }} className="btn-secondary btn-sm">Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

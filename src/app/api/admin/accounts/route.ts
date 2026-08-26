@@ -91,11 +91,30 @@ export async function DELETE(request: Request) {
     const check = requireSuperAdmin(admin);
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
-    const { searchParams } = new URL(request.url);
-    const targetAdminId = searchParams.get("id");
+    const body = await request.json();
+    const { id: targetAdminId, password } = body;
 
     if (!targetAdminId) {
       return NextResponse.json({ message: "Admin ID is required" }, { status: 400 });
+    }
+
+    if (!password) {
+      return NextResponse.json({ message: "Password is required" }, { status: 400 });
+    }
+
+    // Verify the super admin's password
+    const { createClient } = await import("@supabase/supabase-js");
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { error: signInError } = await authClient.auth.signInWithPassword({
+      email: admin.email,
+      password,
+    });
+
+    if (signInError) {
+      return NextResponse.json({ message: "Incorrect password" }, { status: 403 });
     }
 
     const supabase = createServiceClient();
