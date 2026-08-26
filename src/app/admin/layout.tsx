@@ -103,12 +103,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 z-30">
           <div className="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 flex-shrink-0">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <span className="text-sm font-bold text-gray-900">USLS OAS</span>
+                  <img src="/oas.svg" alt="USLS OAS" className="h-7 w-auto" />
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => (
@@ -141,12 +136,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <aside className="relative w-72 h-full bg-white shadow-xl animate-fade-in">
               <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <span className="text-sm font-bold text-gray-900">USLS OAS</span>
+            <img src="/oas.svg" alt="USLS OAS" className="h-8 w-auto" />
                 </div>
                 <button onClick={() => setSidebarOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -190,12 +180,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </svg>
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center">
-                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <span className="text-sm font-bold text-gray-900">USLS OAS</span>
+              <img src="/oas.svg" alt="USLS OAS" className="h-6 w-auto" />
             </div>
           </header>
           <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">

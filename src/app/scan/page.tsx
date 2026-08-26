@@ -6,6 +6,7 @@ import { Html5Qrcode } from "html5-qrcode";
 interface ScanResult {
   success: boolean;
   message: string;
+  scannedAt?: string;
   appointment?: {
     id: string;
     fullName: string;
@@ -85,11 +86,7 @@ export default function ScanPage() {
       <header className="bg-gray-900 border-b border-gray-800 py-3 px-4 flex-shrink-0">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
+            <img src="/oas-white.svg" alt="USLS OAS" className="h-7 w-auto" />
             <div>
               <h1 className="text-sm font-bold">Gate Verification</h1>
               <p className="text-xs text-gray-500">USLS OAS</p>
@@ -134,6 +131,12 @@ export default function ScanPage() {
                     <div><span className="text-gray-500 text-xs">Date</span><p className="font-medium">{new Date(scanResult.appointment.date).toLocaleDateString()}</p></div>
                     <div><span className="text-gray-500 text-xs">Time</span><p className="font-medium">{scanResult.appointment.timeSlot} ({scanResult.appointment.duration}m)</p></div>
                   </div>
+                  {scanResult.scannedAt && (
+                    <div className="bg-green-900/30 border border-green-800/50 rounded-lg p-3 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="text-xs text-green-300">Entry recorded at {new Date(scanResult.scannedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                    </div>
+                  )}
                   <div className="border-t border-gray-700/50 pt-3">
                     <span className="text-gray-500 text-xs">ID for Verification</span>
                     <div className="mt-2">

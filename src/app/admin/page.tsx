@@ -65,7 +65,8 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setMessage({ type: "success", text: "Appointment approved" });
+      const emailMsg = data.emailSent ? "" : " (email failed to send — check SMTP logs)";
+      setMessage({ type: data.emailSent ? "success" : "error", text: `Appointment approved${emailMsg}` });
       setSelectedAppointment(null);
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
@@ -530,6 +531,15 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onClose, acti
             <span className="text-xs text-gray-400">Status:</span>
             <span className={getStatusBadge(appointment.status)}>{appointment.status}</span>
           </div>
+          {appointment.scanned_at && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+              <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <div>
+                <div className="text-xs font-medium text-green-700">Gate Entry Recorded</div>
+                <div className="text-sm text-green-600">{new Date(appointment.scanned_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
+              </div>
+            </div>
+          )}
           {appointment.decline_reason && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <div className="text-xs font-medium text-red-700 mb-0.5">Decline Reason</div>

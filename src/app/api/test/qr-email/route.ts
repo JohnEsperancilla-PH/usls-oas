@@ -45,7 +45,7 @@ export async function POST(request: Request) {
           </div>
           <p>Please present the QR code below at the gate for verification:</p>
           <div style="text-align: center; margin: 20px 0;">
-            <img src="cid:qrcode" alt="QR Code" style="max-width: 200px; border: 2px solid #006633; padding: 10px; background: white;">
+            <img src="cid:<qrcode>" alt="QR Code" style="max-width: 200px; border: 2px solid #006633; padding: 10px; background: white;">
           </div>
           <p><strong>Important:</strong> This QR code is single-use and will be invalidated after scanning at the gate.</p>
         </div>
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
         {
           filename: "qrcode.png",
           content: qrBuffer,
-          cid: "qrcode",
+          cid: "<qrcode>",
           contentType: "image/png",
         },
       ],

@@ -26,6 +26,7 @@ export interface Appointment {
   status: AppointmentStatus;
   qr_token: string | null;
   qr_used_at: string | null;
+  scanned_at: string | null;
   decline_reason: string | null;
   archived: boolean;
   created_at: string;

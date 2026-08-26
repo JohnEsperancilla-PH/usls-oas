@@ -90,24 +90,35 @@ export async function POST(request: Request) {
       to: appointment.email,
       subject: "Appointment Approved - USLS OAS",
       html: emailHtml,
-      attachments: [{ filename: "qrcode.png", content: qrBuffer, cid: "qrcode", contentType: "image/png" }],
+      attachments: [{
+        filename: "qrcode.png",
+        content: qrBuffer,
+        contentType: "image/png",
+        cid: "<qrcode>",
+      }],
     });
+
+    if (!emailResult.success) {
+      console.error("Approval email failed:", emailResult.error);
+    }
 
     await supabase.from("email_logs").insert({
       appointment_id: appointment.id,
       type: "approval",
       status: emailResult.success ? "sent" : "failed",
       sent_at: emailResult.success ? new Date().toISOString() : null,
-      error_message: emailResult.success ? null : "Failed to send approval email",
+      error_message: emailResult.success ? null : emailResult.error || "Failed to send approval email",
     });
 
     await logAudit(admin.id, admin.email, "approve", {
       appointment_id: appointment.id,
-      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email },
+      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, email_sent: emailResult.success, email_error: emailResult.error || null },
     });
 
     return NextResponse.json({
       message: "Appointment approved successfully",
+      emailSent: emailResult.success,
+      emailError: emailResult.success ? null : emailResult.error,
       appointment: { id: appointment.id, status: "approved" },
     });
   } catch (error) {

@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       to,
       subject: "USLS OAS - Sample Approval Email",
       html,
-      attachments: [{ filename: "qrcode.png", content: qrBuffer, cid: "qrcode", contentType: "image/png" }],
+      attachments: [{ filename: "qrcode.png", content: qrBuffer, cid: "<qrcode>", contentType: "image/png" }],
     });
 
     if (result.success) {

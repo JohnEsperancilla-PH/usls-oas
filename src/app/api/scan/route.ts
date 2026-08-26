@@ -92,37 +92,48 @@ export async function POST(request: Request) {
     }
 
     // Check if appointment is for today
-    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
     if (appointment.date !== today) {
+      let message = `Appointment is scheduled for ${appointment.date}`;
+      const apptDate = new Date(appointment.date + "T23:59:59");
+      if (now > apptDate) {
+        message = "QR code has expired — appointment date has passed";
+      }
       return NextResponse.json({
         success: false,
-        message: `Appointment is scheduled for ${appointment.date}`,
+        message,
       });
     }
 
-    // Mark QR code as used (atomic operation)
-    const { error: updateError } = await supabase
+    // Mark QR code as used and record gate entry time (atomic operation)
+    const scanTime = now.toISOString();
+    const { error: updateError, data: updated } = await supabase
       .from("appointments")
       .update({
-        qr_used_at: new Date().toISOString(),
+        qr_used_at: scanTime,
+        scanned_at: scanTime,
         status: "completed",
-        updated_at: new Date().toISOString(),
+        updated_at: scanTime,
       })
       .eq("id", appointment.id)
-      .is("qr_used_at", null); // Ensure it hasn't been used yet
+      .is("qr_used_at", null) // Ensure it hasn't been used yet
+      .select()
+      .single();
 
-    if (updateError) {
+    if (updateError || !updated) {
       console.error("Error updating appointment:", updateError);
       return NextResponse.json({
         success: false,
-        message: "Failed to verify QR code",
+        message: "QR code has already been used",
       });
     }
 
     // Return appointment details for verification
     return NextResponse.json({
       success: true,
-      message: "QR code verified successfully",
+      message: "QR code verified — entry approved",
+      scannedAt: scanTime,
       appointment: {
         id: appointment.id,
         fullName: appointment.full_name,
