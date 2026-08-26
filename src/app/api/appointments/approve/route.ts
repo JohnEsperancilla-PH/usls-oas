@@ -94,7 +94,7 @@ export async function POST(request: Request) {
         filename: "qrcode.png",
         content: qrBuffer,
         contentType: "image/png",
-        cid: "<qrcode>",
+        cid: "qrcode",
       }],
     });
 

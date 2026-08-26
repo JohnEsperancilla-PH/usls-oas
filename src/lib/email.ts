@@ -120,7 +120,7 @@ export function generateApprovalEmail(name: string, date: string, time: string, 
     </table>
     <p>Present this QR code at the gate for entry:</p>
     <div style="text-align:center;margin:24px 0;">
-      <img src="cid:<qrcode>" alt="QR Code" style="width:180px;border:2px solid #006633;border-radius:8px;padding:8px;background:#fff;">
+      <img src="cid:qrcode" alt="QR Code" style="width:180px;border:2px solid #006633;border-radius:8px;padding:8px;background:#fff;">
     </div>
     <p style="font-size:13px;color:#666;">This QR code is single-use and will be invalidated after scanning.</p>
   `);
