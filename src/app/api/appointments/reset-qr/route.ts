@@ -5,7 +5,7 @@ import QRCode from "qrcode";
 import crypto from "crypto";
 import { sendMail, generateApprovalEmail } from "@/lib/email";
 
-interface ApproveRequest {
+interface ResetRequest {
   appointmentId: string;
 }
 
@@ -16,11 +16,11 @@ function generateQRToken(appointmentId: string): string {
     timestamp: Date.now(),
     nonce: crypto.randomUUID(),
   });
-  
+
   const hmac = crypto.createHmac("sha256", secret);
   hmac.update(payload);
   const signature = hmac.digest("hex");
-  
+
   return Buffer.from(JSON.stringify({ payload, signature })).toString("base64");
 }
 
@@ -32,8 +32,8 @@ export async function POST(request: Request) {
     const check = requireSuperAdmin(admin);
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
-    const body: ApproveRequest = await request.json();
-    
+    const body: ResetRequest = await request.json();
+
     if (!body.appointmentId) {
       return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 });
     }
@@ -50,17 +50,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
     }
 
-    if (appointment.status !== "pending") {
-      return NextResponse.json({ message: "Appointment is not in pending status" }, { status: 400 });
+    if (appointment.status !== "completed") {
+      return NextResponse.json({ message: "Only completed appointments can be reset" }, { status: 400 });
     }
 
-    const qrToken = generateQRToken(appointment.id);
+    const newToken = generateQRToken(appointment.id);
 
     const { error: updateError } = await supabase
       .from("appointments")
       .update({
         status: "approved",
-        qr_token: qrToken,
+        qr_token: newToken,
         qr_used_at: null,
         scanned_at: null,
         updated_at: new Date().toISOString(),
@@ -68,11 +68,11 @@ export async function POST(request: Request) {
       .eq("id", appointment.id);
 
     if (updateError) {
-      console.error("Error updating appointment:", updateError);
-      return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
+      console.error("Error resetting appointment:", updateError);
+      return NextResponse.json({ message: "Failed to reset appointment" }, { status: 500 });
     }
 
-    const qrCodeDataUrl = await QRCode.toDataURL(qrToken, {
+    const qrCodeDataUrl = await QRCode.toDataURL(newToken, {
       width: 300,
       margin: 2,
       color: { dark: "#006633", light: "#ffffff" },
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
 
     const emailResult = await sendMail({
       to: appointment.email,
-      subject: "Appointment Approved - USLS OAS",
+      subject: "Appointment Re-approved — USLS OAS",
       html: emailHtml,
       attachments: [{
         filename: "qrcode.png",
@@ -100,27 +100,14 @@ export async function POST(request: Request) {
       }],
     });
 
-    if (!emailResult.success) {
-      console.error("Approval email failed:", emailResult.error);
-    }
-
-    await supabase.from("email_logs").insert({
-      appointment_id: appointment.id,
-      type: "approval",
-      status: emailResult.success ? "sent" : "failed",
-      sent_at: emailResult.success ? new Date().toISOString() : null,
-      error_message: emailResult.success ? null : emailResult.error || "Failed to send approval email",
-    });
-
     await logAudit(admin.id, admin.email, "approve", {
       appointment_id: appointment.id,
-      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, email_sent: emailResult.success, email_error: emailResult.error || null },
+      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, action: "reset_qr", email_sent: emailResult.success },
     });
 
     return NextResponse.json({
-      message: "Appointment approved successfully",
+      message: "QR code reset successfully",
       emailSent: emailResult.success,
-      emailError: emailResult.success ? null : emailResult.error,
       appointment: { id: appointment.id, status: "approved" },
     });
   } catch (error) {

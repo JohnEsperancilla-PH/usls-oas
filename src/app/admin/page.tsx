@@ -90,6 +90,24 @@ export default function AdminDashboardPage() {
     finally { setActionLoading(false); }
   };
 
+  const handleResetQR = async (appointment: Appointment) => {
+    setActionLoading(true); setMessage(null);
+    try {
+      const res = await fetch("/api/appointments/reset-qr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" },
+        body: JSON.stringify({ appointmentId: appointment.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      const emailMsg = data.emailSent ? "" : " (email failed to send — check SMTP logs)";
+      setMessage({ type: data.emailSent ? "success" : "error", text: `QR code reset${emailMsg}` });
+      setSelectedAppointment(null);
+      fetchAppointments(); fetchAllAppointments();
+    } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
+    finally { setActionLoading(false); }
+  };
+
   const stats = {
     pending: allAppointments.filter((a) => a.status === "pending").length,
     approved: allAppointments.filter((a) => a.status === "approved").length,
@@ -238,7 +256,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {selectedAppointment && (
-        <DetailModal appointment={selectedAppointment} offices={offices} onApprove={handleApprove} onDecline={handleDecline} onClose={() => setSelectedAppointment(null)} actionLoading={actionLoading} getStatusBadge={getStatusBadge} />
+        <DetailModal appointment={selectedAppointment} offices={offices} onApprove={handleApprove} onDecline={handleDecline} onResetQR={handleResetQR} onClose={() => setSelectedAppointment(null)} actionLoading={actionLoading} getStatusBadge={getStatusBadge} />
       )}
     </div>
   );
@@ -495,9 +513,9 @@ function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onU
 
 /* ─── Detail Modal ─── */
 
-function DetailModal({ appointment, offices, onApprove, onDecline, onClose, actionLoading, getStatusBadge }: {
+function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, onClose, actionLoading, getStatusBadge }: {
   appointment: Appointment; offices: Office[];
-  onApprove: (a: Appointment) => void; onDecline: (a: Appointment, reason?: string) => void;
+  onApprove: (a: Appointment) => void; onDecline: (a: Appointment, reason?: string) => void; onResetQR: (a: Appointment) => void;
   onClose: () => void; actionLoading: boolean; getStatusBadge: (s: string) => string;
 }) {
   const [declineReason, setDeclineReason] = useState("");
@@ -544,6 +562,14 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onClose, acti
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <div className="text-xs font-medium text-red-700 mb-0.5">Decline Reason</div>
               <div className="text-sm text-red-600">{appointment.decline_reason}</div>
+            </div>
+          )}
+          {appointment.status === "completed" && (
+            <div className="pt-3 border-t border-gray-100">
+              <button onClick={() => onResetQR(appointment)} disabled={actionLoading} className="btn-secondary w-full btn-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {actionLoading ? "Resetting..." : "Reset QR & Re-send Email"}
+              </button>
             </div>
           )}
           {appointment.status === "pending" && (
