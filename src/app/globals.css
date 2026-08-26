@@ -3,24 +3,183 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --primary: #006633;
+  --primary-light: #008c44;
+  --primary-dark: #004d26;
+  --secondary: #ffffff;
+  --accent: #f59e0b;
+  --error: #dc2626;
+  --success: #006633;
+  --pending: #f59e0b;
+  --border: #e5e7eb;
+  --card-bg: #f9fafb;
+  --muted: #6b7280;
+  --ring: #006633;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-primary-dark: var(--primary-dark);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-error: var(--error);
+  --color-success: var(--success);
+  --color-pending: var(--pending);
+  --color-border: var(--border);
+  --color-card-bg: var(--card-bg);
+  --color-muted: var(--muted);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ---- Buttons ---- */
+.btn-primary {
+  @apply bg-primary text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 hover:bg-primary-light focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-[0.98] shadow-sm hover:shadow-md;
+}
+
+.btn-secondary {
+  @apply bg-white text-primary border-2 border-primary px-6 py-3 rounded-lg font-medium transition-all duration-200 hover:bg-primary hover:text-white focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-[0.98];
+}
+
+.btn-danger {
+  @apply bg-error text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 active:scale-[0.98] shadow-sm hover:shadow-md;
+}
+
+.btn-ghost {
+  @apply text-gray-600 px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-gray-100 active:scale-[0.98];
+}
+
+.btn-sm {
+  @apply px-3 py-1.5 text-sm rounded-lg;
+}
+
+/* ---- Cards ---- */
+.card {
+  @apply bg-card-bg border border-border rounded-xl p-6 shadow-sm;
+}
+
+.card-hover {
+  @apply bg-card-bg border border-border rounded-xl p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5;
+}
+
+/* ---- Form elements ---- */
+.input {
+  @apply w-full px-4 py-3 border border-border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-gray-400;
+}
+
+.input-error {
+  @apply border-error focus:ring-error/30 focus:border-error;
+}
+
+.label {
+  @apply block text-sm font-medium text-gray-700 mb-1.5;
+}
+
+.select {
+  @apply w-full px-4 py-3 border border-border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white appearance-none cursor-pointer;
+}
+
+/* ---- Status badges ---- */
+.status-pending {
+  @apply bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-full text-xs font-semibold;
+}
+
+.status-approved {
+  @apply bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded-full text-xs font-semibold;
+}
+
+.status-declined {
+  @apply bg-red-50 text-red-700 border border-red-200 px-3 py-1 rounded-full text-xs font-semibold;
+}
+
+.status-completed {
+  @apply bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-semibold;
+}
+
+.status-expired {
+  @apply bg-gray-50 text-gray-500 border border-gray-200 px-3 py-1 rounded-full text-xs font-semibold;
+}
+
+/* ---- Skeleton loader ---- */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  @apply rounded-lg;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ---- Toast notification ---- */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+
+.toast {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.toast-exit {
+  animation: slideOutRight 0.3s ease-in forwards;
+}
+
+/* ---- Fade in ---- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ---- Pulse dot for live status ---- */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulse-dot {
+  @apply w-2 h-2 rounded-full bg-green-500 inline-block;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* ---- Print styles ---- */
+@media print {
+  header, nav, .no-print { display: none !important; }
+  body { background: white; }
 }
