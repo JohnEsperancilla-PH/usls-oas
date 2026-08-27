@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     });
     const qrBuffer = Buffer.from(qrDataUrl.split(",")[1], "base64");
 
-    const emailContent = generateApprovalEmail(
+    const emailContent = await generateApprovalEmail(
       "Juan Dela Cruz",
       "2026-08-30",
       "10:00 AM - 11:00 AM",

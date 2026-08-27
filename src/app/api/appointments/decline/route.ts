@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
-import { sendMail, generateDeclineEmail } from "@/lib/email";
+import { sendMail, generateDeclineEmail, isNotificationEnabled } from "@/lib/email";
 
 interface DeclineRequest {
   appointmentId: string;
@@ -52,20 +52,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
 
-    const emailContent = generateDeclineEmail(
+    const emailContent = await generateDeclineEmail(
       appointment.full_name,
       appointment.date,
       appointment.time_slot,
       appointment.offices?.name || "Unknown Office",
-      body.reason
+      body.reason,
+      appointment.offices?.contact_email,
+      appointment.offices?.contact_phone
     );
 
-    const emailResult = await sendMail({
-      to: appointment.email,
-      subject: "Appointment Declined - USLS OAS",
-      html: emailContent.html,
-      attachments: emailContent.attachments,
-    });
+    let emailResult = { success: false };
+    if (await isNotificationEnabled("decline")) {
+      emailResult = await sendMail({
+        to: appointment.email,
+        subject: "Appointment Declined - USLS OAS",
+        html: emailContent.html,
+        attachments: emailContent.attachments,
+      });
+    }
 
     await supabase.from("email_logs").insert({
       appointment_id: appointment.id,

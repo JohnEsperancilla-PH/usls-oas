@@ -91,21 +91,19 @@ export default function ScanPage() {
 
   useEffect(() => {
     if (cooldown > 0) {
-      cooldownRef.current = setTimeout(() => {
-        setCooldown((c) => {
-          if (c <= 1) { startScanner(); return 0; }
-          return c - 1;
-        });
-      }, 1000);
+      cooldownRef.current = setTimeout(() => setCooldown((c) => c - 1), 1000);
       return () => { if (cooldownRef.current) clearTimeout(cooldownRef.current); };
     }
-  }, [cooldown]);
+    if (cooldown === 0 && scanResult) {
+      startScanner();
+    }
+  }, [cooldown, scanResult]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 py-3 px-4 flex-shrink-0">
         <div className="max-w-lg mx-auto flex items-center justify-center">
-          <img src="/oas.svg" alt="USLS OAS" className="h-12 sm:h-10 w-auto" />
+          <img src="/oas.svg" alt="USLS OAS" className="h-24 sm:h-20 w-auto" />
         </div>
       </header>
 

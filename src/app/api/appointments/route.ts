@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendMail, generateBookingConfirmationEmail, generateAdminAlertEmail } from "@/lib/email";
+import { sendMail, generateBookingConfirmationEmail, generateAdminAlertEmail, isNotificationEnabled } from "@/lib/email";
 
 interface AppointmentRequest {
   fullName: string;
@@ -132,19 +132,24 @@ export async function POST(request: Request) {
     }
 
     // Send confirmation email to visitor
-    const confirmationEmail = generateBookingConfirmationEmail(
-      body.fullName,
-      body.date,
-      body.timeSlot,
-      office.name
-    );
+    let confirmationResult = { success: false };
+    if (await isNotificationEnabled("confirmation")) {
+      const confirmationEmail = await generateBookingConfirmationEmail(
+        body.fullName,
+        body.date,
+        body.timeSlot,
+        office.name,
+        office.contact_email,
+        office.contact_phone
+      );
 
-    const confirmationResult = await sendMail({
-      to: body.email,
-      subject: "Appointment Confirmation - USLS OAS",
-      html: confirmationEmail.html,
-      attachments: confirmationEmail.attachments,
-    });
+      confirmationResult = await sendMail({
+        to: body.email,
+        subject: "Appointment Confirmation - USLS OAS",
+        html: confirmationEmail.html,
+        attachments: confirmationEmail.attachments,
+      });
+    }
 
     // Log the email
     await supabase.from("email_logs").insert({
@@ -156,46 +161,48 @@ export async function POST(request: Request) {
     });
 
     // Send admin alert email
-    const { data: admins } = await supabase
-      .from("admins")
-      .select("email")
-      .or(`office_id.eq.${body.officeId},role.eq.super_admin`);
+    if (await isNotificationEnabled("admin_alert")) {
+      const { data: admins } = await supabase
+        .from("admins")
+        .select("email")
+        .or(`office_id.eq.${body.officeId},role.eq.super_admin`);
 
-    if (admins && admins.length > 0) {
-      const adminEmail = generateAdminAlertEmail(
-        body.fullName,
-        body.date,
-        body.timeSlot,
-        office.name,
-        appointment.id
-      );
+      if (admins && admins.length > 0) {
+        const adminEmail = await generateAdminAlertEmail(
+          body.fullName,
+          body.date,
+          body.timeSlot,
+          office.name,
+          appointment.id
+        );
 
-      for (const admin of admins) {
-        const adminResult = await sendMail({
-          to: admin.email,
-          subject: "New Appointment Request - USLS OAS",
-          html: adminEmail.html,
-          attachments: adminEmail.attachments,
-        });
+        for (const admin of admins) {
+          const adminResult = await sendMail({
+            to: admin.email,
+            subject: "New Appointment Request - USLS OAS",
+            html: adminEmail.html,
+            attachments: adminEmail.attachments,
+          });
 
-        await supabase.from("email_logs").insert({
-          appointment_id: appointment.id,
-          type: "admin_alert",
-          status: adminResult.success ? "sent" : "failed",
-          sent_at: adminResult.success ? new Date().toISOString() : null,
-          error_message: adminResult.success ? null : "Failed to send admin alert email",
+          await supabase.from("email_logs").insert({
+            appointment_id: appointment.id,
+            type: "admin_alert",
+            status: adminResult.success ? "sent" : "failed",
+            sent_at: adminResult.success ? new Date().toISOString() : null,
+            error_message: adminResult.success ? null : "Failed to send admin alert email",
+          });
+        }
+      }
+
+      if (office.email) {
+        const officeEmail = await generateAdminAlertEmail(body.fullName, body.date, body.timeSlot, office.name, appointment.id);
+        await sendMail({
+          to: office.email,
+          subject: `New Appointment - ${body.fullName} on ${body.date}`,
+          html: officeEmail.html,
+          attachments: officeEmail.attachments,
         });
       }
-    }
-
-    if (office.email) {
-      const officeEmail = generateAdminAlertEmail(body.fullName, body.date, body.timeSlot, office.name, appointment.id);
-      await sendMail({
-        to: office.email,
-        subject: `New Appointment - ${body.fullName} on ${body.date}`,
-        html: officeEmail.html,
-        attachments: officeEmail.attachments,
-      });
     }
 
     return NextResponse.json(

@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
 import QRCode from "qrcode";
 import crypto from "crypto";
-import { sendMail, generateApprovalEmail } from "@/lib/email";
+import { sendMail, generateApprovalEmail, isNotificationEnabled } from "@/lib/email";
 
 interface ResetRequest {
   appointmentId: string;
@@ -82,24 +82,27 @@ export async function POST(request: Request) {
     const qrBase64 = qrCodeDataUrl.split(",")[1];
     const qrBuffer = Buffer.from(qrBase64, "base64");
 
-    const emailResult = generateApprovalEmail(
+    const emailResult = await generateApprovalEmail(
       appointment.full_name,
       appointment.date,
       appointment.time_slot,
       appointment.offices?.name || "Unknown Office"
     );
 
-    const mailResult = await sendMail({
-      to: appointment.email,
-      subject: "Appointment Re-approved — USLS OAS",
-      html: emailResult.html,
-      attachments: [...emailResult.attachments, {
-        filename: "qrcode.png",
-        content: qrBuffer,
-        contentType: "image/png",
-        cid: "qrcode",
-      }],
-    });
+    let mailResult: { success: boolean; error?: string | null; messageId?: string } = { success: false };
+    if (await isNotificationEnabled("qr_resend")) {
+      mailResult = await sendMail({
+        to: appointment.email,
+        subject: "Appointment Re-approved — USLS OAS",
+        html: emailResult.html,
+        attachments: [...emailResult.attachments, {
+          filename: "qrcode.png",
+          content: qrBuffer,
+          contentType: "image/png",
+          cid: "qrcode",
+        }],
+      });
+    }
 
     await logAudit(admin.id, admin.email, "approve", {
       appointment_id: appointment.id,

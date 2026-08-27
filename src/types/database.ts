@@ -11,6 +11,8 @@ export interface Office {
   operating_hours: string;
   capacity_per_slot: number;
   active: boolean;
+  contact_email: string | null;
+  contact_phone: string | null;
   created_at: string;
 }
 

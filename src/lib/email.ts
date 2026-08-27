@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
 import { readFileSync } from "fs";
 import { join } from "path";
+import sharp from "sharp";
+import { createServiceClient } from "@/lib/supabase/server";
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -14,13 +16,33 @@ function getTransporter() {
   });
 }
 
-function getLogoAttachment() {
-  const logoPath = join(process.cwd(), "public", "oas-white.svg");
+export async function isNotificationEnabled(type: string): Promise<boolean> {
+  try {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", `notify_${type}`)
+      .single();
+    return data?.value !== "false";
+  } catch {
+    return true;
+  }
+}
+
+let logoPngCache: Buffer | null = null;
+
+async function getLogoAttachment() {
+  if (!logoPngCache) {
+    const logoPath = join(process.cwd(), "public", "oas-white.svg");
+    const svg = readFileSync(logoPath);
+    logoPngCache = await sharp(svg).resize(600).png().toBuffer();
+  }
   return {
-    filename: "oas-logo.svg",
-    content: readFileSync(logoPath),
+    filename: "oas-logo.png",
+    content: logoPngCache,
     cid: "logo",
-    contentType: "image/svg+xml",
+    contentType: "image/png",
   };
 }
 
@@ -70,13 +92,19 @@ export async function sendMail({ to, subject, html, attachments }: SendMailOptio
   return { success: false, error: errorMessage };
 }
 
-function wrap(title: string, body: string, extraAttachments: SendMailAttachments[] = []) {
+interface WrapResult {
+  html: string;
+  attachments: SendMailAttachments[];
+}
+
+async function wrap(title: string, body: string, extraAttachments: SendMailAttachments[] = []): Promise<WrapResult> {
+  const logo = await getLogoAttachment();
   return {
     html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <div style="max-width:520px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
   <div style="background:#006633;padding:36px 24px;text-align:center;">
-    <img src="cid:logo" alt="USLS OAS" style="width:260px;height:auto;display:block;margin:0 auto;" />
+    <img src="cid:logo" alt="USLS OAS" style="width:180px;height:auto;display:block;margin:0 auto;" />
   </div>
   <div style="padding:32px 28px;color:#333;line-height:1.6;font-size:15px;">
     <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#111;">${title}</h2>
@@ -90,7 +118,7 @@ function wrap(title: string, body: string, extraAttachments: SendMailAttachments
   </div>
 </div>
 </body></html>`,
-    attachments: [getLogoAttachment(), ...extraAttachments],
+    attachments: [logo, ...extraAttachments],
   };
 }
 
@@ -105,9 +133,15 @@ function statusBadge(status: string, color: string) {
   return `<span style="display:inline-block;background:${color}15;color:${color};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">${status}</span>`;
 }
 
-export function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string) {
+export async function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string, contactEmail?: string | null, contactPhone?: string | null) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const result = wrap("Appointment Submitted", `
+  const contactLines: string[] = [];
+  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${contactEmail}`);
+  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${contactPhone}`);
+  const contactBlock = contactLines.length > 0
+    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0f7ff;border-radius:8px;border:1px solid #d0e3f7;font-size:13px;color:#555;line-height:1.8;">For follow-up questions, contact the office:<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
+  const result = await wrap("Appointment Submitted", `
     <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
     <p style="color:#555;margin:0 0 24px;">Your appointment request has been received and is pending review. You will be notified once it has been reviewed.</p>
     <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
@@ -117,15 +151,15 @@ export function generateBookingConfirmationEmail(name: string, date: string, tim
       ${detailRow("Time", time)}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Pending", "#b45309")}</td></tr>
     </table>
-    <p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>
+    ${contactBlock}
   `);
   return { html: result.html, attachments: result.attachments };
 }
 
-export function generateAdminAlertEmail(name: string, date: string, time: string, office: string, _appointmentId: string) {
+export async function generateAdminAlertEmail(name: string, date: string, time: string, office: string, _appointmentId: string) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/admin`;
-  const result = wrap("New Appointment Request", `
+  const result = await wrap("New Appointment Request", `
     <p style="color:#555;margin:0 0 20px;">A new appointment has been submitted and requires your review.</p>
     <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Visitor Information</td></tr>
@@ -142,9 +176,9 @@ export function generateAdminAlertEmail(name: string, date: string, time: string
   return { html: result.html, attachments: result.attachments };
 }
 
-export function generateApprovalEmail(name: string, date: string, time: string, office: string, extraAttachments: SendMailAttachments[] = []) {
+export async function generateApprovalEmail(name: string, date: string, time: string, office: string, extraAttachments: SendMailAttachments[] = []) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const result = wrap("Appointment Approved", `
+  const result = await wrap("Appointment Approved", `
     <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
     <p style="color:#555;margin:0 0 24px;">Great news! Your appointment has been approved. Please present the QR code below at the gate for entry.</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
@@ -163,9 +197,15 @@ export function generateApprovalEmail(name: string, date: string, time: string, 
   return { html: result.html, attachments: result.attachments };
 }
 
-export function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string) {
+export async function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string, contactEmail?: string | null, contactPhone?: string | null) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const result = wrap("Appointment Declined", `
+  const contactLines: string[] = [];
+  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${contactEmail}`);
+  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${contactPhone}`);
+  const contactBlock = contactLines.length > 0
+    ? `<div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;font-size:13px;color:#555;line-height:1.8;">If you believe this was an error, contact the office:<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:0;">If you believe this was an error, please contact the office directly.</p>`;
+  const result = await wrap("Appointment Declined", `
     <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
     <p style="color:#555;margin:0 0 24px;">We regret to inform you that your appointment has been declined.</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#fef2f2;border-radius:8px;overflow:hidden;">
@@ -177,7 +217,7 @@ export function generateDeclineEmail(name: string, date: string, time: string, o
       ${reason ? detailRow("Reason", reason) : ""}
     </table>
     <p style="color:#555;margin:0 0 8px;">You may submit a new appointment request at any time if you would like to try again.</p>
-    <p style="color:#999;font-size:13px;margin:0;">If you believe this was an error, please contact the office directly.</p>
+    ${contactBlock}
   `);
   return { html: result.html, attachments: result.attachments };
 }

@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import type { Appointment, Office, BlockedTime } from "@/types/database";
 
+interface ArchivedAppointment extends Appointment {
+  office_name?: string;
+  archived_at?: string;
+}
+
 export default function AdminDashboardPage() {
   const { admin } = useAdmin();
   const isSuperAdmin = admin?.role === "super_admin";
@@ -16,6 +21,10 @@ export default function AdminDashboardPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [archivedData, setArchivedData] = useState<{ data: ArchivedAppointment[]; total: number }>({ data: [], total: 0 });
+  const [archivedSearch, setArchivedSearch] = useState("");
+  const [archivedPage, setArchivedPage] = useState(1);
+  const [selectedArchived, setSelectedArchived] = useState<ArchivedAppointment | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true);
@@ -52,6 +61,25 @@ export default function AdminDashboardPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchAppointments(); fetchAllAppointments(); fetchOffices(); }, [filter]);
+
+  const fetchArchived = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(archivedPage), limit: "50" });
+      if (archivedSearch) params.set("search", archivedSearch);
+      if (admin?.office_id && !isSuperAdmin) params.set("officeId", admin.office_id);
+      const res = await fetch(`/api/admin/archived?${params}`, {
+        headers: { "x-admin-email": admin?.email || "" },
+      });
+      if (!res.ok) throw new Error("Failed to fetch archived");
+      const data = await res.json();
+      setArchivedData(data);
+    } catch { /* */ }
+    finally { setLoading(false); }
+  }, [admin, archivedPage, archivedSearch, isSuperAdmin]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { if (filter === "archived") fetchArchived(); }, [filter, fetchArchived]);
 
   const getOfficeName = (officeId: string) => offices.find((o) => o.id === officeId)?.name || "Unknown";
 
@@ -155,8 +183,8 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {["pending", "approved", "declined", "all"].map((s) => (
-          <button key={s} onClick={() => setFilter(s)}
+        {["pending", "approved", "declined", "archived", "all"].map((s) => (
+          <button key={s} onClick={() => { setFilter(s); if (s === "archived") { setArchivedPage(1); } }}
             className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filter === s ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
             {s.charAt(0).toUpperCase() + s.slice(1)}
             {s === "pending" && stats.pending > 0 && <span className="ml-1.5 bg-white/20 px-1.5 rounded-full text-xs">{stats.pending}</span>}
@@ -171,8 +199,120 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {loading ? (
+      {filter === "archived" ? (
+        <>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input type="text" value={archivedSearch} onChange={(e) => { setArchivedSearch(e.target.value); setArchivedPage(1); }} placeholder="Search archived records..." className="input pl-10 text-sm" />
+            </div>
+            <div className="text-xs text-gray-400">{archivedData.total} archived records</div>
+          </div>
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {loading ? (
+              <div className="p-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" /></div>
+            ) : archivedData.data.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                </div>
+                <p className="text-sm text-gray-500">No archived records found</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead><tr className="border-b border-gray-100">
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visitor</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Office</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Archived</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-50">
+                  {archivedData.data.map((a) => (
+                    <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
+                        <div className="text-xs text-gray-400">{a.email}</div>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-gray-600">{a.office_name || getOfficeName(a.office_id)}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="text-sm text-gray-900">{new Date(a.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                        <div className="text-xs text-gray-400">{a.time_slot} · {a.duration}m</div>
+                      </td>
+                      <td className="px-5 py-3.5"><span className={getStatusBadge(a.status)}>{a.status}</span></td>
+                      <td className="px-5 py-3.5 text-xs text-gray-400 text-right">{a.archived_at ? new Date(a.archived_at as unknown as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"}</td>
+                      <td className="px-5 py-3.5 text-right">
+                        <button onClick={() => setSelectedArchived(a)} className="text-xs font-medium text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors">View</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          {archivedData.total > 50 && (
+            <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-3">
+              <button onClick={() => setArchivedPage((p) => Math.max(1, p - 1))} disabled={archivedPage === 1} className="btn-secondary btn-sm disabled:opacity-30">Previous</button>
+              <span className="text-xs text-gray-500">Page {archivedPage} of {Math.ceil(archivedData.total / 50)}</span>
+              <button onClick={() => setArchivedPage((p) => p + 1)} disabled={archivedPage * 50 >= archivedData.total} className="btn-secondary btn-sm disabled:opacity-30">Next</button>
+            </div>
+          )}
+          {selectedArchived && (
+            <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+              <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto animate-fade-in">
+                <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+                  <h3 className="font-semibold text-gray-900">Archived Record</h3>
+                  <button onClick={() => setSelectedArchived(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      ["Visitor", selectedArchived.full_name],
+                      ["Category", (selectedArchived.visitor_category || "general_public").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())],
+                      ["Email", selectedArchived.email],
+                      ["Phone", selectedArchived.phone],
+                      ["Office", selectedArchived.office_name || getOfficeName(selectedArchived.office_id)],
+                      ["Date", new Date(selectedArchived.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
+                      ["Time", `${selectedArchived.time_slot} (${selectedArchived.duration} min)`],
+                    ].map(([l, v]) => (
+                      <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
+                    ))}
+                  </div>
+                  {selectedArchived.purpose_of_visit && (
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Purpose of Visit</div>
+                      <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">{selectedArchived.purpose_of_visit}</div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-xs text-gray-400 mb-1.5">ID Photo</div>
+                    <img src={`/api/admin/archived/image?id=${selectedArchived.id}`} alt="ID" className="w-full max-w-[200px] h-auto rounded-lg border border-gray-200" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">Status:</span>
+                    <span className={getStatusBadge(selectedArchived.status)}>{selectedArchived.status}</span>
+                  </div>
+                  {selectedArchived.decline_reason && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="text-xs font-medium text-red-700 mb-0.5">Decline Reason</div>
+                      <div className="text-sm text-red-600">{selectedArchived.decline_reason}</div>
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-400">
+                    Archived on {selectedArchived.archived_at ? new Date(selectedArchived.archived_at as unknown as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "-"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {loading ? (
           <div className="p-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" /></div>
         ) : appointments.length === 0 ? (
           <div className="p-12 text-center">
@@ -254,6 +394,8 @@ export default function AdminDashboardPage() {
           ))
         )}
       </div>
+        </>
+      )}
 
       {selectedAppointment && (
         <DetailModal appointment={selectedAppointment} offices={offices} onApprove={handleApprove} onDecline={handleDecline} onResetQR={handleResetQR} onClose={() => setSelectedAppointment(null)} actionLoading={actionLoading} getStatusBadge={getStatusBadge} />
