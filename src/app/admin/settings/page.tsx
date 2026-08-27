@@ -294,12 +294,12 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-[11px] text-gray-400 mb-1">Contact Email</label>
                   <input type="email" value={office.contact_email || ""} onChange={(e) => updateOffice(office.id, "contact_email", e.target.value)}
-                    className="input text-sm" placeholder={office.email || "Same as office email"} />
+                    className="input" placeholder={office.email || "Same as office email"} />
                 </div>
                 <div>
                   <label className="block text-[11px] text-gray-400 mb-1">Contact Phone</label>
                   <input type="tel" value={office.contact_phone || ""} onChange={(e) => updateOffice(office.id, "contact_phone", e.target.value)}
-                    className="input text-sm" placeholder="e.g. (034) 433-7777 loc 123" />
+                    className="input" placeholder="e.g. (034) 433-7777 loc 123" />
                 </div>
               </div>
               <div className="mt-2 flex justify-end">

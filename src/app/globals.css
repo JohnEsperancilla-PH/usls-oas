@@ -42,6 +42,7 @@ body {
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 /* Focus visible for keyboard navigation */
@@ -88,6 +89,12 @@ body {
 }
 
 /* ---- Form elements ---- */
+.input,
+.select,
+textarea {
+  font-size: 16px;
+}
+
 .input {
   @apply w-full px-4 py-3 border border-border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-gray-400;
 }
@@ -165,6 +172,25 @@ body {
 
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+/* ---- Sidebar slide ---- */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideOutLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.25s ease-out;
+}
+
+.animate-slide-out-left {
+  animation: slideOutLeft 0.2s ease-in forwards;
 }
 
 /* ---- Pulse dot for live status ---- */

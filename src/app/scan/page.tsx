@@ -101,9 +101,9 @@ export default function ScanPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-100 py-3 px-4 flex-shrink-0">
+      <header className="bg-white border-b border-gray-100 py-3 px-4 flex-shrink-0 overflow-hidden">
         <div className="max-w-lg mx-auto flex items-center justify-center">
-          <img src="/oas.svg" alt="USLS OAS" className="h-24 sm:h-20 w-auto" />
+          <img src="/oas.svg" alt="USLS OAS" className="h-12 sm:h-14 w-auto" />
         </div>
       </header>
 

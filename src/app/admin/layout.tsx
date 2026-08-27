@@ -100,11 +100,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <AdminContext.Provider value={{ user, admin }}>
-      <div className="min-h-screen bg-gray-50 flex">
+      <div className="min-h-screen bg-gray-50 flex overflow-x-hidden">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 z-30">
-          <div className="flex items-center justify-center px-5 py-5 border-b border-gray-100 flex-shrink-0">
-            <img src="/oas.svg" alt="USLS OAS" className="h-24 w-auto" />
+          <div className="flex items-center justify-center px-5 py-5 border-b border-gray-100 flex-shrink-0 overflow-hidden">
+            <img src="/oas.svg" alt="USLS OAS" className="h-14 w-auto" />
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => (
@@ -134,10 +134,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {sidebarOpen && (
           <div className="lg:hidden fixed inset-0 z-40">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
-            <aside className="relative w-72 h-full bg-white shadow-xl animate-fade-in">
+            <aside className="relative w-72 h-full bg-white shadow-xl animate-slide-in-left">
               <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100">
                 <div className="flex items-center justify-center">
-            <img src="/oas.svg" alt="USLS OAS" className="h-20 w-auto" />
+            <img src="/oas.svg" alt="USLS OAS" className="h-10 w-auto" />
                 </div>
                 <button onClick={() => setSidebarOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,19 +172,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
 
         {/* Main content */}
-        <div className="flex-1 lg:pl-60 flex flex-col min-h-screen">
+        <div className="flex-1 lg:pl-60 flex flex-col min-h-screen min-w-0 overflow-x-hidden">
           {/* Mobile top bar */}
-          <header className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-20 h-14 flex items-center px-4 gap-3">
+          <header className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-20 h-14 flex items-center px-4 gap-3 overflow-hidden">
             <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-gray-100 text-gray-500">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <div className="flex items-center gap-2">
-              <img src="/oas.svg" alt="USLS OAS" className="h-16 w-auto" />
-            </div>
           </header>
-          <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+          <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8 min-w-0 overflow-x-hidden">
             {children}
           </main>
         </div>
