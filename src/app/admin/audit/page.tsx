@@ -10,7 +10,7 @@ export default function AuditPage() {
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/audit", { headers: { "x-admin-email": "" } });
+      const response = await fetch("/api/admin/audit", {});
       if (!response.ok) throw new Error("Failed");
       const data = await response.json();
       setLogs(data || []);

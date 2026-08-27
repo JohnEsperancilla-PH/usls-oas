@@ -44,8 +44,8 @@ export default function SettingsPage() {
     if (!admin) return;
     try {
       const [settingsRes, officesRes] = await Promise.all([
-        fetch("/api/admin/settings", { headers: { "x-admin-email": admin.email } }),
-        fetch("/api/admin/office-settings", { headers: { "x-admin-email": admin.email } }),
+        fetch("/api/admin/settings", {}),
+        fetch("/api/admin/office-settings", {}),
       ]);
       if (settingsRes.ok) setSettings(await settingsRes.json());
       if (officesRes.ok) setOffices(await officesRes.json());
@@ -98,7 +98,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin.email },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       });
       if (!res.ok) throw new Error("Failed to save");
@@ -112,7 +112,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/admin/office-settings", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin.email },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ officeId: office.id, contact_email: office.contact_email, contact_phone: office.contact_phone }),
       });
       if (!res.ok) throw new Error("Failed to save");
@@ -126,7 +126,6 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/admin/archive-sync", {
         method: "POST",
-        headers: { "x-admin-email": admin.email },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);

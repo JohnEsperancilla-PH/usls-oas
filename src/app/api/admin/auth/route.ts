@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 interface AuthCheckRequest {
   email: string;
 }
 
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+  const { allowed } = checkRateLimit(`auth:${ip}`, 10, 60 * 1000);
+  if (!allowed) return rateLimitResponse();
+
   try {
     const body: AuthCheckRequest = await request.json();
 

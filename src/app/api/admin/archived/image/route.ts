@@ -1,13 +1,17 @@
 import { getMySQLPool } from "@/lib/mysql";
+import { getAuthAdmin } from "@/lib/rbac";
 
 export async function GET(request: Request) {
+  const { admin, error, status } = await getAuthAdmin(request);
+  if (!admin) return new Response(error, { status: status || 401 });
+
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   if (!id) return new Response("Missing id", { status: 400 });
 
   try {
     const pool = getMySQLPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       "SELECT id_image FROM archived_appointments WHERE id = ?",
       [id]
     );

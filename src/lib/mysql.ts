@@ -4,6 +4,7 @@ let pool: mysql.Pool | null = null;
 
 export function getMySQLPool(): mysql.Pool {
   if (!pool) {
+    const sslEnabled = process.env.MYSQL_SSL === "true";
     pool = mysql.createPool({
       host: process.env.MYSQL_HOST,
       user: process.env.MYSQL_USER,
@@ -13,6 +14,7 @@ export function getMySQLPool(): mysql.Pool {
       connectionLimit: 5,
       queueLimit: 0,
       connectTimeout: 10000,
+      ...(sslEnabled ? { ssl: { rejectUnauthorized: true } } : {}),
     });
   }
   return pool;

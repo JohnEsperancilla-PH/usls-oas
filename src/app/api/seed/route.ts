@@ -1,46 +1,32 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
-
-const DEFAULT_OFFICES = [
-  { name: "Registrar", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 5, active: true },
-  { name: "Student Affairs", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 3, active: true },
-  { name: "Finance Office", operating_hours: "8:00 AM - 4:00 PM", capacity_per_slot: 4, active: true },
-  { name: "Library", operating_hours: "7:00 AM - 8:00 PM", capacity_per_slot: 10, active: true },
-  { name: "Admissions", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 2, active: true },
-];
 
 export async function POST() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ message: "Not available in production" }, { status: 404 });
+  }
+
   try {
+    const { createServiceClient } = await import("@/lib/supabase/server");
     const supabase = createServiceClient();
 
-    // Check existing offices
-    const { data: existing } = await supabase
-      .from("offices")
-      .select("name");
+    const offices = [
+      { name: "Office of the Registrar", email: "registrar@usls.edu.ph", description: "Handles student records, enrollment, and academic documents.", operating_hours: "Monday to Friday, 8:00 AM - 5:00 PM", capacity_per_slot: 10 },
+      { name: "Office of the Student Affairs", email: "dsa@usls.edu.ph", description: "Student welfare, organizations, and campus activities.", operating_hours: "Monday to Friday, 8:00 AM - 5:00 PM", capacity_per_slot: 15 },
+      { name: "Office of the University Registrar", email: "our@usls.edu.ph", description: "Official university records and transcripts.", operating_hours: "Monday to Friday, 8:00 AM - 5:00 PM", capacity_per_slot: 8 },
+      { name: "Guidance and Counseling Center", email: "guidance@usls.edu.ph", description: "Student counseling, career guidance, and mental health support.", operating_hours: "Monday to Friday, 8:00 AM - 5:00 PM", capacity_per_slot: 5 },
+      { name: "Finance Office", email: "finance@usls.edu.ph", description: "Tuition payments, fees, and financial assistance.", operating_hours: "Monday to Friday, 8:00 AM - 5:00 PM", capacity_per_slot: 12 },
+    ];
 
-    const existingNames = new Set(existing?.map((o) => o.name) || []);
-    const newOffices = DEFAULT_OFFICES.filter((o) => !existingNames.has(o.name));
-
-    if (newOffices.length === 0) {
-      return NextResponse.json({ message: "Offices already seeded", count: 0 });
+    for (const office of offices) {
+      await supabase.from("offices").insert(office);
     }
 
-    const { data, error } = await supabase
-      .from("offices")
-      .insert(newOffices)
-      .select();
-
-    if (error) {
-      console.error("Error seeding offices:", error);
-      return NextResponse.json({ message: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      message: `Seeded ${data.length} offices`,
-      offices: data,
-    });
+    return NextResponse.json({ message: `Seeded ${offices.length} offices successfully` });
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    console.error("Seed error:", error);
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Seed failed" },
+      { status: 500 }
+    );
   }
 }

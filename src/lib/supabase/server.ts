@@ -28,6 +28,28 @@ export async function createClient() {
   );
 }
 
+export function createRouteClient(request: Request) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  const cookieMap = new Map<string, string>();
+  cookieHeader.split(";").forEach((c) => {
+    const [key, ...val] = c.trim().split("=");
+    if (key) cookieMap.set(key, val.join("="));
+  });
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return Array.from(cookieMap.entries()).map(([name, value]) => ({ name, value }));
+        },
+        setAll() {},
+      },
+    }
+  );
+}
+
 export function createServiceClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -1,33 +1,17 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import crypto from "crypto";
+import { verifyQRToken } from "@/lib/qr";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 interface ScanRequest {
   token: string;
 }
 
-function verifyQRToken(token: string): { valid: boolean; appointmentId?: string } {
-  try {
-    const decoded = JSON.parse(Buffer.from(token, "base64").toString());
-    const { payload, signature } = decoded;
-    
-    const secret = process.env.QR_SECRET || "default-secret-key";
-    const hmac = crypto.createHmac("sha256", secret);
-    hmac.update(payload);
-    const expectedSignature = hmac.digest("hex");
-    
-    if (signature !== expectedSignature) {
-      return { valid: false };
-    }
-    
-    const payloadData = JSON.parse(payload);
-    return { valid: true, appointmentId: payloadData.appointmentId };
-  } catch {
-    return { valid: false };
-  }
-}
-
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+  const { allowed } = checkRateLimit(`scan:${ip}`, 30, 60 * 1000);
+  if (!allowed) return rateLimitResponse();
+
   try {
     const body: ScanRequest = await request.json();
     
@@ -38,7 +22,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify the QR token signature
     const { valid, appointmentId } = verifyQRToken(body.token);
     
     if (!valid || !appointmentId) {
@@ -50,7 +33,6 @@ export async function POST(request: Request) {
 
     const supabase = createServiceClient();
 
-    // Get the appointment
     const { data: appointment, error: fetchError } = await supabase
       .from("appointments")
       .select("*, offices(*)")
@@ -64,7 +46,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Check if appointment is approved
     if (appointment.status !== "approved") {
       let message = "Appointment is not approved";
       if (appointment.status === "completed") {
@@ -83,7 +64,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Check if QR code has already been used
     if (appointment.qr_used_at) {
       return NextResponse.json({
         success: false,
@@ -91,7 +71,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Check if appointment is for today
     const now = new Date();
     const today = now.toISOString().split("T")[0];
     if (appointment.date !== today) {
@@ -106,7 +85,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Mark QR code as used and record gate entry time (atomic operation)
     const scanTime = now.toISOString();
     const { error: updateError, data: updated } = await supabase
       .from("appointments")
@@ -117,7 +95,7 @@ export async function POST(request: Request) {
         updated_at: scanTime,
       })
       .eq("id", appointment.id)
-      .is("qr_used_at", null) // Ensure it hasn't been used yet
+      .is("qr_used_at", null)
       .select()
       .single();
 
@@ -129,7 +107,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Return appointment details for verification
     return NextResponse.json({
       success: true,
       message: "QR code verified — entry approved",

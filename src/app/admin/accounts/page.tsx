@@ -21,8 +21,8 @@ export default function AccountsPage() {
     setLoading(true);
     try {
       const [accRes, offRes] = await Promise.all([
-        fetch("/api/admin/accounts", { headers: { "x-admin-email": admin?.email || "" } }),
-        fetch("/api/admin/offices", { headers: { "x-admin-email": admin?.email || "" } }),
+        fetch("/api/admin/accounts", {}),
+        fetch("/api/admin/offices", {}),
       ]);
       const accData = await accRes.json();
       const offData = await offRes.json();
@@ -40,7 +40,7 @@ export default function AccountsPage() {
     try {
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
       const data = await res.json();
@@ -64,7 +64,7 @@ export default function AccountsPage() {
     try {
       const res = await fetch("/api/admin/accounts", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: deletingAccount.id, password: deletePassword }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }

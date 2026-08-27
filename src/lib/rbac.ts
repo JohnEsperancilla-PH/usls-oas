@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, createRouteClient } from "@/lib/supabase/server";
 import type { Admin } from "@/types/database";
 
 export interface AuthAdmin {
@@ -10,16 +10,18 @@ export interface AuthAdmin {
 }
 
 export async function getAuthAdmin(request: Request): Promise<{ admin: AuthAdmin | null; error?: string; status?: number }> {
-  const email = request.headers.get("x-admin-email");
-  if (!email) {
-    return { admin: null, error: "Missing admin email", status: 401 };
+  const routeClient = createRouteClient(request);
+  const { data: { user }, error: sessionError } = await routeClient.auth.getUser();
+
+  if (sessionError || !user) {
+    return { admin: null, error: "Unauthorized", status: 401 };
   }
 
   const supabase = createServiceClient();
   const { data: admin, error } = await supabase
     .from("admins")
     .select("*")
-    .eq("email", email)
+    .eq("email", user.email!)
     .single();
 
   if (error || !admin) {

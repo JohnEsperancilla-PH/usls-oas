@@ -17,7 +17,7 @@ export default function OfficesPage() {
   const fetchOffices = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/offices", { headers: { "x-admin-email": admin?.email || "" } });
+      const res = await fetch("/api/admin/offices", {});
       const data = await res.json();
       setOffices(data || []);
     } catch { /* */ }
@@ -36,7 +36,7 @@ export default function OfficesPage() {
       const url = "/api/admin/offices";
       const method = editingOffice ? "PUT" : "POST";
       const body = editingOffice ? { id: editingOffice.id, ...form } : form;
-      const res = await fetch(url, { method, headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" }, body: JSON.stringify(body) });
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       setMessage({ type: "success", text: editingOffice ? "Office updated" : "Office created" });
       setModalOpen(false); fetchOffices();
@@ -47,7 +47,7 @@ export default function OfficesPage() {
   const handleToggle = async (o: Office) => {
     setMessage(null);
     try {
-      await fetch("/api/admin/offices", { method: "PUT", headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" }, body: JSON.stringify({ id: o.id, active: !o.active }) });
+      await fetch("/api/admin/offices", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: o.id, active: !o.active }) });
       setMessage({ type: "success", text: o.active ? "Deactivated" : "Activated" });
       fetchOffices();
     } catch { setMessage({ type: "error", text: "Failed" }); }

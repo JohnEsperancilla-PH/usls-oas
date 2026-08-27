@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { sendMail, generateBookingConfirmationEmail, generateAdminAlertEmail, isNotificationEnabled } from "@/lib/email";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 interface AppointmentRequest {
   fullName: string;
@@ -16,6 +17,10 @@ interface AppointmentRequest {
 }
 
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+  const { allowed } = checkRateLimit(`booking:${ip}`, 5, 15 * 60 * 1000);
+  if (!allowed) return rateLimitResponse();
+
   try {
     const body: AppointmentRequest = await request.json();
     
@@ -45,6 +50,30 @@ export async function POST(request: Request) {
         { message: "Duration must be 30 or 60 minutes" },
         { status: 400 }
       );
+    }
+
+    // Input length limits
+    if (body.fullName.length > 100) {
+      return NextResponse.json({ message: "Name is too long (max 100 characters)" }, { status: 400 });
+    }
+    if (body.phone.length > 20) {
+      return NextResponse.json({ message: "Phone number is too long (max 20 characters)" }, { status: 400 });
+    }
+    if (body.email.length > 254) {
+      return NextResponse.json({ message: "Email is too long" }, { status: 400 });
+    }
+    if (body.purposeOfVisit && body.purposeOfVisit.length > 500) {
+      return NextResponse.json({ message: "Purpose of visit is too long (max 500 characters)" }, { status: 400 });
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+      return NextResponse.json({ message: "Invalid date format" }, { status: 400 });
+    }
+
+    // Validate time slot format
+    if (!/^\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)$/i.test(body.timeSlot)) {
+      return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
     }
 
     const supabase = createServiceClient();

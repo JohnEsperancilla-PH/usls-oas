@@ -30,7 +30,7 @@ export default function AdminDashboardPage() {
     setLoading(true);
     try {
       const response = await fetch(`/api/admin/appointments?status=${filter}`, {
-        headers: { "x-admin-email": admin?.email || "" },
+        headers: {},
       });
       if (!response.ok) throw new Error("Failed to fetch");
       const data = await response.json();
@@ -42,7 +42,7 @@ export default function AdminDashboardPage() {
   const fetchAllAppointments = useCallback(async () => {
     try {
       const response = await fetch("/api/admin/appointments?status=all", {
-        headers: { "x-admin-email": admin?.email || "" },
+        headers: {},
       });
       if (!response.ok) return;
       const data = await response.json();
@@ -52,7 +52,7 @@ export default function AdminDashboardPage() {
 
   const fetchOffices = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/offices", { headers: { "x-admin-email": admin?.email || "" } });
+      const response = await fetch("/api/admin/offices", { headers: {} });
       if (!response.ok) return;
       const data = await response.json();
       setOffices(data || []);
@@ -69,7 +69,7 @@ export default function AdminDashboardPage() {
       if (archivedSearch) params.set("search", archivedSearch);
       if (admin?.office_id && !isSuperAdmin) params.set("officeId", admin.office_id);
       const res = await fetch(`/api/admin/archived?${params}`, {
-        headers: { "x-admin-email": admin?.email || "" },
+        headers: {},
       });
       if (!res.ok) throw new Error("Failed to fetch archived");
       const data = await res.json();
@@ -88,7 +88,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch("/api/appointments/approve", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointmentId: appointment.id }),
       });
       const data = await res.json();
@@ -106,7 +106,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch("/api/appointments/decline", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointmentId: appointment.id, reason }),
       });
       const data = await res.json();
@@ -123,7 +123,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch("/api/appointments/reset-qr", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin?.email || "" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointmentId: appointment.id }),
       });
       const data = await res.json();
@@ -433,7 +433,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
       const m = `${year}-${String(month + 1).padStart(2, "0")}`;
       const params = new URLSearchParams({ month: m });
       if (admin.office_id) params.set("officeId", admin.office_id);
-      const res = await fetch(`/api/admin/blocked-times?${params}`, { headers: { "x-admin-email": admin.email } });
+      const res = await fetch(`/api/admin/blocked-times?${params}`);
       if (!res.ok) return;
       const data = await res.json();
       setBlockedTimes(data || []);
@@ -450,7 +450,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
       if (!officeId) return;
       const res = await fetch("/api/admin/blocked-times", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin.email },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ office_id: officeId, date, time_slot: timeSlot, reason: "Blocked by admin" }),
       });
       if (res.ok) fetchBlocked();
@@ -462,7 +462,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
     try {
       await fetch("/api/admin/blocked-times", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json", "x-admin-email": admin.email },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
       fetchBlocked();

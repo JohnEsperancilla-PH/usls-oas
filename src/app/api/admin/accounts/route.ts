@@ -43,6 +43,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Name, email, role, and password are required" }, { status: 400 });
     }
 
+    // Input validation
+    if (name.length > 100) {
+      return NextResponse.json({ message: "Name is too long (max 100 characters)" }, { status: 400 });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email) || email.length > 254) {
+      return NextResponse.json({ message: "Invalid email format" }, { status: 400 });
+    }
+    if (!["super_admin", "office_admin"].includes(role)) {
+      return NextResponse.json({ message: "Invalid role" }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return NextResponse.json({ message: "Password must be at least 8 characters" }, { status: 400 });
+    }
+    if (password.length > 128) {
+      return NextResponse.json({ message: "Password is too long (max 128 characters)" }, { status: 400 });
+    }
+
     if (role === "office_admin" && !office_id) {
       return NextResponse.json({ message: "Office is required for office admins" }, { status: 400 });
     }

@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
-import QRCode from "qrcode";
-import { sendMail, generateApprovalEmail } from "@/lib/email";
+import { getAuthAdmin } from "@/lib/rbac";
 
 export async function POST(request: Request) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ message: "Not available in production" }, { status: 404 });
+  }
+
+  const { admin, error, status } = await getAuthAdmin(request);
+  if (!admin) return NextResponse.json({ message: error }, { status });
+
   try {
     const { to } = await request.json();
 
     if (!to) {
       return NextResponse.json({ message: "Recipient email is required" }, { status: 400 });
     }
+
+    const { sendMail, generateApprovalEmail } = await import("@/lib/email");
+    const QRCode = await import("qrcode");
 
     const qrDataUrl = await QRCode.toDataURL("TEST-QR-12345", {
       width: 300,

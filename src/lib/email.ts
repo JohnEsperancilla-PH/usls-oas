@@ -4,6 +4,26 @@ import { join } from "path";
 import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/server";
 
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function sanitizeError(error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg
+    .replace(/password[^,]*/gi, "password [redacted]")
+    .replace(/key[^,]*/gi, "key [redacted]")
+    .replace(/token[^,]*/gi, "token [redacted]")
+    .replace(/secret[^,]*/gi, "secret [redacted]")
+    .replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, "[ip]")
+    .replace(/supabase\.co[^\s]*/gi, "[supabase-url]");
+}
+
 function getTransporter() {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -124,8 +144,8 @@ async function wrap(title: string, body: string, extraAttachments: SendMailAttac
 
 function detailRow(label: string, value: string) {
   return `<tr>
-    <td style="padding:12px 16px;color:#666;font-size:13px;border-bottom:1px solid #f3f4f6;">${label}</td>
-    <td style="padding:12px 16px;font-weight:600;text-align:right;font-size:13px;border-bottom:1px solid #f3f4f6;">${value}</td>
+    <td style="padding:12px 16px;color:#666;font-size:13px;border-bottom:1px solid #f3f4f6;">${escapeHtml(label)}</td>
+    <td style="padding:12px 16px;font-weight:600;text-align:right;font-size:13px;border-bottom:1px solid #f3f4f6;">${escapeHtml(value)}</td>
   </tr>`;
 }
 
@@ -136,13 +156,13 @@ function statusBadge(status: string, color: string) {
 export async function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string, contactEmail?: string | null, contactPhone?: string | null) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const contactLines: string[] = [];
-  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${contactEmail}`);
-  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${contactPhone}`);
+  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
+  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
   const contactBlock = contactLines.length > 0
     ? `<div style="margin-top:20px;padding:12px 16px;background:#f0f7ff;border-radius:8px;border:1px solid #d0e3f7;font-size:13px;color:#555;line-height:1.8;">For follow-up questions, contact the office:<br/>${contactLines.join("<br/>")}</div>`
     : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
   const result = await wrap("Appointment Submitted", `
-    <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
+    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
     <p style="color:#555;margin:0 0 24px;">Your appointment request has been received and is pending review. You will be notified once it has been reviewed.</p>
     <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
@@ -179,7 +199,7 @@ export async function generateAdminAlertEmail(name: string, date: string, time: 
 export async function generateApprovalEmail(name: string, date: string, time: string, office: string, extraAttachments: SendMailAttachments[] = []) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const result = await wrap("Appointment Approved", `
-    <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
+    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
     <p style="color:#555;margin:0 0 24px;">Great news! Your appointment has been approved. Please present the QR code below at the gate for entry.</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
@@ -200,13 +220,13 @@ export async function generateApprovalEmail(name: string, date: string, time: st
 export async function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string, contactEmail?: string | null, contactPhone?: string | null) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const contactLines: string[] = [];
-  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${contactEmail}`);
-  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${contactPhone}`);
+  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
+  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
   const contactBlock = contactLines.length > 0
     ? `<div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;font-size:13px;color:#555;line-height:1.8;">If you believe this was an error, contact the office:<br/>${contactLines.join("<br/>")}</div>`
     : `<p style="color:#999;font-size:13px;margin:0;">If you believe this was an error, please contact the office directly.</p>`;
   const result = await wrap("Appointment Declined", `
-    <p style="color:#555;margin:0 0 20px;">Dear <strong>${name}</strong>,</p>
+    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
     <p style="color:#555;margin:0 0 24px;">We regret to inform you that your appointment has been declined.</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#fef2f2;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>

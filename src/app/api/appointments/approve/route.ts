@@ -1,27 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { generateQRToken } from "@/lib/qr";
 import QRCode from "qrcode";
-import crypto from "crypto";
 import { sendMail, generateApprovalEmail, isNotificationEnabled } from "@/lib/email";
 
 interface ApproveRequest {
   appointmentId: string;
-}
-
-function generateQRToken(appointmentId: string): string {
-  const secret = process.env.QR_SECRET || "default-secret-key";
-  const payload = JSON.stringify({
-    appointmentId,
-    timestamp: Date.now(),
-    nonce: crypto.randomUUID(),
-  });
-  
-  const hmac = crypto.createHmac("sha256", secret);
-  hmac.update(payload);
-  const signature = hmac.digest("hex");
-  
-  return Buffer.from(JSON.stringify({ payload, signature })).toString("base64");
 }
 
 export async function POST(request: Request) {
@@ -113,18 +98,18 @@ export async function POST(request: Request) {
       type: "approval",
       status: mailResult.success ? "sent" : "failed",
       sent_at: mailResult.success ? new Date().toISOString() : null,
-      error_message: mailResult.success ? null : mailResult.error || "Failed to send approval email",
+      error_message: mailResult.success ? null : "Failed to send approval email",
     });
 
     await logAudit(admin.id, admin.email, "approve", {
       appointment_id: appointment.id,
-      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, email_sent: mailResult.success, email_error: mailResult.error || null },
+      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, email_sent: mailResult.success },
     });
 
     return NextResponse.json({
       message: "Appointment approved successfully",
       emailSent: mailResult.success,
-      emailError: mailResult.success ? null : mailResult.error,
+      emailError: mailResult.success ? null : "Email delivery failed",
       appointment: { id: appointment.id, status: "approved" },
     });
   } catch (error) {
