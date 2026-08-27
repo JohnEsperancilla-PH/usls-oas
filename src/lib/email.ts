@@ -176,9 +176,9 @@ export async function generateBookingConfirmationEmail(name: string, date: strin
   return { html: result.html, attachments: result.attachments };
 }
 
-export async function generateAdminAlertEmail(name: string, date: string, time: string, office: string, _appointmentId: string) {
+export async function generateAdminAlertEmail(name: string, date: string, time: string, office: string, _appointmentId: string, baseUrl?: string) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/admin`;
+  const dashboardUrl = `${baseUrl || process.env.NEXT_PUBLIC_APP_URL || "https://usls-oas.vercel.app"}/admin`;
   const result = await wrap("New Appointment Request", `
     <p style="color:#555;margin:0 0 20px;">A new appointment has been submitted and requires your review.</p>
     <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">

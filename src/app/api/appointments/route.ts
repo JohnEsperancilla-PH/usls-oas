@@ -250,6 +250,7 @@ export async function POST(request: Request) {
 
     // Send admin alert email
     if (await isNotificationEnabled("admin_alert")) {
+      const origin = new URL(request.url).origin;
       const { data: admins } = await supabase
         .from("admins")
         .select("email")
@@ -261,7 +262,8 @@ export async function POST(request: Request) {
           body.date,
           body.timeSlot,
           office.name,
-          appointment.id
+          appointment.id,
+          origin
         );
 
         for (const admin of admins) {
@@ -283,7 +285,7 @@ export async function POST(request: Request) {
       }
 
       if (office.email) {
-        const officeEmail = await generateAdminAlertEmail(body.fullName, body.date, body.timeSlot, office.name, appointment.id);
+        const officeEmail = await generateAdminAlertEmail(body.fullName, body.date, body.timeSlot, office.name, appointment.id, origin);
         await sendMail({
           to: office.email,
           subject: `New Appointment - ${body.fullName} on ${body.date}`,
