@@ -24,6 +24,27 @@ function generateSlots(startH: number, endH: number): string[] {
   return slots;
 }
 
+function getNextSlot(timeSlot: string, allSlots: string[]): string | null {
+  const [h, m] = timeSlot.split(":").map(Number);
+  const nextM = m + 30;
+  const nextH = nextM >= 60 ? h + 1 : h;
+  const nextMM = nextM >= 60 ? nextM - 60 : nextM;
+  const next = `${nextH.toString().padStart(2, "0")}:${nextMM.toString().padStart(2, "0")}`;
+  return allSlots.includes(next) ? next : null;
+}
+
+function buildSlotCounts(appointments: { time_slot: string; duration: number }[], allSlots: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const a of appointments) {
+    counts[a.time_slot] = (counts[a.time_slot] || 0) + 1;
+    if (a.duration === 60) {
+      const next = getNextSlot(a.time_slot, allSlots);
+      if (next) counts[next] = (counts[next] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -60,7 +81,7 @@ export async function GET(request: Request) {
 
       const { data: appointments } = await supabase
         .from("appointments")
-        .select("date, time_slot, status")
+        .select("date, time_slot, duration, status")
         .eq("office_id", officeId)
         .gte("date", startDate)
         .lte("date", endDate)
@@ -73,10 +94,10 @@ export async function GET(request: Request) {
         .gte("date", startDate)
         .lte("date", endDate);
 
-      const appointmentCounts: Record<string, Record<string, number>> = {};
+      const appointmentsByDate: Record<string, { time_slot: string; duration: number }[]> = {};
       (appointments || []).forEach((a) => {
-        if (!appointmentCounts[a.date]) appointmentCounts[a.date] = {};
-        appointmentCounts[a.date][a.time_slot] = (appointmentCounts[a.date][a.time_slot] || 0) + 1;
+        if (!appointmentsByDate[a.date]) appointmentsByDate[a.date] = [];
+        appointmentsByDate[a.date].push({ time_slot: a.time_slot, duration: a.duration });
       });
 
       const blockedSet: Record<string, Set<string>> = {};
@@ -91,9 +112,12 @@ export async function GET(request: Request) {
         const dayOfWeek = new Date(year, mon - 1, d).getDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
+        const dayAppointments = appointmentsByDate[ds] || [];
+        const appointmentCounts = buildSlotCounts(dayAppointments, allSlots);
+
         let availableCount = 0;
         for (const slot of allSlots) {
-          const booked = (appointmentCounts[ds] && appointmentCounts[ds][slot]) || 0;
+          const booked = appointmentCounts[slot] || 0;
           const isBlocked = blockedSet[ds]?.has(slot) || false;
           if (!isBlocked && booked < office.capacity_per_slot) {
             availableCount++;
@@ -122,7 +146,7 @@ export async function GET(request: Request) {
 
       const { data: appointments } = await supabase
         .from("appointments")
-        .select("time_slot, status")
+        .select("time_slot, duration, status")
         .eq("office_id", officeId)
         .eq("date", date)
         .in("status", ["pending", "approved"]);
@@ -133,10 +157,10 @@ export async function GET(request: Request) {
         .eq("office_id", officeId)
         .eq("date", date);
 
-      const appointmentCounts: Record<string, number> = {};
-      (appointments || []).forEach((a) => {
-        appointmentCounts[a.time_slot] = (appointmentCounts[a.time_slot] || 0) + 1;
-      });
+      const appointmentCounts = buildSlotCounts(
+        (appointments || []).map((a) => ({ time_slot: a.time_slot, duration: a.duration })),
+        allSlots
+      );
 
       const blockedMap: Record<string, string | null> = {};
       (blocked || []).forEach((b) => {

@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       });
     }
 
-    await logAudit(admin.id, admin.email, "approve", {
+    await logAudit(admin.id, admin.email, "reset_qr", {
       appointment_id: appointment.id,
       meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, action: "reset_qr", email_sent: mailResult.success },
     });

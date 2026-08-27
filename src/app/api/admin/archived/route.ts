@@ -9,8 +9,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const search = url.searchParams.get("search") || "";
   const officeId = url.searchParams.get("officeId") || "";
-  const page = parseInt(url.searchParams.get("page") || "1");
-  const limit = parseInt(url.searchParams.get("limit") || "50");
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1") || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") || "50") || 50));
   const offset = (page - 1) * limit;
 
   try {

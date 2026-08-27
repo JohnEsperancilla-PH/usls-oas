@@ -3,6 +3,23 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { sendMail, generateBookingConfirmationEmail, generateAdminAlertEmail, isNotificationEnabled } from "@/lib/email";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
+function getPrevSlot(timeSlot: string): string | null {
+  const [h, m] = timeSlot.split(":").map(Number);
+  const prevM = m - 30;
+  const prevH = prevM < 0 ? h - 1 : h;
+  const prevMM = prevM < 0 ? 30 : prevM;
+  if (prevH < 0) return null;
+  return `${prevH.toString().padStart(2, "0")}:${prevMM.toString().padStart(2, "0")}`;
+}
+
+function getNextSlot(timeSlot: string): string | null {
+  const [h, m] = timeSlot.split(":").map(Number);
+  const nextM = m + 30;
+  const nextH = nextM >= 60 ? h + 1 : h;
+  const nextMM = nextM >= 60 ? nextM - 60 : nextM;
+  return `${nextH.toString().padStart(2, "0")}:${nextMM.toString().padStart(2, "0")}`;
+}
+
 interface AppointmentRequest {
   fullName: string;
   phone: string;
@@ -71,9 +88,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid date format" }, { status: 400 });
     }
 
-    // Validate time slot format
-    if (!/^\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)$/i.test(body.timeSlot)) {
+    // Validate time slot format (HH:MM 24h, aligned to :00 or :30)
+    if (!/^\d{2}:(00|30)$/.test(body.timeSlot)) {
       return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
+    }
+
+    // Validate date is not in the past
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    if (body.date < todayStr) {
+      return NextResponse.json({ message: "Cannot book appointments in the past" }, { status: 400 });
+    }
+
+    // Validate not a weekend
+    const dayOfWeek = new Date(body.date + "T00:00:00").getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return NextResponse.json({ message: "Appointments cannot be booked on weekends" }, { status: 400 });
     }
 
     const supabase = createServiceClient();
@@ -93,16 +123,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if this time slot is blocked by admin
-    const { data: blocked } = await supabase
+    // Check if this time slot (and next for 60-min) is blocked by admin
+    const blockedSlots = [body.timeSlot];
+    if (body.duration === 60) {
+      const next = getNextSlot(body.timeSlot);
+      if (next) blockedSlots.push(next);
+    }
+
+    const { data: blockedSlotsData } = await supabase
       .from("blocked_times")
-      .select("id")
+      .select("id, time_slot")
       .eq("office_id", body.officeId)
       .eq("date", body.date)
-      .eq("time_slot", body.timeSlot)
-      .maybeSingle();
+      .in("time_slot", blockedSlots);
 
-    if (blocked) {
+    if (blockedSlotsData && blockedSlotsData.length > 0) {
       return NextResponse.json(
         { message: "This time slot is currently unavailable. Please select another time." },
         { status: 409 }
@@ -110,12 +145,19 @@ export async function POST(request: Request) {
     }
 
     // Check for conflicting appointments (same office, date, time slot)
+    // Query the requested slot + prev + next so we can detect overlapping 60-min bookings
+    const slotsToQuery = new Set<string>([body.timeSlot]);
+    const prev = getPrevSlot(body.timeSlot);
+    if (prev) slotsToQuery.add(prev);
+    const next = getNextSlot(body.timeSlot);
+    if (next) slotsToQuery.add(next);
+
     const { data: conflictingAppointments, error: conflictError } = await supabase
       .from("appointments")
-      .select("id")
+      .select("id, time_slot, duration")
       .eq("office_id", body.officeId)
       .eq("date", body.date)
-      .eq("time_slot", body.timeSlot)
+      .in("time_slot", Array.from(slotsToQuery))
       .in("status", ["pending", "approved"]);
 
     if (conflictError) {
@@ -126,11 +168,28 @@ export async function POST(request: Request) {
       );
     }
 
-    if (conflictingAppointments && conflictingAppointments.length >= office.capacity_per_slot) {
-      return NextResponse.json(
-        { message: "This time slot is fully booked. Please select another time." },
-        { status: 409 }
-      );
+    // Compute slot-level counts considering duration of existing bookings
+    const slotCounts: Record<string, number> = {};
+    for (const a of conflictingAppointments || []) {
+      slotCounts[a.time_slot] = (slotCounts[a.time_slot] || 0) + 1;
+      if (a.duration === 60) {
+        const nextOfExisting = getNextSlot(a.time_slot);
+        if (nextOfExisting) slotCounts[nextOfExisting] = (slotCounts[nextOfExisting] || 0) + 1;
+      }
+    }
+
+    // Check capacity only for slots the NEW booking actually occupies
+    const slotsToCheck = [body.timeSlot];
+    if (body.duration === 60 && next) slotsToCheck.push(next);
+
+    for (const slot of slotsToCheck) {
+      const booked = slotCounts[slot] || 0;
+      if (booked >= office.capacity_per_slot) {
+        return NextResponse.json(
+          { message: "This time slot is fully booked. Please select another time." },
+          { status: 409 }
+        );
+      }
     }
 
     // Create the appointment

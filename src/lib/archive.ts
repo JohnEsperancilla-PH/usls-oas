@@ -49,6 +49,15 @@ export async function runArchiveSync(): Promise<ArchiveResult> {
   }
 
   const appointmentIds = appointments.map((a) => a.id);
+  const officeIds = [...new Set(appointments.map((a) => a.office_id).filter(Boolean))];
+
+  const { data: offices } = await supabase
+    .from("offices")
+    .select("id, name")
+    .in("id", officeIds);
+
+  const officeNameMap = new Map<string, string>();
+  offices?.forEach((o) => officeNameMap.set(o.id, o.name));
 
   const { data: emailLogs } = await supabase
     .from("email_logs")
@@ -119,7 +128,7 @@ export async function runArchiveSync(): Promise<ArchiveResult> {
           [
             apt.id, apt.full_name, apt.phone, apt.email,
             apt.visitor_category || "general_public", apt.purpose_of_visit || null,
-            apt.office_id, null, apt.date, apt.time_slot, apt.duration, apt.status,
+            apt.office_id, officeNameMap.get(apt.office_id) || null, apt.date, apt.time_slot, apt.duration, apt.status,
             apt.qr_token, apt.qr_used_at || null, apt.scanned_at || null,
             apt.decline_reason || null, apt.created_at, apt.updated_at,
           ]
@@ -145,7 +154,7 @@ export async function runArchiveSync(): Promise<ArchiveResult> {
           [
             apt.id, apt.full_name, apt.phone, apt.email, imageBuffer,
             apt.visitor_category || "general_public", apt.purpose_of_visit || null,
-            apt.office_id, null, apt.date, apt.time_slot, apt.duration, apt.status,
+            apt.office_id, officeNameMap.get(apt.office_id) || null, apt.date, apt.time_slot, apt.duration, apt.status,
             apt.qr_token, apt.qr_used_at || null, apt.scanned_at || null,
             apt.decline_reason || null, apt.created_at, apt.updated_at,
           ]
@@ -193,11 +202,11 @@ export async function runArchiveSync(): Promise<ArchiveResult> {
   }
 
   const durationMs = Date.now() - start;
-  const recordsSynced = appointments.length - recordsSkipped;
+  const recordsSynced = appointments.length;
 
   await pool.execute(
     `INSERT INTO archive_sync_log (records_synced, images_synced, duration_ms, status) VALUES (?, ?, ?, 'success')`,
-    [appointments.length, imagesSynced, durationMs]
+    [recordsSynced, imagesSynced, durationMs]
   ).catch(() => {});
 
   return {
