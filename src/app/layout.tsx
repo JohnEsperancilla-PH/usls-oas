@@ -12,13 +12,30 @@ const gotham = localFont({
   display: "swap",
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://usls-oas.vercel.app";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl),
   title: {
     default: "USLS Online Appointment System",
     template: "%s | USLS OAS",
   },
   description: "Schedule your campus appointments online at University of St. La Salle. Quick, easy, and secure — no account required.",
   keywords: ["USLS", "University of St. La Salle", "appointment", "campus", "visitor", "booking"],
+  openGraph: {
+    type: "website",
+    url: appUrl,
+    siteName: "USLS Online Appointment System",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "USLS OAS",
+    statusBarStyle: "default",
+  },
   robots: { index: true, follow: true },
 };
 
