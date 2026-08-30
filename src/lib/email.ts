@@ -54,9 +54,9 @@ let logoPngCache: Buffer | null = null;
 
 async function getLogoAttachment() {
   if (!logoPngCache) {
-    const logoPath = join(process.cwd(), "public", "oas-white.svg");
-    const svg = readFileSync(logoPath);
-    logoPngCache = await sharp(svg).resize(600).png().toBuffer();
+    const logoPath = join(process.cwd(), "public", "usls-oas-white.png");
+    const png = readFileSync(logoPath);
+    logoPngCache = await sharp(png).resize(600).png().toBuffer();
   }
   return {
     filename: "oas-logo.png",

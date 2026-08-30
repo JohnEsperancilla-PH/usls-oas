@@ -123,7 +123,7 @@ export default function BookPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 py-5 overflow-hidden">
         <div className="container mx-auto px-4 flex items-center justify-center">
-          <img src="/oas.svg" alt="USLS OAS" className="h-12 sm:h-14 w-auto" />
+          <img src="/usls-oas.png" alt="USLS OAS" className="h-16 sm:h-20 w-auto" />
         </div>
       </header>
 
