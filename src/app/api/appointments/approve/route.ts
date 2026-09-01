@@ -4,6 +4,7 @@ import { getAuthAdmin, logAudit } from "@/lib/rbac";
 import { generateQRToken } from "@/lib/qr";
 import QRCode from "qrcode";
 import { sendMail, generateApprovalEmail, isNotificationEnabled } from "@/lib/email";
+import { createCalendarEvent } from "@/lib/calendar";
 
 interface ApproveRequest {
   appointmentId: string;
@@ -101,15 +102,49 @@ export async function POST(request: Request) {
       error_message: mailResult.success ? null : "Failed to send approval email",
     });
 
+    // Create the Google Calendar event (non-blocking — approval succeeds even if it fails)
+    let calendarResult: { id?: string; htmlLink?: string | null; error?: string; skipped: boolean } = { skipped: true };
+    const startedAt = Date.now();
+    try {
+      const start = new Date(`${appointment.date}T${appointment.time_slot}:00`);
+      const end = new Date(start.getTime() + (appointment.duration || 30) * 60 * 1000);
+      const officeName = appointment.offices?.name || "Unknown Office";
+      const attendees = [appointment.email];
+      if (appointment.offices?.email) attendees.push(appointment.offices.email);
+      const event = await createCalendarEvent({
+        title: `Appointment - ${appointment.full_name} (${officeName})`,
+        description: appointment.purpose_of_visit || "No purpose of visit provided.",
+        start,
+        end,
+        attendees,
+      });
+      calendarResult = { id: event.id, htmlLink: event.htmlLink, skipped: false };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Google Calendar event creation failed:", msg);
+      calendarResult = { error: msg, skipped: false };
+    }
+
     await logAudit(admin.id, admin.email, "approve", {
       appointment_id: appointment.id,
-      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, email_sent: mailResult.success },
+      meta: {
+        visitor_name: appointment.full_name,
+        visitor_email: appointment.email,
+        email_sent: mailResult.success,
+        calendar_event_created: calendarResult.skipped ? null : !calendarResult.error,
+        calendar_event_id: calendarResult.id,
+        calendar_duration_ms: Date.now() - startedAt,
+        calendar_error: calendarResult.error || null,
+      },
     });
 
     return NextResponse.json({
       message: "Appointment approved successfully",
       emailSent: mailResult.success,
       emailError: mailResult.success ? null : "Email delivery failed",
+      calendarEvent: calendarResult.skipped
+        ? null
+        : { id: calendarResult.id, htmlLink: calendarResult.htmlLink, error: calendarResult.error || null },
       appointment: { id: appointment.id, status: "approved" },
     });
   } catch (error) {
