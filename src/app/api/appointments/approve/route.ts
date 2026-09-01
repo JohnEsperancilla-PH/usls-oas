@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 import { generateQRToken } from "@/lib/qr";
@@ -59,9 +59,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
 
-    // All slow work (QR email, Google Calendar) runs in the background so the
-    // admin gets an immediate response. The email/calendar failures never affect approval.
-    void runPostApprovalTasks(appointment, qrToken, admin.id, admin.email);
+    // All slow work (QR email, Google Calendar) runs after the response is sent so
+    // the admin gets an immediate reply, but `after()` keeps the Vercel function
+    // alive until it completes (unlike fire-and-forget, which Vercel may kill).
+    // Email/calendar failures never affect approval.
+    after(async () => {
+      await runPostApprovalTasks(appointment, qrToken, admin.id, admin.email);
+    });
 
     return NextResponse.json({
       message: "Appointment approved successfully",

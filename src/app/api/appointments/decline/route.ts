@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 import { sendMail, generateDeclineEmail, isNotificationEnabled } from "@/lib/email";
@@ -52,8 +52,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
 
-    // The decline email runs in the background so the admin gets an immediate response.
-    void runPostDeclineTasks(appointment, body.reason, admin.id, admin.email);
+    // The decline email runs after the response is sent (kept alive via `after()`),
+    // so the admin gets an immediate response.
+    after(async () => {
+      await runPostDeclineTasks(appointment, body.reason, admin.id, admin.email);
+    });
 
     return NextResponse.json({
       message: "Appointment declined successfully",

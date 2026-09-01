@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 import { generateQRToken } from "@/lib/qr";
@@ -58,8 +58,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to reset appointment" }, { status: 500 });
     }
 
-    // QR email runs in the background so the admin gets an immediate response.
-    void runPostResetTasks(appointment, newToken, admin.id, admin.email);
+    // QR email runs after the response is sent (kept alive via `after()`),
+    // so the admin gets an immediate response.
+    after(async () => {
+      await runPostResetTasks(appointment, newToken, admin.id, admin.email);
+    });
 
     return NextResponse.json({
       message: "QR code reset successfully",
