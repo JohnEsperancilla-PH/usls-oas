@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { getAuthAdmin } from "@/lib/rbac";
 import { generateQRToken } from "@/lib/qr";
 import QRCode from "qrcode";
 import { sendMail, generateApprovalEmail, isNotificationEnabled } from "@/lib/email";
@@ -58,7 +58,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to reset appointment" }, { status: 500 });
     }
 
-    const qrCodeDataUrl = await QRCode.toDataURL(newToken, {
+    // QR email runs in the background so the admin gets an immediate response.
+    void runPostResetTasks(appointment, newToken, admin.id, admin.email);
+
+    return NextResponse.json({
+      message: "QR code reset successfully",
+      emailSent: null,
+      emailPending: true,
+      appointment: { id: appointment.id, status: "approved" },
+    });
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+  }
+}
+
+async function runPostResetTasks(
+  appointment: any,
+  qrToken: string,
+  adminId: string,
+  adminEmail: string
+) {
+  let mailResult: { success: boolean; error?: string | null } = { success: false, error: "Notifications disabled" };
+
+  try {
+    const qrCodeDataUrl = await QRCode.toDataURL(qrToken, {
       width: 300,
       margin: 2,
       color: { dark: "#006633", light: "#ffffff" },
@@ -74,7 +98,6 @@ export async function POST(request: Request) {
       appointment.offices?.name || "Unknown Office"
     );
 
-    let mailResult: { success: boolean; error?: string | null; messageId?: string } = { success: false };
     if (await isNotificationEnabled("qr_resend")) {
       mailResult = await sendMail({
         to: appointment.email,
@@ -89,18 +112,28 @@ export async function POST(request: Request) {
       });
     }
 
-    await logAudit(admin.id, admin.email, "reset_qr", {
-      appointment_id: appointment.id,
-      meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, action: "reset_qr", email_sent: mailResult.success },
-    });
-
-    return NextResponse.json({
-      message: "QR code reset successfully",
-      emailSent: mailResult.success,
-      appointment: { id: appointment.id, status: "approved" },
-    });
+    if (!mailResult.success) {
+      console.error("QR re-send email failed:", mailResult.error);
+    }
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("QR re-send email generation failed:", msg);
+    mailResult = { success: false, error: msg };
   }
+
+  const supabase = createServiceClient();
+
+  await supabase.from("email_logs").insert({
+    appointment_id: appointment.id,
+    type: "qr_resend",
+    status: mailResult.success ? "sent" : "failed",
+    sent_at: mailResult.success ? new Date().toISOString() : null,
+    error_message: mailResult.success ? null : "Failed to send QR re-send email",
+  });
+
+  const { logAudit } = await import("@/lib/rbac");
+  await logAudit(adminId, adminEmail, "reset_qr", {
+    appointment_id: appointment.id,
+    meta: { visitor_name: appointment.full_name, visitor_email: appointment.email, action: "reset_qr", email_sent: mailResult.success },
+  });
 }

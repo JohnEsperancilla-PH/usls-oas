@@ -26,6 +26,9 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
   const [consent, setConsent] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [compressing, setCompressing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [idImageUrl, setIdImageUrl] = useState<string>(data.idImageUrl || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,13 +37,27 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  const uploadImage = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || "Failed to upload ID image");
+    }
+    const { url } = await res.json();
+    return url;
+  };
+
   const processFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setErrors((prev) => ({ ...prev, idImage: "Please upload an image file (JPEG, PNG)" }));
       return;
     }
     setErrors((prev) => ({ ...prev, idImage: "" }));
+    setUploadError(null);
     setCompressing(true);
+    let fileToUpload: File;
     try {
       const compressed = await imageCompression(file, {
         maxSizeMB: 1,
@@ -49,16 +66,27 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
         initialQuality: 0.8,
       });
       setIdImage(compressed);
+      fileToUpload = compressed;
       const reader = new FileReader();
       reader.onload = () => setPreviewUrl(reader.result as string);
       reader.readAsDataURL(compressed);
     } catch {
       setIdImage(file);
+      fileToUpload = file;
       const reader = new FileReader();
       reader.onload = () => setPreviewUrl(reader.result as string);
       reader.readAsDataURL(file);
     } finally {
       setCompressing(false);
+    }
+    try {
+      setUploading(true);
+      const url = await uploadImage(fileToUpload);
+      setIdImageUrl(url);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Failed to upload ID image");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -77,6 +105,8 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
   const removeImage = () => {
     setIdImage(null);
     setPreviewUrl(null);
+    setIdImageUrl("");
+    setUploadError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -88,6 +118,9 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
     if (!formData.email.trim()) newErrors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Enter a valid email";
     if (!idImage && !previewUrl) newErrors.idImage = "Please upload a photo of your ID";
+    else if (uploading) newErrors.idImage = "Your ID is still uploading. Please wait for it to finish.";
+    else if (uploadError) newErrors.idImage = uploadError;
+    else if (!idImageUrl) newErrors.idImage = "Your ID has not finished uploading yet. Please wait.";
     if (!consent) newErrors.consent = "You must consent to data collection to proceed";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -95,7 +128,7 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) onNext({ ...formData, visitorCategory, idImage });
+    if (validate()) onNext({ ...formData, visitorCategory, idImage, idImageUrl });
   };
 
   return (
@@ -174,6 +207,12 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
             <div className="mt-2 flex items-center gap-2 text-xs text-primary">
               <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
               Compressing image...
+            </div>
+          )}
+          {uploading && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-primary">
+              <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              Uploading ID image...
             </div>
           )}
           {errors.idImage && <p className="error-text mt-1">{errors.idImage}</p>}

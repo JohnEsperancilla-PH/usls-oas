@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { getAuthAdmin } from "@/lib/rbac";
 import { sendMail, generateDeclineEmail, isNotificationEnabled } from "@/lib/email";
 
 interface DeclineRequest {
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
 
     const body: DeclineRequest = await request.json();
-    
+
     if (!body.appointmentId) {
       return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 });
     }
@@ -52,17 +52,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
 
+    // The decline email runs in the background so the admin gets an immediate response.
+    void runPostDeclineTasks(appointment, body.reason, admin.id, admin.email);
+
+    return NextResponse.json({
+      message: "Appointment declined successfully",
+      emailSent: null,
+      emailPending: true,
+      appointment: { id: appointment.id, status: "declined" },
+    });
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+  }
+}
+
+async function runPostDeclineTasks(
+  appointment: any,
+  reason: string | undefined,
+  adminId: string,
+  adminEmail: string
+) {
+  let emailResult = { success: false };
+
+  try {
     const emailContent = await generateDeclineEmail(
       appointment.full_name,
       appointment.date,
       appointment.time_slot,
       appointment.offices?.name || "Unknown Office",
-      body.reason,
+      reason,
       appointment.offices?.contact_email,
       appointment.offices?.contact_phone
     );
 
-    let emailResult = { success: false };
     if (await isNotificationEnabled("decline")) {
       emailResult = await sendMail({
         to: appointment.email,
@@ -71,26 +94,23 @@ export async function POST(request: Request) {
         attachments: emailContent.attachments,
       });
     }
-
-    await supabase.from("email_logs").insert({
-      appointment_id: appointment.id,
-      type: "decline",
-      status: emailResult.success ? "sent" : "failed",
-      sent_at: emailResult.success ? new Date().toISOString() : null,
-      error_message: emailResult.success ? null : "Failed to send decline email",
-    });
-
-    await logAudit(admin.id, admin.email, "decline", {
-      appointment_id: appointment.id,
-      meta: { visitor_name: appointment.full_name, reason: body.reason },
-    });
-
-    return NextResponse.json({
-      message: "Appointment declined successfully",
-      appointment: { id: appointment.id, status: "declined" },
-    });
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    console.error("Decline email failed:", error);
   }
+
+  const supabase = createServiceClient();
+
+  await supabase.from("email_logs").insert({
+    appointment_id: appointment.id,
+    type: "decline",
+    status: emailResult.success ? "sent" : "failed",
+    sent_at: emailResult.success ? new Date().toISOString() : null,
+    error_message: emailResult.success ? null : "Failed to send decline email",
+  });
+
+  const { logAudit } = await import("@/lib/rbac");
+  await logAudit(adminId, adminEmail, "decline", {
+    appointment_id: appointment.id,
+    meta: { visitor_name: appointment.full_name, reason },
+  });
 }

@@ -18,7 +18,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("pending");
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [processing, setProcessing] = useState<{ id: string; action: "approve" | "decline" | "reset" } | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [archivedData, setArchivedData] = useState<{ data: ArchivedAppointment[]; total: number }>({ data: [], total: 0 });
@@ -84,7 +84,7 @@ export default function AdminDashboardPage() {
   const getOfficeName = (officeId: string) => offices.find((o) => o.id === officeId)?.name || "Unknown";
 
   const handleApprove = async (appointment: Appointment) => {
-    setActionLoading(true); setMessage(null);
+    setProcessing({ id: appointment.id, action: "approve" }); setMessage(null);
     try {
       const res = await fetch("/api/appointments/approve", {
         method: "POST",
@@ -93,16 +93,15 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      const emailMsg = data.emailSent ? "" : " (email failed to send — check SMTP logs)";
-      setMessage({ type: data.emailSent ? "success" : "error", text: `Appointment approved${emailMsg}` });
+      setMessage({ type: "success", text: "Appointment approved. QR code & confirmation email are being sent." });
       setSelectedAppointment(null);
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
-    finally { setActionLoading(false); }
+    finally { setProcessing(null); }
   };
 
   const handleDecline = async (appointment: Appointment, reason?: string) => {
-    setActionLoading(true); setMessage(null);
+    setProcessing({ id: appointment.id, action: "decline" }); setMessage(null);
     try {
       const res = await fetch("/api/appointments/decline", {
         method: "POST",
@@ -111,15 +110,15 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setMessage({ type: "success", text: "Appointment declined" });
+      setMessage({ type: "success", text: "Appointment declined. Notification email is being sent." });
       setSelectedAppointment(null);
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
-    finally { setActionLoading(false); }
+    finally { setProcessing(null); }
   };
 
   const handleResetQR = async (appointment: Appointment) => {
-    setActionLoading(true); setMessage(null);
+    setProcessing({ id: appointment.id, action: "reset" }); setMessage(null);
     try {
       const res = await fetch("/api/appointments/reset-qr", {
         method: "POST",
@@ -128,12 +127,11 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      const emailMsg = data.emailSent ? "" : " (email failed to send — check SMTP logs)";
-      setMessage({ type: data.emailSent ? "success" : "error", text: `QR code reset${emailMsg}` });
+      setMessage({ type: "success", text: "QR code reset. New email is being sent." });
       setSelectedAppointment(null);
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
-    finally { setActionLoading(false); }
+    finally { setProcessing(null); }
   };
 
   const stats = {
@@ -348,8 +346,12 @@ export default function AdminDashboardPage() {
                       <button onClick={() => setSelectedAppointment(a)} className="text-xs font-medium text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors">View</button>
                       {a.status === "pending" && (
                         <>
-                          <button onClick={() => handleApprove(a)} disabled={actionLoading} className="text-xs font-medium text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50 transition-colors disabled:opacity-50">Approve</button>
-                          <button onClick={() => handleDecline(a)} disabled={actionLoading} className="text-xs font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50">Decline</button>
+                          <button onClick={() => handleApprove(a)} disabled={processing !== null} className="text-xs font-medium text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50 transition-colors disabled:opacity-50">
+                            {processing?.id === a.id && processing.action === "approve" ? "..." : "Approve"}
+                          </button>
+                          <button onClick={() => handleDecline(a)} disabled={processing !== null} className="text-xs font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50">
+                            {processing?.id === a.id && processing.action === "decline" ? "..." : "Decline"}
+                          </button>
                         </>
                       )}
                     </div>
@@ -385,8 +387,12 @@ export default function AdminDashboardPage() {
                 <button onClick={() => setSelectedAppointment(a)} className="flex-1 text-center text-xs font-medium text-gray-600 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">View Details</button>
                 {a.status === "pending" && (
                   <>
-                    <button onClick={() => handleApprove(a)} disabled={actionLoading} className="flex-1 text-center text-xs font-medium text-green-600 py-2 rounded-lg bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-50">Approve</button>
-                    <button onClick={() => handleDecline(a)} disabled={actionLoading} className="flex-1 text-center text-xs font-medium text-red-500 py-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50">Decline</button>
+                    <button onClick={() => handleApprove(a)} disabled={processing !== null} className="flex-1 text-center text-xs font-medium text-green-600 py-2 rounded-lg bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-50">
+                      {processing?.id === a.id && processing.action === "approve" ? "..." : "Approve"}
+                    </button>
+                    <button onClick={() => handleDecline(a)} disabled={processing !== null} className="flex-1 text-center text-xs font-medium text-red-500 py-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50">
+                      {processing?.id === a.id && processing.action === "decline" ? "..." : "Decline"}
+                    </button>
                   </>
                 )}
               </div>
@@ -398,7 +404,7 @@ export default function AdminDashboardPage() {
       )}
 
       {selectedAppointment && (
-        <DetailModal appointment={selectedAppointment} offices={offices} onApprove={handleApprove} onDecline={handleDecline} onResetQR={handleResetQR} onClose={() => setSelectedAppointment(null)} actionLoading={actionLoading} getStatusBadge={getStatusBadge} />
+        <DetailModal appointment={selectedAppointment} offices={offices} onApprove={handleApprove} onDecline={handleDecline} onResetQR={handleResetQR} onClose={() => setSelectedAppointment(null)} processing={processing} getStatusBadge={getStatusBadge} />
       )}
     </div>
   );
@@ -655,14 +661,16 @@ function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onU
 
 /* ─── Detail Modal ─── */
 
-function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, onClose, actionLoading, getStatusBadge }: {
+function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, onClose, processing, getStatusBadge }: {
   appointment: Appointment; offices: Office[];
   onApprove: (a: Appointment) => void; onDecline: (a: Appointment, reason?: string) => void; onResetQR: (a: Appointment) => void;
-  onClose: () => void; actionLoading: boolean; getStatusBadge: (s: string) => string;
+  onClose: () => void; processing: { id: string; action: "approve" | "decline" | "reset" } | null; getStatusBadge: (s: string) => string;
 }) {
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineReason, setShowDeclineReason] = useState(false);
   const officeName = offices.find((o) => o.id === appointment.office_id)?.name || "Unknown";
+  const isProcessing = processing?.id === appointment.id;
+  const isBusy = processing !== null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
@@ -718,9 +726,9 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
           )}
           {appointment.status === "completed" && (
             <div className="pt-3 border-t border-gray-100">
-              <button onClick={() => onResetQR(appointment)} disabled={actionLoading} className="btn-secondary w-full btn-sm disabled:opacity-50 flex items-center justify-center gap-2">
+              <button onClick={() => onResetQR(appointment)} disabled={isBusy} className="btn-secondary w-full btn-sm disabled:opacity-50 flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                {actionLoading ? "Resetting..." : "Reset QR & Re-send Email"}
+                {isProcessing && processing.action === "reset" ? "Resetting..." : "Reset QR & Re-send Email"}
               </button>
             </div>
           )}
@@ -730,19 +738,19 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
                 <div className="space-y-3">
                   <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Reason for decline (optional)" className="input" rows={2} />
                   <div className="flex gap-2">
-                    <button onClick={() => { onDecline(appointment, declineReason); setShowDeclineReason(false); setDeclineReason(""); }} disabled={actionLoading} className="btn-danger flex-1 btn-sm disabled:opacity-50">
-                      {actionLoading ? "Processing..." : "Confirm Decline"}
+                    <button onClick={() => { onDecline(appointment, declineReason); setShowDeclineReason(false); setDeclineReason(""); }} disabled={isBusy} className="btn-danger flex-1 btn-sm disabled:opacity-50">
+                      {isProcessing && processing.action === "decline" ? "Processing..." : "Confirm Decline"}
                     </button>
                     <button onClick={() => { setShowDeclineReason(false); setDeclineReason(""); }} className="btn-secondary flex-1 btn-sm">Cancel</button>
                   </div>
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  <button onClick={() => onApprove(appointment)} disabled={actionLoading} className="btn-primary flex-1 btn-sm disabled:opacity-50">
-                    {actionLoading ? "Processing..." : "Approve"}
+                  <button onClick={() => onApprove(appointment)} disabled={isBusy} className="btn-primary flex-1 btn-sm disabled:opacity-50">
+                    {isProcessing && processing.action === "approve" ? "Processing..." : "Approve"}
                   </button>
-                  <button onClick={() => setShowDeclineReason(true)} disabled={actionLoading} className="btn-danger flex-1 btn-sm disabled:opacity-50">
-                    {actionLoading ? "Processing..." : "Decline"}
+                  <button onClick={() => setShowDeclineReason(true)} disabled={isBusy} className="btn-danger flex-1 btn-sm disabled:opacity-50">
+                    {isProcessing && processing.action === "decline" ? "Processing..." : "Decline"}
                   </button>
                 </div>
               )}

@@ -54,7 +54,9 @@ export default function BookPage() {
     setError(null);
     try {
       const finalData = { ...formData, ...data };
-      if (finalData.idImage) {
+      // The ID upload is started as soon as the image is attached (in IdentityForm),
+      // so finalData.idImageUrl is normally already set. Re-upload only as a fallback.
+      if (!finalData.idImageUrl && finalData.idImage) {
         const formDataObj = new FormData();
         formDataObj.append("file", finalData.idImage);
         const uploadResponse = await fetch("/api/upload", { method: "POST", body: formDataObj });
