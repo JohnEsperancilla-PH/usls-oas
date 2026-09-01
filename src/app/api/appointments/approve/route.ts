@@ -130,7 +130,10 @@ async function runPostApprovalTasks(
   }
 
   try {
-    const start = new Date(`${appointment.date}T${appointment.time_slot}:00`);
+    // The stored date/time_slot are local wall-clock times (Philippines, Asia/Manila, UTC+8).
+    // Build the UTC instant explicitly so Vercel's UTC server and Google Calendar's
+    // timezone handling both show the intended local appointment time.
+    const start = new Date(`${appointment.date}T${appointment.time_slot}:00+08:00`);
     const end = new Date(start.getTime() + (appointment.duration || 30) * 60 * 1000);
     const officeName = appointment.offices?.name || "Unknown Office";
     const attendees = [appointment.email];

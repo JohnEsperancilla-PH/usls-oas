@@ -52,11 +52,30 @@ export interface CalendarEventParams {
   start: Date;
   end: Date;
   attendees?: string[];
+  timeZone?: string;
 }
 
-export async function createCalendarEvent({ title, description, start, end, attendees }: CalendarEventParams): Promise<{ id: string; htmlLink: string | null | undefined }> {
+const DEFAULT_TIME_ZONE = "Asia/Manila";
+
+function formatWallClock(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || "00";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}`;
+}
+
+export async function createCalendarEvent({ title, description, start, end, attendees, timeZone }: CalendarEventParams): Promise<{ id: string; htmlLink: string | null | undefined }> {
   const client = getServiceAccountAuth();
   const calendarId = getCalendarId();
+  const tz = timeZone || DEFAULT_TIME_ZONE;
 
   if (!client || !calendarId) {
     throw new Error("Google Calendar is not configured (missing GOOGLE_SERVICE_ACCOUNT or GOOGLE_CALENDAR_ID)");
@@ -70,8 +89,8 @@ export async function createCalendarEvent({ title, description, start, end, atte
     requestBody: {
       summary: title,
       description,
-      start: { dateTime: start.toISOString() },
-      end: { dateTime: end.toISOString() },
+      start: { dateTime: formatWallClock(start, tz), timeZone: tz },
+      end: { dateTime: formatWallClock(end, tz), timeZone: tz },
       attendees: attendees?.map((email) => ({ email })),
     },
   });
