@@ -30,6 +30,7 @@ export default function AuditPage() {
       create_office: "bg-blue-100 text-blue-800",
       update_office: "bg-yellow-100 text-yellow-800",
       delete_office: "bg-red-100 text-red-800",
+      login: "bg-indigo-100 text-indigo-800",
     };
     return badges[action] || "bg-gray-100 text-gray-600";
   };

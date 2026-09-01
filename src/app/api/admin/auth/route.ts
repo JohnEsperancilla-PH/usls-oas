@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { logAudit } from "@/lib/rbac";
 
 interface AuthCheckRequest {
   email: string;
@@ -29,6 +30,11 @@ export async function POST(request: Request) {
     if (error || !admin) {
       return NextResponse.json({ authorized: false, message: "Not an admin" }, { status: 403 });
     }
+
+    // Record successful admin login/access so it appears in the audit logs.
+    await logAudit(admin.id, admin.email, "login", {
+      meta: { ip, office_id: admin.office_id, role: admin.role },
+    });
 
     return NextResponse.json({ authorized: true, admin });
   } catch (error) {
