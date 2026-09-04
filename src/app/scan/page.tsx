@@ -45,10 +45,13 @@ export default function ScanPage() {
     }
   };
 
+  const scanCountRef = useRef(0);
+
   const startScanner = async () => {
     setError(null);
     setScanResult(null);
     setCooldown(0);
+    scanCountRef.current = 0;
     if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
 
     if (scannerRef.current) {
@@ -68,6 +71,8 @@ export default function ScanPage() {
       return;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    log(`BarcodeDetector available: ${typeof (window as any).BarcodeDetector !== "undefined"}`);
     log("Creating QrScanner...");
     const scanner = new QrScanner(
       videoRef.current,
@@ -77,9 +82,18 @@ export default function ScanPage() {
       },
       {
         preferredCamera: "environment",
+        highlightScanRegion: false,
+        highlightCodeOutline: false,
         onDecodeError: (err) => {
-          if (err !== QrScanner.NO_QR_CODE_FOUND) {
-            log(`Decode err: ${String(err)}`);
+          const msg = String(err);
+          if (msg !== QrScanner.NO_QR_CODE_FOUND) {
+            log(`Decode err: ${msg}`);
+          } else {
+            scanCountRef.current++;
+            if (scanCountRef.current % 20 === 1) {
+              const v = videoRef.current;
+              log(`Scanning... (${scanCountRef.current} frames) video=${v?.videoWidth}x${v?.videoHeight}`);
+            }
           }
         },
       },
@@ -164,6 +178,9 @@ export default function ScanPage() {
                 ref={videoRef}
                 className="w-full aspect-square bg-gray-100 object-cover"
                 style={{ display: scanResult ? "none" : undefined }}
+                playsInline
+                muted
+                autoPlay
               />
               {!scanResult && !isScanning && !error && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
