@@ -50,7 +50,7 @@ export default function ScanPage() {
       scannerRef.current = null;
     }
 
-    const scanner = new Html5Qrcode(SCANNER_ID);
+    const scanner = new Html5Qrcode(SCANNER_ID, { verbose: false, useBarCodeDetectorIfSupported: true });
     scannerRef.current = scanner;
 
     try {
