@@ -26,10 +26,17 @@ export default function ScanPage() {
   const [error, setError] = useState<string | null>(null);
   const [manualToken, setManualToken] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const [logs, setLogs] = useState<string[]>([]);
   const scannerRef = useRef<QrScanner | null>(null);
   const cooldownRef = useRef<NodeJS.Timeout | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const onScanRef = useRef<(token: string) => void>(() => {});
+
+  const log = (msg: string) => {
+    const ts = new Date().toLocaleTimeString("en-US", { hour12: false });
+    setLogs((prev) => [...prev.slice(-30), `${ts} ${msg}`]);
+    console.log("[QR]", msg);
+  };
 
   const pauseScanner = () => {
     if (scannerRef.current) {
@@ -45,25 +52,55 @@ export default function ScanPage() {
     if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
 
     if (scannerRef.current) {
-      try { await scannerRef.current.start(); setIsScanning(true); return; } catch {}
+      try {
+        log("Resuming existing scanner...");
+        await scannerRef.current.start();
+        log("Scanner resumed OK");
+        setIsScanning(true);
+        return;
+      } catch (e) {
+        log(`Resume failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
 
-    if (!videoRef.current) return;
+    if (!videoRef.current) {
+      log("videoRef is null — cannot start");
+      return;
+    }
 
+    log("Creating QrScanner...");
     const scanner = new QrScanner(
       videoRef.current,
-      (result) => { onScanRef.current(result.data); },
+      (result) => {
+        log(`DECODED: ${result.data.substring(0, 80)}...`);
+        onScanRef.current(result.data);
+      },
       {
         preferredCamera: "environment",
+        onDecodeError: (err) => {
+          if (err !== QrScanner.NO_QR_CODE_FOUND) {
+            log(`Decode err: ${String(err)}`);
+          }
+        },
       },
     );
 
     scannerRef.current = scanner;
-    await scanner.start();
-    setIsScanning(true);
+    try {
+      log("Calling scanner.start()...");
+      await scanner.start();
+      const cameras = await QrScanner.listCameras(true);
+      log(`Camera active (${cameras.length} cameras found)`);
+      setIsScanning(true);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log(`START FAILED: ${msg}`);
+      setError(`Camera error: ${msg}`);
+    }
   };
 
   const handleScanResult = async (token: string) => {
+    log(`Token received (${token.length} chars), sending to API...`);
     pauseScanner();
     try {
       const response = await fetch("/api/scan", {
@@ -72,9 +109,12 @@ export default function ScanPage() {
         body: JSON.stringify({ token }),
       });
       const data: ScanResult = await response.json();
+      log(`API response: ${data.success ? "SUCCESS" : "DENIED"} — ${data.message}`);
       setScanResult(data);
       setCooldown(10);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log(`API error: ${msg}`);
       setError("Failed to verify QR code. Please try again.");
       startScanner();
     }
@@ -240,6 +280,23 @@ export default function ScanPage() {
             </div>
           )}
         </div>
+
+        {/* Debug log panel */}
+        {logs.length > 0 && (
+          <div className="max-w-lg w-full mt-6 bg-gray-900 rounded-xl p-3 border border-gray-700">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono text-gray-400">Debug Log</span>
+              <button onClick={() => setLogs([])} className="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+            </div>
+            <div className="max-h-48 overflow-y-auto space-y-1">
+              {logs.map((entry, i) => (
+                <p key={i} className={`text-xs font-mono leading-tight ${entry.includes("FAILED") || entry.includes("err") ? "text-red-400" : entry.includes("DECODED") || entry.includes("SUCCESS") ? "text-green-400" : "text-gray-300"}`}>
+                  {entry}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
