@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import QrScanner from "qr-scanner";
+import { Html5Qrcode } from "html5-qrcode";
 
 interface ScanResult {
   success: boolean;
@@ -20,102 +20,71 @@ interface ScanResult {
   };
 }
 
+const SCANNER_ID = "qr-reader";
+
 export default function ScanPage() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [manualToken, setManualToken] = useState("");
   const [cooldown, setCooldown] = useState(0);
-  const [logs, setLogs] = useState<string[]>([]);
-  const scannerRef = useRef<QrScanner | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const cooldownRef = useRef<NodeJS.Timeout | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const onScanRef = useRef<(token: string) => void>(() => {});
+  const processingRef = useRef(false);
 
-  const log = (msg: string) => {
-    const ts = new Date().toLocaleTimeString("en-US", { hour12: false });
-    setLogs((prev) => [...prev.slice(-30), `${ts} ${msg}`]);
-    console.log("[QR]", msg);
+  const getQrBox = (viewfinderWidth: number, viewfinderHeight: number) => {
+    const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+    const size = Math.floor(minDim * 0.7);
+    return { width: size, height: size };
   };
-
-  const pauseScanner = () => {
-    if (scannerRef.current) {
-      try { scannerRef.current.pause(); } catch {}
-      setIsScanning(false);
-    }
-  };
-
-  const scanCountRef = useRef(0);
 
   const startScanner = async () => {
     setError(null);
     setScanResult(null);
     setCooldown(0);
-    scanCountRef.current = 0;
+    processingRef.current = false;
     if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
 
     if (scannerRef.current) {
-      try {
-        log("Resuming existing scanner...");
-        await scannerRef.current.start();
-        log("Scanner resumed OK");
-        setIsScanning(true);
-        return;
-      } catch (e) {
-        log(`Resume failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
+      try { await scannerRef.current.stop(); } catch {}
+      scannerRef.current = null;
     }
 
-    if (!videoRef.current) {
-      log("videoRef is null — cannot start");
-      return;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    log(`BarcodeDetector available: ${typeof (window as any).BarcodeDetector !== "undefined"}`);
-    log("Creating QrScanner...");
-    const scanner = new QrScanner(
-      videoRef.current,
-      (result) => {
-        log(`DECODED: ${result.data.substring(0, 80)}...`);
-        onScanRef.current(result.data);
-      },
-      {
-        preferredCamera: "environment",
-        highlightScanRegion: false,
-        highlightCodeOutline: false,
-        onDecodeError: (err) => {
-          const msg = String(err);
-          if (msg !== QrScanner.NO_QR_CODE_FOUND) {
-            log(`Decode err: ${msg}`);
-          } else {
-            scanCountRef.current++;
-            if (scanCountRef.current % 20 === 1) {
-              const v = videoRef.current;
-              log(`Scanning... (${scanCountRef.current} frames) video=${v?.videoWidth}x${v?.videoHeight}`);
-            }
-          }
-        },
-      },
-    );
-
+    const scanner = new Html5Qrcode(SCANNER_ID);
     scannerRef.current = scanner;
+
     try {
-      log("Calling scanner.start()...");
-      await scanner.start();
-      const cameras = await QrScanner.listCameras(true);
-      log(`Camera active (${cameras.length} cameras found)`);
+      await scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 30,
+          qrbox: getQrBox,
+          aspectRatio: 1.0,
+        },
+        (decodedText) => {
+          if (processingRef.current) return;
+          processingRef.current = true;
+          handleScanResult(decodedText);
+        },
+        () => {},
+      );
       setIsScanning(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      log(`START FAILED: ${msg}`);
       setError(`Camera error: ${msg}`);
     }
   };
 
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try { await scannerRef.current.stop(); } catch {}
+      scannerRef.current = null;
+    }
+    setIsScanning(false);
+  };
+
   const handleScanResult = async (token: string) => {
-    log(`Token received (${token.length} chars), sending to API...`);
-    pauseScanner();
+    await stopScanner();
     try {
       const response = await fetch("/api/scan", {
         method: "POST",
@@ -123,32 +92,28 @@ export default function ScanPage() {
         body: JSON.stringify({ token }),
       });
       const data: ScanResult = await response.json();
-      log(`API response: ${data.success ? "SUCCESS" : "DENIED"} — ${data.message}`);
       setScanResult(data);
-      setCooldown(10);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      log(`API error: ${msg}`);
+      setCooldown(5);
+    } catch {
       setError("Failed to verify QR code. Please try again.");
       startScanner();
     }
   };
 
-  useEffect(() => { onScanRef.current = handleScanResult; });
-
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (manualToken.trim()) {
-      pauseScanner();
+      await stopScanner();
       await handleScanResult(manualToken.trim());
       setManualToken("");
     }
   };
 
-  const resetScanner = () => { startScanner(); };
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { startScanner(); return () => { if (scannerRef.current) { try { scannerRef.current.destroy(); } catch {} scannerRef.current = null; } if (cooldownRef.current) clearInterval(cooldownRef.current); }; }, []);
+  useEffect(() => {
+    startScanner();
+    return () => { stopScanner(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -156,9 +121,9 @@ export default function ScanPage() {
       return () => { if (cooldownRef.current) clearTimeout(cooldownRef.current); };
     }
     if (cooldown === 0 && scanResult) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       startScanner();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cooldown, scanResult]);
 
   return (
@@ -171,29 +136,15 @@ export default function ScanPage() {
 
       <main className="flex items-start justify-center p-4 pt-8">
         <div className="max-w-lg w-full space-y-4">
-          {/* Scanner container — video always in DOM */}
           <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm">
             <div className="relative">
-              <video
-                ref={videoRef}
-                className="w-full aspect-square bg-gray-100 object-cover"
+              <div
+                id={SCANNER_ID}
+                className="w-full aspect-square"
                 style={{ display: scanResult ? "none" : undefined }}
-                playsInline
-                muted
-                autoPlay
               />
-              {!scanResult && !isScanning && !error && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                  <div className="text-center">
-                    <svg className="w-16 h-16 text-gray-300 mx-auto mb-3 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                    </svg>
-                    <p className="text-gray-400 text-sm">Starting camera...</p>
-                  </div>
-                </div>
-              )}
               {scanResult && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                <div className="w-full aspect-square flex items-center justify-center bg-gray-100">
                   <p className="text-gray-400 text-sm">Scanning paused</p>
                 </div>
               )}
@@ -208,7 +159,6 @@ export default function ScanPage() {
             )}
           </div>
 
-          {/* Error */}
           {error && !scanResult && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center animate-fade-in">
               <p className="text-red-700 text-sm mb-3">{error}</p>
@@ -216,7 +166,6 @@ export default function ScanPage() {
             </div>
           )}
 
-          {/* Result */}
           {scanResult && (
             <div className={`rounded-xl p-6 text-center animate-fade-in border ${scanResult.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
               <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${scanResult.success ? "bg-green-100" : "bg-red-100"}`}>
@@ -265,14 +214,13 @@ export default function ScanPage() {
                     Ready to scan in {cooldown}s
                   </div>
                 )}
-                <button onClick={resetScanner} className={`w-full py-3 rounded-lg font-medium transition-all duration-200 ${scanResult.success ? "bg-primary text-white hover:bg-primary-light" : "bg-error text-white hover:bg-red-700"}`}>
+                <button onClick={() => startScanner()} className={`w-full py-3 rounded-lg font-medium transition-all duration-200 ${scanResult.success ? "bg-primary text-white hover:bg-primary-light" : "bg-error text-white hover:bg-red-700"}`}>
                   Scan Next
                 </button>
               </div>
             </div>
           )}
 
-          {/* Manual Entry — only when no result */}
           {!scanResult && (
             <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
               <button onClick={() => startScanner()}
@@ -297,23 +245,6 @@ export default function ScanPage() {
             </div>
           )}
         </div>
-
-        {/* Debug log panel */}
-        {logs.length > 0 && (
-          <div className="max-w-lg w-full mt-6 bg-gray-900 rounded-xl p-3 border border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono text-gray-400">Debug Log</span>
-              <button onClick={() => setLogs([])} className="text-xs text-gray-500 hover:text-gray-300">Clear</button>
-            </div>
-            <div className="max-h-48 overflow-y-auto space-y-1">
-              {logs.map((entry, i) => (
-                <p key={i} className={`text-xs font-mono leading-tight ${entry.includes("FAILED") || entry.includes("err") ? "text-red-400" : entry.includes("DECODED") || entry.includes("SUCCESS") ? "text-green-400" : "text-gray-300"}`}>
-                  {entry}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );
