@@ -31,11 +31,9 @@ export default function ScanPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const onScanRef = useRef<(token: string) => void>(() => {});
 
-  const stopScanner = () => {
+  const pauseScanner = () => {
     if (scannerRef.current) {
-      try { scannerRef.current.stop(); } catch {}
-      try { scannerRef.current.destroy(); } catch {}
-      scannerRef.current = null;
+      try { scannerRef.current.pause(); } catch {}
       setIsScanning(false);
     }
   };
@@ -45,7 +43,10 @@ export default function ScanPage() {
     setScanResult(null);
     setCooldown(0);
     if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
-    stopScanner();
+
+    if (scannerRef.current) {
+      try { await scannerRef.current.start(); setIsScanning(true); return; } catch {}
+    }
 
     if (!videoRef.current) return;
 
@@ -57,7 +58,7 @@ export default function ScanPage() {
         highlightCodeOutline: true,
         preferredCamera: "environment",
         calculateScanRegion: (video) => {
-          const size = Math.min(video.videoWidth, video.videoHeight) * 0.7;
+          const size = Math.min(video.videoWidth, video.videoHeight) * 0.85;
           return {
             x: (video.videoWidth - size) / 2,
             y: (video.videoHeight - size) / 2,
@@ -74,7 +75,7 @@ export default function ScanPage() {
   };
 
   const handleScanResult = async (token: string) => {
-    stopScanner();
+    pauseScanner();
     try {
       const response = await fetch("/api/scan", {
         method: "POST",
@@ -95,7 +96,7 @@ export default function ScanPage() {
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (manualToken.trim()) {
-      stopScanner();
+      pauseScanner();
       await handleScanResult(manualToken.trim());
       setManualToken("");
     }
@@ -103,8 +104,8 @@ export default function ScanPage() {
 
   const resetScanner = () => { startScanner(); };
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { startScanner(); return () => { stopScanner(); if (cooldownRef.current) clearInterval(cooldownRef.current); }; }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { startScanner(); return () => { if (scannerRef.current) { try { scannerRef.current.destroy(); } catch {} scannerRef.current = null; } if (cooldownRef.current) clearInterval(cooldownRef.current); }; }, []);
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -115,7 +116,6 @@ export default function ScanPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       startScanner();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cooldown, scanResult]);
 
   return (
