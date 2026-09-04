@@ -104,7 +104,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 z-30">
           <div className="flex items-center justify-center px-5 py-5 border-b border-gray-100 flex-shrink-0 overflow-hidden">
-            <img src="/usls-oas.png" alt="USLS OAS" className="h-16 w-auto" />
+            <img src="/usls-oas.png" alt="USLS OAS" className="h-12 w-auto object-contain" />
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => (
@@ -137,7 +137,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <aside className="relative w-72 h-full bg-white shadow-xl animate-slide-in-left">
               <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100">
                 <div className="flex items-center justify-center">
-            <img src="/usls-oas.png" alt="USLS OAS" className="h-12 w-auto" />
+            <img src="/usls-oas.png" alt="USLS OAS" className="h-10 w-auto object-contain" />
                 </div>
                 <button onClick={() => setSidebarOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
