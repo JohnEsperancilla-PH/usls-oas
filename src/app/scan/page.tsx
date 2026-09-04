@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { useState, useEffect, useRef } from "react";
+import QrScanner from "qr-scanner";
 
 interface ScanResult {
   success: boolean;
@@ -26,20 +26,55 @@ export default function ScanPage() {
   const [error, setError] = useState<string | null>(null);
   const [manualToken, setManualToken] = useState("");
   const [cooldown, setCooldown] = useState(0);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerRef = useRef<QrScanner | null>(null);
   const cooldownRef = useRef<NodeJS.Timeout | null>(null);
-  const scannerContainerId = "qr-scanner";
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const onScanRef = useRef<(token: string) => void>(() => {});
 
-  const stopScanner = async () => {
+  const stopScanner = () => {
     if (scannerRef.current) {
-      try { await scannerRef.current.stop(); scannerRef.current.clear(); } catch {}
+      try { scannerRef.current.stop(); } catch {}
+      try { scannerRef.current.destroy(); } catch {}
       scannerRef.current = null;
       setIsScanning(false);
     }
   };
 
-  const handleScanResult = useCallback(async (token: string) => {
-    await stopScanner();
+  const startScanner = async () => {
+    setError(null);
+    setScanResult(null);
+    setCooldown(0);
+    if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
+    stopScanner();
+
+    if (!videoRef.current) return;
+
+    const scanner = new QrScanner(
+      videoRef.current,
+      (result) => { onScanRef.current(result.data); },
+      {
+        highlightScanRegion: true,
+        highlightCodeOutline: true,
+        preferredCamera: "environment",
+        calculateScanRegion: (video) => {
+          const size = Math.min(video.videoWidth, video.videoHeight) * 0.7;
+          return {
+            x: (video.videoWidth - size) / 2,
+            y: (video.videoHeight - size) / 2,
+            width: size,
+            height: size,
+          };
+        },
+      },
+    );
+
+    scannerRef.current = scanner;
+    await scanner.start();
+    setIsScanning(true);
+  };
+
+  const handleScanResult = async (token: string) => {
+    stopScanner();
     try {
       const response = await fetch("/api/scan", {
         method: "POST",
@@ -53,63 +88,14 @@ export default function ScanPage() {
       setError("Failed to verify QR code. Please try again.");
       startScanner();
     }
-  }, []);
-
-  const startScanner = async (retries = 3) => {
-    setError(null);
-    setScanResult(null);
-    setCooldown(0);
-    if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
-    if (scannerRef.current) { await stopScanner(); }
-
-    const attempt = async () => {
-      const scanner = new Html5Qrcode(scannerContainerId);
-      scannerRef.current = scanner;
-
-      const container = document.getElementById(scannerContainerId);
-      const minDim = Math.min(container?.clientWidth ?? 300, container?.clientHeight ?? 300);
-      const boxSize = Math.floor(minDim * 0.7);
-
-      await scanner.start(
-        { facingMode: "environment" },
-        {
-          fps: 20,
-          qrbox: { width: boxSize, height: boxSize },
-          aspectRatio: 1.0,
-          disableFlip: false,
-        },
-        async (decodedText) => { await handleScanResult(decodedText); },
-        () => {}
-      );
-      setIsScanning(true);
-    };
-
-    // Retry a few times — right after stopping, the camera/stream may still be
-    // releasing and fail with "not available". A short delay lets it reopen so
-    // the scanning loop keeps the camera open.
-    for (let i = 0; i < retries; i++) {
-      try {
-        await attempt();
-        return;
-      } catch {
-        // Release any partially-attached stream before retrying.
-        if (scannerRef.current) {
-          try { await scannerRef.current.stop(); } catch {}
-          try { scannerRef.current.clear(); } catch {}
-          scannerRef.current = null;
-        }
-        if (i < retries - 1) {
-          await new Promise((r) => setTimeout(r, 1200));
-        }
-      }
-    }
-    setError("Camera not available. Use manual entry below.");
   };
+
+  useEffect(() => { onScanRef.current = handleScanResult; });
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (manualToken.trim()) {
-      await stopScanner();
+      stopScanner();
       await handleScanResult(manualToken.trim());
       setManualToken("");
     }
@@ -126,8 +112,10 @@ export default function ScanPage() {
       return () => { if (cooldownRef.current) clearTimeout(cooldownRef.current); };
     }
     if (cooldown === 0 && scanResult) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       startScanner();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cooldown, scanResult]);
 
   return (
@@ -208,7 +196,7 @@ export default function ScanPage() {
 
               <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm">
                 <div className="relative">
-                  <div id={scannerContainerId} className="w-full aspect-square bg-gray-100" />
+                  <video ref={videoRef} className="w-full aspect-square bg-gray-100 object-cover" />
                   {!isScanning && !error && (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
                       <div className="text-center">
