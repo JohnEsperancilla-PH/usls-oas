@@ -65,9 +65,19 @@ export default function ScanPage() {
     const attempt = async () => {
       const scanner = new Html5Qrcode(scannerContainerId);
       scannerRef.current = scanner;
+
+      const container = document.getElementById(scannerContainerId);
+      const minDim = Math.min(container?.clientWidth ?? 300, container?.clientHeight ?? 300);
+      const boxSize = Math.floor(minDim * 0.7);
+
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 280, height: 280 } },
+        {
+          fps: 20,
+          qrbox: { width: boxSize, height: boxSize },
+          aspectRatio: 1.0,
+          disableFlip: false,
+        },
         async (decodedText) => { await handleScanResult(decodedText); },
         () => {}
       );
