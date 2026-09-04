@@ -54,18 +54,7 @@ export default function ScanPage() {
       videoRef.current,
       (result) => { onScanRef.current(result.data); },
       {
-        highlightScanRegion: true,
-        highlightCodeOutline: true,
         preferredCamera: "environment",
-        calculateScanRegion: (video) => {
-          const size = Math.min(video.videoWidth, video.videoHeight) * 0.85;
-          return {
-            x: (video.videoWidth - size) / 2,
-            y: (video.videoHeight - size) / 2,
-            width: size,
-            height: size,
-          };
-        },
       },
     );
 
@@ -128,6 +117,48 @@ export default function ScanPage() {
 
       <main className="flex items-start justify-center p-4 pt-8">
         <div className="max-w-lg w-full space-y-4">
+          {/* Scanner container — video always in DOM */}
+          <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+            <div className="relative">
+              <video
+                ref={videoRef}
+                className="w-full aspect-square bg-gray-100 object-cover"
+                style={{ display: scanResult ? "none" : undefined }}
+              />
+              {!scanResult && !isScanning && !error && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                  <div className="text-center">
+                    <svg className="w-16 h-16 text-gray-300 mx-auto mb-3 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
+                    <p className="text-gray-400 text-sm">Starting camera...</p>
+                  </div>
+                </div>
+              )}
+              {scanResult && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                  <p className="text-gray-400 text-sm">Scanning paused</p>
+                </div>
+              )}
+            </div>
+            {!scanResult && isScanning && (
+              <div className="p-3 text-center border-t border-gray-100">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="pulse-dot" />
+                  <span className="text-xs text-primary font-medium">Camera active — point at QR code</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Error */}
+          {error && !scanResult && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center animate-fade-in">
+              <p className="text-red-700 text-sm mb-3">{error}</p>
+              <button onClick={() => setError(null)} className="text-xs text-red-500 hover:text-red-700 underline">Dismiss</button>
+            </div>
+          )}
+
           {/* Result */}
           {scanResult && (
             <div className={`rounded-xl p-6 text-center animate-fade-in border ${scanResult.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
@@ -184,63 +215,29 @@ export default function ScanPage() {
             </div>
           )}
 
-          {/* Scanner */}
+          {/* Manual Entry — only when no result */}
           {!scanResult && (
-            <>
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center animate-fade-in">
-                  <p className="text-red-700 text-sm mb-3">{error}</p>
-                  <button onClick={() => setError(null)} className="text-xs text-red-500 hover:text-red-700 underline">Dismiss</button>
-                </div>
-              )}
-
-              <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm">
-                <div className="relative">
-                  <video ref={videoRef} className="w-full aspect-square bg-gray-100 object-cover" />
-                  {!isScanning && !error && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                      <div className="text-center">
-                        <svg className="w-16 h-16 text-gray-300 mx-auto mb-3 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                        </svg>
-                        <p className="text-gray-400 text-sm">Starting camera...</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {isScanning && (
-                  <div className="p-3 text-center border-t border-gray-100">
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="pulse-dot" />
-                      <span className="text-xs text-primary font-medium">Camera active — point at QR code</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Manual Entry */}
-              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <button onClick={() => startScanner()}
-                  className="w-full mb-3 py-2.5 px-4 rounded-lg border-2 border-dashed border-primary/40 text-sm font-medium text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-                  Start Camera / Scan QR Code
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <button onClick={() => startScanner()}
+                className="w-full mb-3 py-2.5 px-4 rounded-lg border-2 border-dashed border-primary/40 text-sm font-medium text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                Start Camera / Scan QR Code
+              </button>
+              <p className="text-center text-gray-400 text-xs mb-3">Or enter token manually</p>
+              <form onSubmit={handleManualSubmit} className="flex gap-2">
+                <input
+                  type="text"
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  placeholder="Paste QR token..."
+                  className="input flex-1"
+                />
+                <button type="submit" disabled={!manualToken.trim()}
+                  className="btn-primary btn-sm disabled:opacity-30 disabled:cursor-not-allowed">
+                  Verify
                 </button>
-                <p className="text-center text-gray-400 text-xs mb-3">Or enter token manually</p>
-                <form onSubmit={handleManualSubmit} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={manualToken}
-                    onChange={(e) => setManualToken(e.target.value)}
-                    placeholder="Paste QR token..."
-                    className="input flex-1"
-                  />
-                  <button type="submit" disabled={!manualToken.trim()}
-                    className="btn-primary btn-sm disabled:opacity-30 disabled:cursor-not-allowed">
-                    Verify
-                  </button>
-                </form>
-              </div>
-            </>
+              </form>
+            </div>
           )}
         </div>
       </main>
