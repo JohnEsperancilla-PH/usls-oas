@@ -147,7 +147,7 @@ export default function AdminDashboardPage() {
   };
 
   if (!isSuperAdmin) {
-    return <CalendarView admin={admin} appointments={appointments} offices={offices} loading={loading} calendarDate={calendarDate} setCalendarDate={setCalendarDate} filter={filter} setFilter={setFilter} getOfficeName={getOfficeName} setSelectedAppointment={setSelectedAppointment} />;
+    return <CalendarView admin={admin} appointments={appointments} offices={offices} loading={loading} calendarDate={calendarDate} setCalendarDate={setCalendarDate} filter={filter} setFilter={setFilter} getOfficeName={getOfficeName} selectedAppointment={selectedAppointment} setSelectedAppointment={setSelectedAppointment} processing={processing} onApprove={handleApprove} onDecline={handleDecline} onResetQR={handleResetQR} getStatusBadge={getStatusBadge} />;
   }
 
   return (
@@ -412,11 +412,15 @@ export default function AdminDashboardPage() {
 
 /* ─── Calendar View (office admins) ─── */
 
-function CalendarView({ admin, appointments, offices, loading, calendarDate, setCalendarDate, filter, setFilter, getOfficeName, setSelectedAppointment }: {
+function CalendarView({ admin, appointments, offices, loading, calendarDate, setCalendarDate, filter, setFilter, getOfficeName, selectedAppointment, setSelectedAppointment, processing, onApprove, onDecline, onResetQR, getStatusBadge }: {
   admin: { email: string; office_id: string | null; role: string; offices?: { name: string } | null };
   appointments: Appointment[]; offices: Office[]; loading: boolean; calendarDate: Date;
   setCalendarDate: (d: Date) => void; filter: string; setFilter: (f: string) => void;
-  getOfficeName: (id: string) => string; setSelectedAppointment: (a: Appointment | null) => void;
+  getOfficeName: (id: string) => string; selectedAppointment: Appointment | null;
+  setSelectedAppointment: (a: Appointment | null) => void;
+  processing: { id: string; action: "approve" | "decline" | "reset" } | null;
+  onApprove: (a: Appointment) => void; onDecline: (a: Appointment, reason?: string) => void; onResetQR: (a: Appointment) => void;
+  getStatusBadge: (s: string) => string;
 }) {
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
@@ -430,6 +434,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
   const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
   const [blockModalDate, setBlockModalDate] = useState<string | null>(null);
   const [blockingSlot, setBlockingSlot] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
 
   const blockedByDate: Record<string, BlockedTime[]> = {};
   blockedTimes.forEach((b) => { if (!blockedByDate[b.date]) blockedByDate[b.date] = []; blockedByDate[b.date].push(b); });
@@ -491,6 +496,14 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
           <p className="text-sm text-gray-500 mt-0.5">{admin.offices?.name || "Office"} schedule</p>
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <div className="flex bg-gray-100 rounded-lg p-0.5 mr-1">
+            {(["calendar", "list"] as const).map((v) => (
+              <button key={v} onClick={() => setViewMode(v)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === v ? "bg-primary text-white shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
           {["pending", "approved", "declined", "all"].map((s) => (
             <button key={s} onClick={() => setFilter(s)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${filter === s ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
@@ -500,7 +513,8 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+      {viewMode === "calendar" ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
         <div className="flex items-center justify-between mb-5">
           <button onClick={() => setCalendarDate(new Date(year, month - 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -562,6 +576,22 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
           <span className="flex items-center gap-1"><svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg> Blocked</span>
         </div>
       </div>
+      ) : (
+        <ListByDay
+          byDate={byDate}
+          blockedByDate={blockedByDate}
+          loading={loading}
+          filter={filter}
+          officeId={officeId}
+          year={year}
+          month={month}
+          onPrevMonth={() => setCalendarDate(new Date(year, month - 1))}
+          onNextMonth={() => setCalendarDate(new Date(year, month + 1))}
+          onView={(a) => setSelectedAppointment(a)}
+          onBlockDate={(ds) => { setBlockModalDate(ds); setCalendarDate(new Date(ds + "T00:00:00")); }}
+          color={color}
+        />
+      )}
 
       {blockModalDate && officeId && (
         <BlockTimeModal
@@ -575,6 +605,195 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
           blockingSlot={blockingSlot}
         />
       )}
+
+      {selectedAppointment && (
+        <DetailModal
+          appointment={selectedAppointment}
+          offices={offices}
+          onApprove={onApprove}
+          onDecline={onDecline}
+          onResetQR={onResetQR}
+          onClose={() => setSelectedAppointment(null)}
+          processing={processing}
+          getStatusBadge={getStatusBadge}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── List by Day (office admin) ─── */
+
+function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, month, onPrevMonth, onNextMonth, onView, onBlockDate, color }: {
+  byDate: Record<string, Appointment[]>;
+  blockedByDate: Record<string, BlockedTime[]>;
+  loading: boolean;
+  filter: string;
+  officeId: string;
+  year: number;
+  month: number;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+  onView: (a: Appointment) => void;
+  onBlockDate: (ds: string) => void;
+  color: (s: string) => string;
+}) {
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const sortedDates = Object.keys(byDate)
+    .filter((d) => d.startsWith(monthPrefix))
+    .sort();
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+
+  const formatDate = (ds: string) =>
+    new Date(ds + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  const formatTime = (ts: string) => {
+    const [h, m] = ts.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const dh = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    return `${dh}:${m.toString().padStart(2, "0")} ${period}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto" />
+      </div>
+    );
+  }
+
+  if (sortedDates.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+        </div>
+        <p className="text-sm text-gray-500">No {filter !== "all" ? filter : ""} appointments in this month</p>
+        <p className="text-xs text-gray-400 mt-1">Switch to the Calendar view or change months to see more.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+        <div className="flex items-center justify-between">
+          <button onClick={onPrevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <h3 className="text-base font-semibold text-gray-900">{new Date(year, month).toLocaleString("default", { month: "long", year: "numeric" })}</h3>
+          <button onClick={onNextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+        <p className="text-center text-xs text-gray-400 mt-2">{sortedDates.length} day{sortedDates.length !== 1 ? "s" : ""} with appointments</p>
+      </div>
+
+      {sortedDates.map((ds) => {
+        const dayAppointments = (byDate[ds] || []).slice().sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+        const dayBlocks = blockedByDate[ds] || [];
+        const isPast = ds < todayStr;
+
+        return (
+          <div key={ds} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <h4 className="text-sm font-semibold text-gray-900">{formatDate(ds)}</h4>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isPast ? "bg-gray-100 text-gray-400" : "bg-primary/10 text-primary"}`}>
+                  {isPast ? "Past" : `${dayAppointments.length} appointment${dayAppointments.length !== 1 ? "s" : ""}`}
+                </span>
+              </div>
+              {officeId && (
+                <button onClick={() => onBlockDate(ds)}
+                  className="text-xs font-medium text-gray-500 hover:text-primary px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Block slots
+                </button>
+              )}
+            </div>
+
+            {dayAppointments.length === 0 && dayBlocks.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm text-gray-400">No appointments</div>
+            ) : (
+              <>
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr className="border-b border-gray-100">
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visitor</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {dayAppointments.map((a) => (
+                        <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{formatTime(a.time_slot)}</td>
+                          <td className="px-4 py-3">
+                            <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
+                            <div className="text-xs text-gray-400">{a.email}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 capitalize">{a.visitor_category.replace(/_/g, " ")}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate">{a.purpose_of_visit || "—"}</td>
+                          <td className="px-4 py-3">
+                            {a.id_image_url && <img src={a.id_image_url} alt="ID" className="h-10 w-auto rounded border border-gray-200" />}
+                          </td>
+                          <td className="px-4 py-3"><span className={color(a.status)}>{a.status}</span></td>
+                          <td className="px-4 py-3 text-right">
+                            <button onClick={() => onView(a)} className="text-xs font-medium text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors">View</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {dayBlocks.map((b) => (
+                        <tr key={`block-${b.id}`} className="bg-gray-50/40">
+                          <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap line-through">{formatTime(b.time_slot)}</td>
+                          <td className="px-4 py-3" colSpan={5}>
+                            <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                              Blocked time slot
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="text-xs text-gray-400">{formatTime(b.time_slot)}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="md:hidden divide-y divide-gray-50">
+                  {dayAppointments.map((a) => (
+                    <div key={a.id} className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
+                          <div className="text-xs text-gray-400">{a.email} · {formatTime(a.time_slot)} · {a.duration}m</div>
+                        </div>
+                        <span className={color(a.status)}>{a.status}</span>
+                      </div>
+                      {a.id_image_url && <img src={a.id_image_url} alt="ID" className="mt-3 h-12 w-auto rounded border border-gray-200" />}
+                      <button onClick={() => onView(a)} className="mt-3 w-full text-center text-xs font-medium text-gray-600 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">View Details</button>
+                    </div>
+                  ))}
+                  {dayBlocks.map((b) => (
+                    <div key={`block-${b.id}`} className="p-3 flex items-center gap-2 bg-gray-50/40 text-xs text-gray-400">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                      Blocked · {formatTime(b.time_slot)}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
