@@ -37,10 +37,10 @@ export async function POST(request: Request) {
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
     const body = await request.json();
-    const { name, email, description, operating_hours, capacity_per_slot } = body;
+    const { name, email, description, operating_hours, capacity_per_slot, contact_email, contact_phone } = body;
 
-    if (!name || !operating_hours) {
-      return NextResponse.json({ message: "Name and operating hours are required" }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ message: "Office name is required" }, { status: 400 });
     }
 
     const supabase = createServiceClient();
@@ -51,8 +51,10 @@ export async function POST(request: Request) {
         name,
         email: email || null,
         description: description || null,
-        operating_hours,
+        operating_hours: operating_hours || "8:00 AM - 5:00 PM",
         capacity_per_slot: capacity_per_slot || 1,
+        contact_email: contact_email || null,
+        contact_phone: contact_phone || null,
         active: true,
       })
       .select()
@@ -80,7 +82,7 @@ export async function PUT(request: Request) {
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
     const body = await request.json();
-    const { id, name, email, description, operating_hours, capacity_per_slot, active } = body;
+    const { id, name, email, description, operating_hours, capacity_per_slot, active, contact_email, contact_phone } = body;
 
     if (!id) {
       return NextResponse.json({ message: "Office ID is required" }, { status: 400 });
@@ -95,6 +97,8 @@ export async function PUT(request: Request) {
     if (operating_hours !== undefined) updateData.operating_hours = operating_hours;
     if (capacity_per_slot !== undefined) updateData.capacity_per_slot = capacity_per_slot;
     if (active !== undefined) updateData.active = active;
+    if (contact_email !== undefined) updateData.contact_email = contact_email;
+    if (contact_phone !== undefined) updateData.contact_phone = contact_phone;
 
     const { error: updateError } = await supabase
       .from("offices")

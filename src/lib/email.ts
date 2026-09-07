@@ -153,7 +153,7 @@ function statusBadge(status: string, color: string) {
   return `<span style="display:inline-block;background:${color}15;color:${color};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">${status}</span>`;
 }
 
-export async function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string, contactEmail?: string | null, contactPhone?: string | null) {
+export async function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string, validId: string, contactEmail?: string | null, contactPhone?: string | null) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const contactLines: string[] = [];
   if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
@@ -171,49 +171,101 @@ export async function generateBookingConfirmationEmail(name: string, date: strin
       ${detailRow("Time", time)}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Pending", "#b45309")}</td></tr>
     </table>
+    <div style="margin-bottom:20px;padding:16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">
+      <strong style="color:#006633;">Gate Entry Instructions</strong><br/>
+      On the day of your appointment, entry is accepted only at <strong>USLS Gate 2</strong>. Please present the <strong>${escapeHtml(validId)}</strong> you selected at the Guard to receive your visitor&apos;s pass.
+    </div>
     ${contactBlock}
   `);
   return { html: result.html, attachments: result.attachments };
 }
 
-export async function generateAdminAlertEmail(name: string, date: string, time: string, office: string, _appointmentId: string, baseUrl?: string) {
+export async function generateAdminAlertEmail(
+  name: string,
+  date: string,
+  time: string,
+  office: string,
+  _appointmentId: string,
+  baseUrl?: string,
+  actionLinks?: { approveUrl?: string; declineUrl?: string }
+) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const dashboardUrl = `${baseUrl || process.env.NEXT_PUBLIC_APP_URL || "https://usls-oas.vercel.app"}/admin`;
+  const rootUrl = baseUrl || process.env.NEXT_PUBLIC_APP_URL || "https://usls-oas.vercel.app";
+  const dashboardUrl = `${rootUrl}/admin`;
+
+  const actionBlock = actionLinks?.approveUrl && actionLinks?.declineUrl
+    ? `
+    <table role="presentation" style="width:100%;border-collapse:separate;border-spacing:0 0;margin:28px 0 0;">
+      <tr>
+        <td style="padding:0;">
+          <a href="${actionLinks.approveUrl}" style="display:block;background:#006633;color:#ffffff;padding:13px 0;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;text-align:center;">Approve Appointment</a>
+        </td>
+        <td style="width:12px;padding:0;"></td>
+        <td style="padding:0;">
+          <a href="${actionLinks.declineUrl}" style="display:block;background:#ffffff;color:#dc2626;padding:12px 0;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;text-align:center;border:1px solid #dc2626;">Deny Appointment</a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#999;font-size:12px;margin:14px 0 0;text-align:center;">Prefer the admin panel? <a href="${dashboardUrl}" style="color:#006633;text-decoration:underline;">Review here instead</a></p>`
+    : `
+    <div style="text-align:center;margin:28px 0 12px;">
+      <a href="${dashboardUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Review Appointment</a>
+    </div>`;
+
   const result = await wrap("New Appointment Request", `
-    <p style="color:#555;margin:0 0 20px;">A new appointment has been submitted and requires your review.</p>
-    <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
+    <p style="color:#555;margin:0 0 20px;">A new appointment has been submitted and requires your review. You can approve or deny it right here, or open the admin panel.</p>
+    <table style="width:100%;margin:0 0 0;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Visitor Information</td></tr>
       ${detailRow("Name", name)}
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
       ${detailRow("Time", time)}
     </table>
-    <div style="text-align:center;margin:28px 0 12px;">
-      <a href="${dashboardUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Review Appointment</a>
-    </div>
+    ${actionBlock}
     <p style="color:#999;font-size:12px;margin:0;">You are receiving this because you are an administrator for this office.</p>
   `);
   return { html: result.html, attachments: result.attachments };
 }
 
-export async function generateApprovalEmail(name: string, date: string, time: string, office: string, extraAttachments: SendMailAttachments[] = []) {
+export async function generateApprovalEmail(
+  name: string,
+  date: string,
+  time: string,
+  office: string,
+  validId: string,
+  referenceNumber: string,
+  contactEmail?: string | null,
+  contactPhone?: string | null
+) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const contactLines: string[] = [];
+  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
+  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const contactBlock = contactLines.length > 0
+    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">If you have questions about your appointment, contact the office:<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
   const result = await wrap("Appointment Approved", `
     <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
-    <p style="color:#555;margin:0 0 24px;">Great news! Your appointment has been approved. Please present the QR code below at the gate for entry.</p>
+    <p style="color:#555;margin:0 0 24px;">Great news! Your appointment has been approved. Please present your reference number below at the gate for entry.</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
       ${detailRow("Time", time)}
+      ${detailRow("Valid ID to Present", validId)}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Approved", "#006633")}</td></tr>
     </table>
     <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
-      <p style="margin:0 0 12px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Entry QR Code</p>
-      <img src="cid:qrcode" alt="QR Code" style="width:240px;border:2px solid #006633;border-radius:8px;padding:6px;background:#fff;" />
+      <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
+      <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
     </div>
-    <p style="color:#999;font-size:12px;margin:0;text-align:center;">This QR code is single-use and will be invalidated after scanning.</p>
-  `, extraAttachments);
+    <p style="color:#999;font-size:12px;margin:0;text-align:center;">This reference number is single-use and will be disabled after entry.</p>
+    <div style="margin-top:20px;padding:16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">
+      <strong style="color:#006633;">Gate Entry Instructions</strong><br/>
+      Entry is accepted only at <strong>USLS Gate 2</strong>. Present the <strong>${escapeHtml(validId)}</strong> you selected at the Guard to receive your visitor&apos;s pass.
+    </div>
+    ${contactBlock}
+  `);
   return { html: result.html, attachments: result.attachments };
 }
 

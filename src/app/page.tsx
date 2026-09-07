@@ -8,8 +8,7 @@ export interface BookingData {
   fullName: string;
   phone: string;
   email: string;
-  idImage: File | null;
-  idImageUrl: string;
+  validId: string;
   visitorCategory: string;
   officeId: string;
   date: string;
@@ -22,8 +21,7 @@ const initialData: BookingData = {
   fullName: "",
   phone: "",
   email: "",
-  idImage: null,
-  idImageUrl: "",
+  validId: "",
   visitorCategory: "general_public",
   officeId: "",
   date: "",
@@ -54,16 +52,6 @@ export default function BookPage() {
     setError(null);
     try {
       const finalData = { ...formData, ...data };
-      // The ID upload is started as soon as the image is attached (in IdentityForm),
-      // so finalData.idImageUrl is normally already set. Re-upload only as a fallback.
-      if (!finalData.idImageUrl && finalData.idImage) {
-        const formDataObj = new FormData();
-        formDataObj.append("file", finalData.idImage);
-        const uploadResponse = await fetch("/api/upload", { method: "POST", body: formDataObj });
-        if (!uploadResponse.ok) throw new Error("Failed to upload ID image");
-        const { url } = await uploadResponse.json();
-        finalData.idImageUrl = url;
-      }
       const response = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -71,7 +59,7 @@ export default function BookPage() {
           fullName: finalData.fullName,
           phone: finalData.phone,
           email: finalData.email,
-          idImageUrl: finalData.idImageUrl,
+          validId: finalData.validId,
           visitorCategory: finalData.visitorCategory,
           officeId: finalData.officeId,
           date: finalData.date,

@@ -15,13 +15,15 @@ export async function GET(request: Request) {
     let query = supabase
       .from("appointments")
       .select("*, offices(*)")
-      .order("created_at", { ascending: false });
+      .order("date", { ascending: false });
 
     if (admin.role === "office_admin" && admin.office_id) {
       query = query.eq("office_id", admin.office_id);
     }
 
-    if (filterStatus && filterStatus !== "all") {
+    if (filterStatus === "history") {
+      query = query.in("status", ["declined", "completed", "expired"]);
+    } else if (filterStatus && filterStatus !== "all") {
       query = query.eq("status", filterStatus);
     }
 

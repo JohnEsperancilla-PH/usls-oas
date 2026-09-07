@@ -1,23 +1,24 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 
-function parseOperatingHours(hours: string): { startH: number; endH: number } {
-  const match = hours.match(/(\d{1,2}):?\d{0,2}\s*(AM|PM)\s*[-–]\s*(\d{1,2}):?\d{0,2}\s*(AM|PM)/i);
-  if (!match) return { startH: 8, endH: 17 };
-  let startH = parseInt(match[1]);
-  let endH = parseInt(match[3]);
-  if (match[2].toUpperCase() === "PM" && startH < 12) startH += 12;
-  if (match[2].toUpperCase() === "AM" && startH === 12) startH = 0;
-  if (match[4].toUpperCase() === "PM" && endH < 12) endH += 12;
-  if (match[4].toUpperCase() === "AM" && endH === 12) endH = 0;
-  return { startH, endH };
-}
+// All offices run a fixed 8:00 AM - 5:00 PM day, enforced at slot-generation
+// time so it applies to every office automatically, including offices created
+// in the future.
+const OFFICE_START_HOUR = 8;
+const OFFICE_END_HOUR = 17;
+
+// Default daily lunch break (12:00 PM - 1:30 PM). These slots are never
+// bookable and never blockable.
+const LUNCH_START_MINUTES = 12 * 60; // 12:00
+const LUNCH_END_MINUTES = 13 * 60 + 30; // 13:30
 
 function generateSlots(startH: number, endH: number): string[] {
   const slots: string[] = [];
   for (let h = startH; h < endH; h++) {
     for (let m = 0; m < 60; m += 30) {
       if (h === endH - 1 && m + 30 > 60) break;
+      const minutes = h * 60 + m;
+      if (minutes >= LUNCH_START_MINUTES && minutes < LUNCH_END_MINUTES) continue;
       slots.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
     }
   }
@@ -69,8 +70,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Office not found" }, { status: 404 });
     }
 
-    const { startH, endH } = parseOperatingHours(office.operating_hours);
-    const allSlots = generateSlots(startH, endH);
+    const allSlots = generateSlots(OFFICE_START_HOUR, OFFICE_END_HOUR);
 
     // If month is provided, return which dates have availability
     if (month && !date) {

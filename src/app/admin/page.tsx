@@ -4,11 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import type { Appointment, Office, BlockedTime } from "@/types/database";
 
-interface ArchivedAppointment extends Appointment {
-  office_name?: string;
-  archived_at?: string;
-}
-
 export default function AdminDashboardPage() {
   const { admin } = useAdmin();
   const isSuperAdmin = admin?.role === "super_admin";
@@ -21,10 +16,6 @@ export default function AdminDashboardPage() {
   const [processing, setProcessing] = useState<{ id: string; action: "approve" | "decline" | "reset" } | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
-  const [archivedData, setArchivedData] = useState<{ data: ArchivedAppointment[]; total: number }>({ data: [], total: 0 });
-  const [archivedSearch, setArchivedSearch] = useState("");
-  const [archivedPage, setArchivedPage] = useState(1);
-  const [selectedArchived, setSelectedArchived] = useState<ArchivedAppointment | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true);
@@ -62,24 +53,21 @@ export default function AdminDashboardPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchAppointments(); fetchAllAppointments(); fetchOffices(); }, [filter]);
 
-  const fetchArchived = useCallback(async () => {
+  const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(archivedPage), limit: "50" });
-      if (archivedSearch) params.set("search", archivedSearch);
-      if (admin?.office_id && !isSuperAdmin) params.set("officeId", admin.office_id);
-      const res = await fetch(`/api/admin/archived?${params}`, {
+      const response = await fetch(`/api/admin/appointments?status=history`, {
         headers: {},
       });
-      if (!res.ok) throw new Error("Failed to fetch archived");
-      const data = await res.json();
-      setArchivedData(data);
+      if (!response.ok) throw new Error("Failed to fetch history");
+      const data = await response.json();
+      setAppointments(data || []);
     } catch { /* */ }
     finally { setLoading(false); }
-  }, [admin, archivedPage, archivedSearch, isSuperAdmin]);
+  }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { if (filter === "archived") fetchArchived(); }, [filter, fetchArchived]);
+  useEffect(() => { if (filter === "history") fetchHistory(); }, [filter, fetchHistory]);
 
   const getOfficeName = (officeId: string) => offices.find((o) => o.id === officeId)?.name || "Unknown";
 
@@ -93,7 +81,7 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setMessage({ type: "success", text: "Appointment approved. QR code & confirmation email are being sent." });
+      setMessage({ type: "success", text: "Appointment approved. Reference number & confirmation email are being sent." });
       setSelectedAppointment(null);
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
@@ -127,7 +115,7 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setMessage({ type: "success", text: "QR code reset. New email is being sent." });
+      setMessage({ type: "success", text: "Reference number re-issued. New email is being sent." });
       setSelectedAppointment(null);
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
@@ -181,8 +169,8 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {["pending", "approved", "declined", "archived", "all"].map((s) => (
-          <button key={s} onClick={() => { setFilter(s); if (s === "archived") { setArchivedPage(1); } }}
+        {["pending", "approved", "declined", "history", "all"].map((s) => (
+          <button key={s} onClick={() => setFilter(s)}
             className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filter === s ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
             {s.charAt(0).toUpperCase() + s.slice(1)}
             {s === "pending" && stats.pending > 0 && <span className="ml-1.5 bg-white/20 px-1.5 rounded-full text-xs">{stats.pending}</span>}
@@ -197,119 +185,8 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {filter === "archived" ? (
-        <>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input type="text" value={archivedSearch} onChange={(e) => { setArchivedSearch(e.target.value); setArchivedPage(1); }} placeholder="Search archived records..." className="input pl-10" />
-            </div>
-            <div className="text-xs text-gray-400">{archivedData.total} archived records</div>
-          </div>
-          <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-            {loading ? (
-              <div className="p-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" /></div>
-            ) : archivedData.data.length === 0 ? (
-              <div className="p-12 text-center">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                </div>
-                <p className="text-sm text-gray-500">No archived records found</p>
-              </div>
-            ) : (
-              <table className="w-full">
-                <thead><tr className="border-b border-gray-100">
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visitor</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Office</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Archived</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr></thead>
-                <tbody className="divide-y divide-gray-50">
-                  {archivedData.data.map((a) => (
-                    <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
-                        <div className="text-xs text-gray-400">{a.email}</div>
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-gray-600">{a.office_name || getOfficeName(a.office_id)}</td>
-                      <td className="px-5 py-3.5">
-                        <div className="text-sm text-gray-900">{new Date(a.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
-                        <div className="text-xs text-gray-400">{a.time_slot} · {a.duration}m</div>
-                      </td>
-                      <td className="px-5 py-3.5"><span className={getStatusBadge(a.status)}>{a.status}</span></td>
-                      <td className="px-5 py-3.5 text-xs text-gray-400 text-right">{a.archived_at ? new Date(a.archived_at as unknown as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        <button onClick={() => setSelectedArchived(a)} className="text-xs font-medium text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors">View</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-          {archivedData.total > 50 && (
-            <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-3">
-              <button onClick={() => setArchivedPage((p) => Math.max(1, p - 1))} disabled={archivedPage === 1} className="btn-secondary btn-sm disabled:opacity-30">Previous</button>
-              <span className="text-xs text-gray-500">Page {archivedPage} of {Math.ceil(archivedData.total / 50)}</span>
-              <button onClick={() => setArchivedPage((p) => p + 1)} disabled={archivedPage * 50 >= archivedData.total} className="btn-secondary btn-sm disabled:opacity-30">Next</button>
-            </div>
-          )}
-          {selectedArchived && (
-            <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-              <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto animate-fade-in">
-                <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-                  <h3 className="font-semibold text-gray-900">Archived Record</h3>
-                  <button onClick={() => setSelectedArchived(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-                <div className="p-5 space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      ["Visitor", selectedArchived.full_name],
-                      ["Category", (selectedArchived.visitor_category || "general_public").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())],
-                      ["Email", selectedArchived.email],
-                      ["Phone", selectedArchived.phone],
-                      ["Office", selectedArchived.office_name || getOfficeName(selectedArchived.office_id)],
-                      ["Date", new Date(selectedArchived.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
-                      ["Time", `${selectedArchived.time_slot} (${selectedArchived.duration} min)`],
-                    ].map(([l, v]) => (
-                      <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
-                    ))}
-                  </div>
-                  {selectedArchived.purpose_of_visit && (
-                    <div>
-                      <div className="text-xs text-gray-400 mb-1">Purpose of Visit</div>
-                      <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">{selectedArchived.purpose_of_visit}</div>
-                    </div>
-                  )}
-                  <div>
-                    <div className="text-xs text-gray-400 mb-1.5">ID Photo</div>
-                    <img src={`/api/admin/archived/image?id=${selectedArchived.id}`} alt="ID" className="w-full max-w-[200px] h-auto rounded-lg border border-gray-200" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">Status:</span>
-                    <span className={getStatusBadge(selectedArchived.status)}>{selectedArchived.status}</span>
-                  </div>
-                  {selectedArchived.decline_reason && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <div className="text-xs font-medium text-red-700 mb-0.5">Decline Reason</div>
-                      <div className="text-sm text-red-600">{selectedArchived.decline_reason}</div>
-                    </div>
-                  )}
-                  <div className="text-xs text-gray-400">
-                    Archived on {selectedArchived.archived_at ? new Date(selectedArchived.archived_at as unknown as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "-"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <>
+        <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
             {loading ? (
           <div className="p-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" /></div>
         ) : appointments.length === 0 ? (
@@ -400,8 +277,7 @@ export default function AdminDashboardPage() {
           ))
         )}
       </div>
-        </>
-      )}
+      </>
 
       {selectedAppointment && (
         <DetailModal appointment={selectedAppointment} offices={offices} onApprove={handleApprove} onDecline={handleDecline} onResetQR={handleResetQR} onClose={() => setSelectedAppointment(null)} processing={processing} getStatusBadge={getStatusBadge} />
@@ -726,7 +602,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                         <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visitor</th>
                         <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                         <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
-                        <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valid ID</th>
                         <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
@@ -742,7 +618,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                           <td className="px-4 py-3 text-sm text-gray-600 capitalize">{a.visitor_category.replace(/_/g, " ")}</td>
                           <td className="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate">{a.purpose_of_visit || "—"}</td>
                           <td className="px-4 py-3">
-                            {a.id_image_url && <img src={a.id_image_url} alt="ID" className="h-10 w-auto rounded border border-gray-200" />}
+                            <span className="text-xs text-gray-600 max-w-[180px] truncate block">{a.valid_id || "—"}</span>
                           </td>
                           <td className="px-4 py-3"><span className={color(a.status)}>{a.status}</span></td>
                           <td className="px-4 py-3 text-right">
@@ -778,7 +654,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                         </div>
                         <span className={color(a.status)}>{a.status}</span>
                       </div>
-                      {a.id_image_url && <img src={a.id_image_url} alt="ID" className="mt-3 h-12 w-auto rounded border border-gray-200" />}
+                      {a.valid_id && <div className="mt-3 text-xs text-gray-600">Valid ID: <span className="font-medium text-gray-800">{a.valid_id}</span></div>}
                       <button onClick={() => onView(a)} className="mt-3 w-full text-center text-xs font-medium text-gray-600 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">View Details</button>
                     </div>
                   ))}
@@ -921,8 +797,8 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
             </div>
           )}
           <div>
-            <div className="text-xs text-gray-400 mb-1.5">ID Photo</div>
-            <img src={appointment.id_image_url} alt="ID" className="w-full max-w-[200px] h-auto rounded-lg border border-gray-200" />
+            <div className="text-xs text-gray-400 mb-1.5">Valid ID to Present</div>
+            <div className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-lg p-3">{appointment.valid_id || "—"}</div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">Status:</span>
@@ -947,7 +823,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
             <div className="pt-3 border-t border-gray-100">
               <button onClick={() => onResetQR(appointment)} disabled={isBusy} className="btn-secondary w-full btn-sm disabled:opacity-50 flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                {isProcessing && processing.action === "reset" ? "Resetting..." : "Reset QR & Re-send Email"}
+                {isProcessing && processing.action === "reset" ? "Re-issuing..." : "Re-issue Reference & Re-send Email"}
               </button>
             </div>
           )}

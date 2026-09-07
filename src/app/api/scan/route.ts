@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { verifyQRToken } from "@/lib/qr";
+import { normalizeReference } from "@/lib/reference";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 
 interface ScanRequest {
   token: string;
@@ -14,21 +15,14 @@ export async function POST(request: Request) {
 
   try {
     const body: ScanRequest = await request.json();
-    
-    if (!body.token) {
+
+    const reference = normalizeReference(body.token || "");
+
+    if (!reference) {
       return NextResponse.json(
-        { success: false, message: "QR code token is required" },
+        { success: false, message: "Reference number is required" },
         { status: 400 }
       );
-    }
-
-    const { valid, appointmentId } = verifyQRToken(body.token);
-    
-    if (!valid || !appointmentId) {
-      return NextResponse.json({
-        success: false,
-        message: "Invalid QR code",
-      });
     }
 
     const supabase = createServiceClient();
@@ -36,20 +30,20 @@ export async function POST(request: Request) {
     const { data: appointment, error: fetchError } = await supabase
       .from("appointments")
       .select("*, offices(*)")
-      .eq("id", appointmentId)
-      .single();
+      .eq("qr_token", reference)
+      .maybeSingle();
 
     if (fetchError || !appointment) {
       return NextResponse.json({
         success: false,
-        message: "Appointment not found",
+        message: "Reference number not found",
       });
     }
 
     if (appointment.status !== "approved") {
       let message = "Appointment is not approved";
       if (appointment.status === "completed") {
-        message = "QR code has already been used";
+        message = "Reference number has already been used";
       } else if (appointment.status === "expired") {
         message = "Appointment has expired";
       } else if (appointment.status === "declined") {
@@ -67,7 +61,7 @@ export async function POST(request: Request) {
     if (appointment.qr_used_at) {
       return NextResponse.json({
         success: false,
-        message: "QR code has already been used",
+        message: "Reference number has already been used",
       });
     }
 
@@ -77,7 +71,7 @@ export async function POST(request: Request) {
       let message = `Appointment is scheduled for ${appointment.date}`;
       const apptDate = new Date(appointment.date + "T23:59:59");
       if (now > apptDate) {
-        message = "QR code has expired — appointment date has passed";
+        message = "Reference number has expired — appointment date has passed";
       }
       return NextResponse.json({
         success: false,
@@ -103,13 +97,22 @@ export async function POST(request: Request) {
       console.error("Error updating appointment:", updateError);
       return NextResponse.json({
         success: false,
-        message: "QR code has already been used",
+        message: "Reference number has already been used",
       });
     }
 
+    await mirrorAppointmentToCpanel(
+      fromAppointmentRow(appointment, {
+        status: "completed",
+        qr_used_at: scanTime,
+        scanned_at: scanTime,
+        updated_at: scanTime,
+      })
+    );
+
     return NextResponse.json({
       success: true,
-      message: "QR code verified — entry approved",
+      message: "Reference number verified — entry approved",
       scannedAt: scanTime,
       appointment: {
         id: appointment.id,
@@ -120,7 +123,7 @@ export async function POST(request: Request) {
         date: appointment.date,
         timeSlot: appointment.time_slot,
         duration: appointment.duration,
-        idImageUrl: appointment.id_image_url,
+        validId: appointment.valid_id || "",
       },
     });
   } catch (error) {

@@ -1,9 +1,10 @@
 import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
-import { generateQRToken } from "@/lib/qr";
-import QRCode from "qrcode";
+import { createUniqueReference } from "@/lib/reference";
 import { sendMail, generateApprovalEmail, isNotificationEnabled } from "@/lib/email";
+import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
+import type { AppointmentWithOffice } from "@/lib/appointment-actions";
 
 interface ResetRequest {
   appointmentId: string;
@@ -33,39 +34,52 @@ export async function POST(request: Request) {
     }
 
     if (admin.role === "office_admin" && admin.office_id !== appointment.office_id) {
-      return NextResponse.json({ message: "You can only reset QR for appointments in your office" }, { status: 403 });
+      return NextResponse.json({ message: "You can only re-issue reference numbers for appointments in your office" }, { status: 403 });
     }
 
     if (appointment.status !== "completed") {
       return NextResponse.json({ message: "Only completed appointments can be reset" }, { status: 400 });
     }
 
-    const newToken = generateQRToken(appointment.id);
+    const newReference = await createUniqueReference(supabase);
+    const updatedAt = new Date().toISOString();
 
-    const { error: updateError } = await supabase
-      .from("appointments")
-      .update({
-        status: "approved",
-        qr_token: newToken,
-        qr_used_at: null,
-        scanned_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", appointment.id);
+    const [updateResult] = await Promise.all([
+      supabase
+        .from("appointments")
+        .update({
+          status: "approved",
+          qr_token: newReference,
+          qr_used_at: null,
+          scanned_at: null,
+          updated_at: updatedAt,
+        })
+        .eq("id", appointment.id),
+      mirrorAppointmentToCpanel(
+        fromAppointmentRow(appointment, {
+          status: "approved",
+          qr_token: newReference,
+          qr_used_at: null,
+          scanned_at: null,
+          updated_at: updatedAt,
+        })
+      ),
+    ]);
+    const { error: updateError } = updateResult;
 
     if (updateError) {
-      console.error("Error resetting appointment:", updateError);
-      return NextResponse.json({ message: "Failed to reset appointment" }, { status: 500 });
+      console.error("Error resetting reference number:", updateError);
+      return NextResponse.json({ message: "Failed to reset reference number" }, { status: 500 });
     }
 
-    // QR email runs after the response is sent (kept alive via `after()`),
+    // The re-issue email runs after the response is sent (kept alive via `after()`),
     // so the admin gets an immediate response.
     after(async () => {
-      await runPostResetTasks(appointment, newToken, admin.id, admin.email);
+      await runPostResetTasks(appointment, newReference, admin.id, admin.email);
     });
 
     return NextResponse.json({
-      message: "QR code reset successfully",
+      message: "Reference number reset successfully",
       emailSent: null,
       emailPending: true,
       appointment: { id: appointment.id, status: "approved" },
@@ -77,28 +91,23 @@ export async function POST(request: Request) {
 }
 
 async function runPostResetTasks(
-  appointment: any,
-  qrToken: string,
+  appointment: AppointmentWithOffice,
+  referenceNumber: string,
   adminId: string,
   adminEmail: string
 ) {
   let mailResult: { success: boolean; error?: string | null } = { success: false, error: "Notifications disabled" };
 
   try {
-    const qrCodeDataUrl = await QRCode.toDataURL(qrToken, {
-      width: 300,
-      margin: 2,
-      color: { dark: "#006633", light: "#ffffff" },
-    });
-
-    const qrBase64 = qrCodeDataUrl.split(",")[1];
-    const qrBuffer = Buffer.from(qrBase64, "base64");
-
     const emailResult = await generateApprovalEmail(
       appointment.full_name,
       appointment.date,
       appointment.time_slot,
-      appointment.offices?.name || "Unknown Office"
+      appointment.offices?.name || "Unknown Office",
+      appointment.valid_id || "",
+      referenceNumber,
+      appointment.offices?.contact_email,
+      appointment.offices?.contact_phone
     );
 
     if (await isNotificationEnabled("qr_resend")) {
@@ -106,21 +115,16 @@ async function runPostResetTasks(
         to: appointment.email,
         subject: "Appointment Re-approved — USLS OAS",
         html: emailResult.html,
-        attachments: [...emailResult.attachments, {
-          filename: "qrcode.png",
-          content: qrBuffer,
-          contentType: "image/png",
-          cid: "qrcode",
-        }],
+        attachments: emailResult.attachments,
       });
     }
 
     if (!mailResult.success) {
-      console.error("QR re-send email failed:", mailResult.error);
+      console.error("Reference re-issue email failed:", mailResult.error);
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("QR re-send email generation failed:", msg);
+    console.error("Reference re-issue email generation failed:", msg);
     mailResult = { success: false, error: msg };
   }
 
@@ -131,7 +135,7 @@ async function runPostResetTasks(
     type: "qr_resend",
     status: mailResult.success ? "sent" : "failed",
     sent_at: mailResult.success ? new Date().toISOString() : null,
-    error_message: mailResult.success ? null : "Failed to send QR re-send email",
+    error_message: mailResult.success ? null : "Failed to send reference re-issue email",
   });
 
   const { logAudit } = await import("@/lib/rbac");

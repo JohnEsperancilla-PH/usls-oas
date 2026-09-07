@@ -21,7 +21,8 @@ export interface Appointment {
   full_name: string;
   phone: string;
   email: string;
-  id_image_url: string;
+  // Government-issued ID the visitor will present at the gate.
+  valid_id: string | null;
   visitor_category: VisitorCategory;
   purpose_of_visit: string | null;
   office_id: string;
@@ -29,6 +30,7 @@ export interface Appointment {
   time_slot: string;
   duration: 30 | 60;
   status: AppointmentStatus;
+  // Stores the visitor's reference number (single-use gate entry code).
   qr_token: string | null;
   qr_used_at: string | null;
   scanned_at: string | null;

@@ -1,10 +1,9 @@
 import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
-import { generateQRToken } from "@/lib/qr";
-import QRCode from "qrcode";
-import { sendMail, generateApprovalEmail, isNotificationEnabled } from "@/lib/email";
-import { createCalendarEvent } from "@/lib/calendar";
+import { createUniqueReference } from "@/lib/reference";
+import { runPostApprovalTasks } from "@/lib/appointment-actions";
+import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 
 interface ApproveRequest {
   appointmentId: string;
@@ -41,30 +40,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Appointment is not in pending status" }, { status: 400 });
     }
 
-    const qrToken = generateQRToken(appointment.id);
+    const referenceNumber = await createUniqueReference(supabase);
+    const updatedAt = new Date().toISOString();
 
-    const { error: updateError } = await supabase
-      .from("appointments")
-      .update({
-        status: "approved",
-        qr_token: qrToken,
-        qr_used_at: null,
-        scanned_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", appointment.id);
+    const [updateResult] = await Promise.all([
+      supabase
+        .from("appointments")
+        .update({
+          status: "approved",
+          qr_token: referenceNumber,
+          qr_used_at: null,
+          scanned_at: null,
+          updated_at: updatedAt,
+        })
+        .eq("id", appointment.id),
+      mirrorAppointmentToCpanel(
+        fromAppointmentRow(appointment, {
+          status: "approved",
+          qr_token: referenceNumber,
+          qr_used_at: null,
+          scanned_at: null,
+          updated_at: updatedAt,
+        })
+      ),
+    ]);
+    const { error: updateError } = updateResult;
 
     if (updateError) {
       console.error("Error updating appointment:", updateError);
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
 
-    // All slow work (QR email, Google Calendar) runs after the response is sent so
+    // All slow work (approval email, Google Calendar) runs after the response is sent so
     // the admin gets an immediate reply, but `after()` keeps the Vercel function
     // alive until it completes (unlike fire-and-forget, which Vercel may kill).
     // Email/calendar failures never affect approval.
     after(async () => {
-      await runPostApprovalTasks(appointment, qrToken, admin.id, admin.email);
+      await runPostApprovalTasks(appointment, referenceNumber, admin.id, admin.email);
     });
 
     return NextResponse.json({
@@ -77,102 +89,4 @@ export async function POST(request: Request) {
     console.error("Unexpected error:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
-}
-
-async function runPostApprovalTasks(
-  appointment: any,
-  qrToken: string,
-  adminId: string,
-  adminEmail: string
-) {
-  const startedAt = Date.now();
-  let mailResult: { success: boolean; error?: string | null } = { success: false, error: "Notifications disabled" };
-  let calendarResult: { id?: string; htmlLink?: string | null; error?: string; skipped: boolean } = { skipped: true };
-
-  try {
-    const qrCodeDataUrl = await QRCode.toDataURL(qrToken, {
-      width: 300,
-      margin: 2,
-      color: { dark: "#006633", light: "#ffffff" },
-    });
-
-    const qrBase64 = qrCodeDataUrl.split(",")[1];
-    const qrBuffer = Buffer.from(qrBase64, "base64");
-
-    const emailResult = await generateApprovalEmail(
-      appointment.full_name,
-      appointment.date,
-      appointment.time_slot,
-      appointment.offices?.name || "Unknown Office"
-    );
-
-    if (await isNotificationEnabled("approval")) {
-      mailResult = await sendMail({
-        to: appointment.email,
-        subject: "Appointment Approved - USLS OAS",
-        html: emailResult.html,
-        attachments: [...emailResult.attachments, {
-          filename: "qrcode.png",
-          content: qrBuffer,
-          contentType: "image/png",
-          cid: "qrcode",
-        }],
-      });
-    }
-
-    if (!mailResult.success) {
-      console.error("Approval email failed:", mailResult.error);
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("Approval email generation failed:", msg);
-    mailResult = { success: false, error: msg };
-  }
-
-  try {
-    // The stored date/time_slot are local wall-clock times (Philippines, Asia/Manila, UTC+8).
-    // Build the UTC instant explicitly so Vercel's UTC server and Google Calendar's
-    // timezone handling both show the intended local appointment time.
-    const start = new Date(`${appointment.date}T${appointment.time_slot}:00+08:00`);
-    const end = new Date(start.getTime() + (appointment.duration || 30) * 60 * 1000);
-    const officeName = appointment.offices?.name || "Unknown Office";
-    const attendees = [appointment.email];
-    if (appointment.offices?.email) attendees.push(appointment.offices.email);
-    const event = await createCalendarEvent({
-      title: `Appointment - ${appointment.full_name} (${officeName})`,
-      description: appointment.purpose_of_visit || "No purpose of visit provided.",
-      start,
-      end,
-      attendees,
-    });
-    calendarResult = { id: event.id, htmlLink: event.htmlLink, skipped: false };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("Google Calendar event creation failed:", msg);
-    calendarResult = { error: msg, skipped: false };
-  }
-
-  const supabase = createServiceClient();
-
-  await supabase.from("email_logs").insert({
-    appointment_id: appointment.id,
-    type: "approval",
-    status: mailResult.success ? "sent" : "failed",
-    sent_at: mailResult.success ? new Date().toISOString() : null,
-    error_message: mailResult.success ? null : "Failed to send approval email",
-  });
-
-  const { logAudit } = await import("@/lib/rbac");
-  await logAudit(adminId, adminEmail, "approve", {
-    appointment_id: appointment.id,
-    meta: {
-      visitor_name: appointment.full_name,
-      visitor_email: appointment.email,
-      email_sent: mailResult.success,
-      calendar_event_created: calendarResult.skipped ? null : !calendarResult.error,
-      calendar_event_id: calendarResult.id,
-      calendar_duration_ms: Date.now() - startedAt,
-      calendar_error: calendarResult.error || null,
-    },
-  });
 }

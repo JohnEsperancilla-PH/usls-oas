@@ -213,27 +213,27 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
               <button type="button" onClick={() => { setLoadError(null); setLoading(true); fetchOffices(); }} className="text-primary font-medium hover:underline">Retry</button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            <div className="mt-2">
               {loading ? (
-                [1, 2].map((i) => <div key={i} className="skeleton h-16 rounded-xl" />)
-              ) : offices.map((o) => (
-                <button key={o.id} type="button" onClick={() => handleOfficeChange(o.id)}
-                  className={`text-left p-3.5 rounded-xl border-2 transition-all duration-150 ${
-                    selectedOfficeId === o.id
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
-                  }`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm font-semibold ${selectedOfficeId === o.id ? "text-primary" : "text-gray-900"}`}>{o.name}</span>
-                    {selectedOfficeId === o.id && (
-                      <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">{o.operating_hours}</div>
-                </button>
-              ))}
+                <div className="skeleton h-11 rounded-lg" />
+              ) : (
+                <>
+                  <select
+                    className="input"
+                    value={selectedOfficeId || ""}
+                    onChange={(e) => handleOfficeChange(e.target.value)}>
+                    <option value="">Select an office...</option>
+                    {offices.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                  {selectedOffice && (
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      {selectedOffice.operating_hours} · {selectedOffice.capacity_per_slot} spot{selectedOffice.capacity_per_slot !== 1 ? "s" : ""} per slot
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           )}
           {errors.officeId && <p className="error-text mt-1">{errors.officeId}</p>}

@@ -17,27 +17,24 @@ export async function POST(request: Request) {
     }
 
     const { sendMail, generateApprovalEmail } = await import("@/lib/email");
-    const QRCode = await import("qrcode");
-
-    const qrDataUrl = await QRCode.toDataURL("TEST-QR-12345", {
-      width: 300,
-      margin: 2,
-      color: { dark: "#006633", light: "#ffffff" },
-    });
-    const qrBuffer = Buffer.from(qrDataUrl.split(",")[1], "base64");
+    const { generateReferenceNumber } = await import("@/lib/reference");
 
     const emailContent = await generateApprovalEmail(
       "Juan Dela Cruz",
       "2026-08-30",
       "10:00 AM - 11:00 AM",
-      "Registrar"
+      "Registrar",
+      "National ID (PhilSys)",
+      generateReferenceNumber(),
+      "registrar@usls.edu.ph",
+      "123-4567"
     );
 
     const result = await sendMail({
       to,
       subject: "USLS OAS - Sample Approval Email",
       html: emailContent.html,
-      attachments: [...emailContent.attachments, { filename: "qrcode.png", content: qrBuffer, cid: "qrcode", contentType: "image/png" }],
+      attachments: emailContent.attachments,
     });
 
     if (result.success) {

@@ -1,0 +1,567 @@
+================================================================================
+USLS OAS - ONLINE APPOINTMENT SYSTEM
+PROGRAM FLOW & SYSTEM EXPLANATION
+================================================================================
+
+TABLE OF CONTENTS
+  1.  Overview
+  2.  System Architecture & Data Stores
+  3.  Appointment Lifecycle & Statuses
+  4.  Public Flow  (book + gate entry)  -- explanation + diagram
+  5.  Super Admin Flow                     -- explanation + diagram
+  6.  Office Admin Flow                    -- explanation + diagram
+  7.  Role & Permission Matrix
+  8.  Key Sections / Endpoints Reference
+
+
+================================================================================
+1. OVERVIEW
+================================================================================
+
+USLS OAS lets campus visitors book time with university offices online. The
+system handles the full lifecycle of every appointment:
+
+    BOOK  -->  PENDING  -->  APPROVE/DECLINE  -->  GATE ENTRY  -->  ARCHIVE
+
+There are three (3) user types:
+
+  * PUBLIC ("Visitor")
+        - Books an appointment through the public site (/).
+        - Receives email confirmations and, once approved, an approval email
+          that contains the 8-character REFERENCE NUMBER and gate instructions.
+        - Presents the reference number at the gate; entry is verified on /entry.
+
+  * SUPER_ADMIN
+        - Full control: approve/decline ANY appointment across all offices,
+          view the archived (cPanel) history, manage offices, manage admin
+          accounts, review the audit log, and configure system settings.
+
+  * OFFICE_ADMIN
+        - Scoped to ONE office. Can only view, approve, and decline
+          appointments belonging to their own office. Cannot manage system
+          configuration.
+
+Two key rules govern the whole system:
+
+  1. Every appointment is written to BOTH databases in parallel:
+     - Supabase  = system of record (live data, statuses, emails, audit).
+     - cPanel MySQL `appointments` table = archive/mirror copy used by the
+       admin "Archived" tab and kept in sync on every create/status change.
+  2. A reference number is single-use. After it is verified at the gate it is
+     marked USED/COMPLETED immediately and can never be accepted again (unless
+     an admin intentionally re-issues it via Reset).
+
+
+================================================================================
+2. SYSTEM ARCHITECTURE & DATA STORES
+================================================================================
+
+  +------------------------------------------------------------------+
+  |                        BROWSER (Front-end)                       |
+  |                                                                  |
+  |   Public site:   /        (booking form, step 1 + step 2)        |
+  |   Gate kiosk:    /entry   (reference-code entry)                 |
+  |   Admin panel:   /admin/* (login, dashboard, management pages)   |
+  +------------------------------------------------------------------+
+                     |            |              |
+                     v            v              v
+  +------------------------------------------------------------------+
+  |                       NEXT.JS API ROUTES (server)                |
+  |                                                                  |
+  |   /api/appointments*      create / approve / decline / reset-qr  |
+  |                           / email-action (one-click link)        |
+  |   /api/scan               gate verification (uses reference)     |
+  |   /api/admin/auth         admin session check                    |
+  |   /api/admin/offices      offices CRUD (super admin only)        |
+  |   /api/admin/accounts     admins CRUD (super admin only)         |
+  |   /api/admin/settings     settings + archive sync               |
+  |   /api/admin/archived     read cPanel archive                    |
+  +------------------------------------------------------------------+
+                     |               |
+    WRITE IN PARALLEL v               v (archive reads only)
+  +--------------------+     +---------------------------+
+  |     SUPABASE       |     |  cPanel MySQL             |
+  |  (system of record)|     |  `appointments` table     |
+  |  appointments      |     |  (mirror / long-term      |
+  |  offices           |     |   archive)                |
+  |  admins            |     +---------------------------+
+  |  audit_logs        |
+  |  email_logs        |
+  |  settings          |
+  +--------------------+
+
+  External services used:
+    - Resend (SMTP)          : sends all email notifications.
+    - Google Calendar API    : creates a calendar event on approval.
+    - Email action links     : HMAC-signed approve/decline links embedded in
+                               the admin-alert email (valid 72 hours).
+
+
+================================================================================
+3. APPOINTMENT LIFECYCLE & STATUSES
+================================================================================
+
+  +-------------+      approve      +------------+      verify at gate
+  |  pending    | -------------->  |  approved  | -------------------->+
+  +-------------+                   +------------+                    |
+        |                                                            v
+        |  decline                                          +-----------------+
+        v                                                     |     completed   |
+  +-------------+                                            | (reference USED)|
+  | declined    |                                            +-----------------+
+  +-------------+                                                     |
+                                                                      v
+                                            reset (re-issue reference,
+                                            returns to APPROVED)
+                                                                      |
+                        expired (date passed) -----------------------+
+                                                                      v
+                                             archived view = cPanel `appointments`
+
+  STATUS  | MEANING
+  --------+-------------------------------------------------------------
+  pending | Submitted, waiting for admin review (approve or decline).
+  approved| Admin approved + a unique reference number (qr_token) issued,
+          | visitor emailed the reference + gate instructions.
+  declined| Admin declined; optional decline reason recorded, visitor notified.
+  completed| Visitor passed the gate; reference marked used (qr_used_at set).
+          | After this point the same code is REJECTED on /entry.
+  expired | Appointment date has passed without being used.
+  archived| Long-term record copied to cPanel; shown in the Archived tab.
+
+  Single-use enforcement (on /api/scan):
+    1. find appointment by qr_token (reference number)
+    2. status must be "approved"
+    3. qr_used_at must be NULL
+    4. date must equal today
+    -> PASS: set qr_used_at + scanned_at, status->completed.
+    -> Any later attempt returns "Reference number has already been used".
+
+
+================================================================================
+4. PUBLIC FLOW  (Visitor)   -- EXPLANATION
+================================================================================
+
+SECTION A.  LANDING / BOOKING FORM  (route: /)
+  The public landing page shows a 2-step booking wizard.
+
+  STEP 1 - Personal Information (IdentityForm)
+     - Full name, phone, email.
+     - "Valid ID to Present at the Guard" - a DROPDOWN of preconfigured ID
+       types (school/company/government ID lists). No file upload.
+     - Visitor category, purpose of visit (optional).
+
+  STEP 2 - Appointment Request (AppointmentForm)
+     - Pick an OFFICE (only offices currently accepting bookings).
+     - A calendar month view marks AVAILABLE dates using the office's
+       operating days and hours (from the offices table).
+     - Pick a TIME SLOT of 30 or 60 minutes; unavailable/overlapping slots
+       are blocked, and the office's daily capacity is enforced.
+     - Back/Next navigation preserves the entered data.
+
+  On submit, the browser POSTs to /api/appointments. The server:
+     - rate-limits the request per IP,
+     - re-validates every field (name, phone, email, valid ID value, etc.),
+     - verifies the office exists, is accepting bookings, and the chosen
+       date/time slot is still open (no double-booking),
+     - creates the row with status "pending",
+     - MIRRORS the same row to the cPanel `appointments` table in parallel,
+     - schedules a booking-confirmation email to the visitor and an admin
+       alert (with one-click approve/decline links) to the office admins.
+
+  After a successful POST the visitor sees the
+  "Appointment Submitted - pending review" success screen.
+
+SECTION B.  EMAIL STAGE
+  The visitor receives:
+  1) Booking confirmation  - "we received your request, pending review."
+  2) APPROVAL email        - sent once an admin approves. Contains:
+        - the 8-character REFERENCE NUMBER,
+        - the appointment details, and
+        - GATE ENTRY INSTRUCTIONS:
+          "Entry is accepted only at USLS Gate 2. Present the {chosen ID}
+           at the Guard to receive your visitor's pass."
+  3) DECLINE email         - sent if denied (with reason if provided).
+
+SECTION C.  GATE ENTRY  (route: /entry)
+  At the gate, the kiosk shows /entry: a single input box for the reference
+  number. Submitting POST /api/scan:
+     - uppercases/normalizes the reference,
+     - looks it up; invalid code -> "Reference number not found",
+     - checks status -> not approved -> specific denial message
+       (already used / expired / declined / still pending),
+     - checks date == today -> error if it is for another day,
+     - PASS  -> shows "Entry Approved" with visitor name, office, date,
+       time, and the valid ID to present; marks the appointment COMPLETED.
+     - USED  -> the moment a code is verified it is DISABLED. Entering it a
+       second time returns "Reference number has already been used".
+
+
+================================================================================
+4B. PUBLIC FLOW  -- DIAGRAM
+================================================================================
+
+   BEGIN
+     |
+     v
+  /  (Public booking site)
+     |
+     +-- STEP 1: Personal Information ------------------------------+
+     |              full name, phone, email,                       |
+     |              valid-ID dropdown, purpose of visit            |
+     +-------------------------------------------------------------+
+     |                          |
+     |        valid? (required fields + email format + ID chosen)
+     |              |
+     |          NO  |   YES
+     |            invalid input stays on step 1
+     |              |
+     v              v
+     +-- STEP 2: Appointment Request -----------------------------+
+     |      office -> calendar -> time slot (30/60m)              |
+     |      (operating days/hours + capacity enforced)            |
+     +-------------------------------------------------------------+
+     |                          |
+     |        submit POST /api/appointments
+     |              |
+     |     +--------+---------+
+     |     | rate-limit + validate + re-check slot availability
+     |     | office accepting bookings?
+     |     +--------+---------+
+     |              |
+     |       validity?  NO ------> error message shown to user
+     |              |
+     |          YES |         (stay on form)
+     |              v         AAA - appt id, created_at, updated_at
+     |      create appointment  status = "pending"
+     |        |
+     |        +----------------------> MIRROR INSERT (parallel)
+     |        |                       cPanel appointments table
+     |        |
+     |        +--> booking confirmation email  (to visitor)
+     |        +--> admin alert email with      (to office admins,
+     |             one-click approve/decline     includes signed links)
+     |              |
+     |              v
+     |   success screen: "Appointment Submitted - pending review"
+     |              |
+     |            WAIT for admin decision
+     |              |
+     +------------+------------+
+     |                         |
+     |  DECLINE                |  APPROVE
+     |  decline email sent     |  approval email: reference number +
+     |  to visitor             |  gate entry instructions (USLS Gate 2)
+     |                         |
+     v                         v
+  (appointment archived in     visitor arrives at gate with reference code
+    cPanel as declined)                 |
+                                        v
+                                /entry   (gate kiosk)
+                                        |
+                                        |
+                 reference code entered -> POST /api/scan
+                                        |
+                +-----------+-----------+------------+
+                |           |           |            |
+          not found    not approved   wrong day    approved + unused
+                |           |           |            |
+                v           v           v            v
+         "Reference   reason-     "scheduled   PASS - "Entry Approved"
+          number not   specific     for X"      visitor/office/time shown
+          found"      message                  valid ID to present shown
+                                               status -> COMPLETED
+                                               qr_used_at / scanned_at set
+                                               MIRROR UPDATE to cPanel
+                                                        |
+                                             reference now DISABLED
+                                             (any retry -> "already used")
+                                                        |
+                                                        v
+                                           (appointment archived in cPanel
+                                               as completed)
+
+
+================================================================================
+5. SUPER ADMIN FLOW  -- EXPLANATION
+================================================================================
+
+The Super Admin signs in at /admin/login using Supabase authentication.
+The admin layout verifies the session (GET /api/admin/auth) and loads the
+admin's role + office. On the desktop sidebar the Super Admin sees:
+
+  1. APPOINTMENTS  (/admin)          - default dashboard, filter tabs:
+        - PENDING    : all pending bookings; Approve / Decline buttons.
+                       Decline can include a reason.
+        - APPROVED   : list with copyable reference numbers.
+        - DECLINED   : declined list.
+        - ARCHIVED   : long-term history READ FROM cPanel `appointments`;
+                       modal shows details incl. Valid ID; no ID photo.
+        - ALL        : everything.
+        Approve/Decline actions call /api/appointments/approve and
+        /api/appointments/decline. A completed appointment whose reference
+        was used can be RESET (re-issue) from its detail modal, which calls
+        /api/appointments/reset-qr, returns status to "approved" with a NEW
+        reference, and re-sends the approval email.
+        Approve/decline also update the cPanel mirror in parallel and fire
+        post-task jobs (email, Google Calendar event, email_logs, audit_logs).
+
+  2. OFFICES  (/admin/offices)       - add / edit / enable-disable offices:
+        operating days, opening-closing hours, default slot duration,
+        daily capacity, contact email/phone, accepting-bookings toggle.
+
+  3. ACCOUNTS  (/admin/accounts)     - create / edit / deactivate admin
+        accounts and assign role: super_admin or office_admin (with office).
+
+  4. AUDIT LOG  (/admin/audit)       - read-only trail of every sensitive
+        action (approve, decline, reset_qr, account changes, etc.) with
+        who/what/when.
+
+  5. SETTINGS  (/admin/settings)     - notification toggles (confirmation,
+        admin alert, approval, decline, reference re-send), archive flags
+        (which statuses get retained/backfilled to cPanel), and a
+        "Sync Now" button that backfills/upserts approved/declined and other
+        flagged appointments into the cPanel archive.
+
+  Super Admin scoping:
+     - office_id = NULL  -> can act on appointments in EVERY office.
+     - Every write is logged to audit_logs; every email outcome to email_logs.
+
+  NOTE: Approve/Decline can also happen OUTSIDE the dashboard via the
+  one-click EMAIL LINK. The admin-alert email carries HMAC-signed
+  approve/decline URLs. Clicking one PERFORMS THE ACTION IMMEDIATELY (no
+  confirm page) and the browser tab auto-closes. Link replay after the action
+  just shows "Already reviewed".
+
+
+================================================================================
+5B. SUPER ADMIN FLOW  -- DIAGRAM
+================================================================================
+
+   BEGIN
+     |
+     v
+  /admin/login  (Supabase sign-in)
+     |
+     v
+  Admin session validated (GET /api/admin/auth)
+     |
+     v
+  role == super_admin  ?  -------- NO ------> access denied / login page
+     |                                        (still must be authorized)
+     | YES
+     v
+  +---------------------------------------------------------------+
+  |   SUPER ADMIN DASHBOARD  (sidebar)                            |
+  |                                                               |
+  |   Appointments    Offices    Accounts    Audit Log    Settings|
+  +---------------------------------------------------------------+
+     |         |          |            |           |
+     |         |          |            |           +----> /api/admin/settings
+     |         |          |            |                 notification toggles
+     |         |          |            |                 archive flags
+     |         |          |            |                 "Sync Now" backfill
+     |         |          |            |
+     |         |          |            +----> /admin/audit (read audit_logs)
+     |         |          |
+     |         |          +-----> /admin/accounts
+     |         |                 create/edit admin, assign role & office
+     |         |
+     |         +-----> /admin/offices
+     |                add/edit office, hours, capacity, contacts
+     |
+     v
+  /admin  APPOINTMENTS dashboard
+     |
+     +-- filter tabs: PENDING | APPROVED | DECLINED | ARCHIVED | ALL
+     |      |
+     |      +-- ARCHIVED --> reads cPanel appointments table (read-only)
+     |      |
+     |      +-- PENDING appointment row  (also available in ALL)
+     |            |
+     |            +---->  APPROVE  --> POST /api/appointments/approve
+     |            |          |  status -> approved
+     |            |          |  new reference number generated (qr_token)
+     |            |          |  MIRROR UPDATE cPanel (parallel)
+     |            |          |  after-response: approval email (ref + gate
+     |            |          |    instructions), Google Calendar event,
+     |            |          |    email_logs + audit_logs entries
+     |            |          |
+     |            +---->  DECLINE  --> POST /api/appointments/decline
+     |                 |  status -> declined (+ optional reason)
+     |                 |  MIRROR UPDATE cPanel (parallel)
+     |                 |  after-response: decline email, email_logs + audit
+     |                 |
+     |                 (ALTERNATIVE: one-click approve/decline straight from
+     |                 the admin-alert EMAIL; action runs on the first click
+     |                 and the tab closes)
+     |
+     +-- COMPLETED appointment detail
+     |        |
+     |        +---->  RESET  --> POST /api/appointments/reset-qr
+     |              status -> approved, NEW reference issued,
+     |              approval email re-sent, cPanel mirrored
+     |
+     +-- APPROVED appointment row
+              |
+              +----> copy reference number (manual hand-out/callback)
+
+
+================================================================================
+6. OFFICE ADMIN FLOW  -- EXPLANATION
+================================================================================
+
+The Office Admin signs in the same way (/admin/login + /api/admin/auth).
+The system knows their office_id. Key differences from Super Admin:
+
+  SCOPE
+     - They only see/act on appointments where office_id == THEIR office.
+     - They CANNOT act on another office (403 on approve/decline/reset if
+       office_id mismatches).
+     - The sidebar shows ONLY the Appointments page; the management pages
+       (Offices, Accounts, Audit Log, Settings) are hidden and their APIs
+       are super-admin-gated (requireSuperAdmin -> 403).
+
+  DASHBOARD
+     - Same 5 filter tabs but filtered to their office:
+         PENDING : Approve / Decline (+ reason) their office's bookings.
+         APPROVED: copy reference numbers of issued bookings.
+         DECLINED / ARCHIVED / ALL : same actions as Super Admin, scoped.
+     - Completed appointments can be RESET (re-issue a new reference and
+       re-send the approval email) if the visitor never entered the gate or
+       the reference was lost/used.
+     - ARCHIVED still reads the cPanel `appointments` table, filtered by
+       their office_id.
+
+  WORKER BEHAVIOR
+     - Approve/decline/reset write to Supabase and mirror to cPanel in
+       parallel, exactly like Super Admin.
+     - The admin-alert email with one-click links is sent to THEIR office's
+       admins when a new booking lands.
+
+  PERMISSION RULES  (enforced server-side in every route)
+     - office_admin + their office_id == appointment.office_id  -> allowed
+     - office_admin + different office                              -> 403
+     - status must be "pending" to approve/decline
+     - only "completed" appointments may be reset
+     - email action links are office-scoped + HMAC-signed (72h expiry)
+
+
+================================================================================
+6B. OFFICE ADMIN FLOW  -- DIAGRAM
+================================================================================
+
+   BEGIN
+     |
+     v
+  /admin/login  (Supabase sign-in)
+     |
+     v
+  Admin session validated (GET /api/admin/auth) -> role=office_admin, office_id=X
+     |
+     v
+  +----------------------------------------------------+
+  |  OFFICE ADMIN DASHBOARD  (only ONE sidebar item)    |
+  |  Appointments                                      |
+  |  (Offices/Accounts/Audit/Settings are HIDDEN       |
+  |   and any direct API access -> 403)                |
+  +----------------------------------------------------+
+     |
+     v
+  /admin  APPOINTMENTS dashboard  (filtered: office_id = X)
+     |
+     +-- filter tabs: PENDING | APPROVED | DECLINED | ARCHIVED | ALL
+     |      |
+     |      +-- the list/data is ALWAYS filtered to their office
+     |      |
+     |      +-- PENDING row
+     |            |
+     |            +-- APPROVE --> POST /api/appointments/approve
+     |            |   verify admin.office_id == appointment.office_id ? NO -> 403
+     |            |   YES -> status approved, reference issued,
+     |            |   cPanel mirror, approval email (ref + gate
+     |            |   instructions), calendar event, logs
+     |            |
+     |            +-- DECLINE --> POST /api/appointments/decline
+     |                verify office scope ? NO -> 403
+     |                YES -> status declined (+reason), cPanel mirror,
+     |                decline email, logs
+     |
+     +-- COMPLETED row  -> RESET (re-issue reference + re-send email)
+     |        (office-scope check; only completed allowed)
+     |
+     +-- ARCHIVED tab -> cPanel appointments filtered by office_id (read-only)
+     |
+     +-- APPROVED row -> copy reference number
+
+  EMAIL-bootstrap loop (incoming):
+     New booking -> admin-alert email -> one-click APPROVE or DECLINE link
+     (HMAC token, office-scoped) -> action executes immediately on first
+     click -> inbox returns to email list (tab auto-closes).
+
+
+================================================================================
+7. ROLE & PERMISSION MATRIX
+================================================================================
+
+  CAPABILITY                        PUBLIC     SUPER_ADMIN   OFFICE_ADMIN
+  --------------------------------- ---------- ------------  ------------
+  Book an appointment                  X           -               -
+  Receive confirmations/approvals      X           -               -
+  Verify reference at gate (/entry)    X           -               -
+  Approve / decline appointments       -           X (any office) X (own)
+  Re-issue (reset) references          -           X (any office) X (own)
+  Copy reference numbers               -           X (any office) X (own)
+  View archived history (cPanel)       -           X (any office) X (own)
+  Manage offices                       -           X               -
+  Manage admin accounts/roles          -           X               -
+  View audit log                       -           X               -
+  Configure notifications/archive      -           X               -
+  Run archive "Sync Now"               -           X               -
+  One-click email approve/decline      -           X (invoked via email, all)
+                                                   X (invoked via email, own)
+  View OTHER office appointments       -           X               NO (403)
+
+
+================================================================================
+8. KEY SECTIONS / ENDPOINTS REFERENCE
+================================================================================
+
+  PUBLIC
+    /                              landing page + 2-step booking wizard
+    /entry                         gate kiosk - reference number input
+    POST /api/appointments         create booking (rate-limited, validated,
+                                   slot/capacity checked, Supabase + cPanel)
+    POST /api/scan                 verify reference; marks USED/completed
+
+  ADMIN (auth required)
+    POST /api/admin/auth           validate session + return admin profile
+    POST /api/appointments/approve approve pending (add reference)
+    POST /api/appointments/decline decline pending (optional reason)
+    POST /api/appointments/reset-qr re-issue reference on completed appt
+    GET  /api/admin/archived       read cPanel archived appointments
+    POST /api/admin/archive-sync   backfill/upsert flagged records to cPanel
+                                   (manual "Sync Now" or auto by settings)
+
+  EMAIL ACTION (signed tokens)
+    GET/POST /api/appointments/email-action?action=approve|decline&token=...
+                                   one-click, executes immediately (72h token)
+
+  SECTIONS (super admin only unless noted)
+    /admin/offices                 office CRUD + hours/capacity/contacts
+    /admin/accounts                admin accounts + role assignment
+    /admin/audit                   audit trail
+    /admin/settings                notifications + archive flags + Sync Now
+
+  DATA STORES
+    Supabase tables:
+      appointments (status: pending | approved | declined | completed |
+                    expired; qr_token = reference number; valid_id = ID
+                    presented at guard)
+      offices, admins, audit_logs, email_logs, settings
+    cPanel MySQL:
+      appointments (mirror/archive of appointment data; single-use statuses)
+
+================================================================================
+END OF DOCUMENT
+================================================================================

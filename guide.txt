@@ -1,0 +1,1046 @@
+====================================================
+USLS Online Appointment System (OAS)
+USER MANUAL
+====================================================
+
+Welcome. This manual explains the Online Appointment System used by
+the University of St. La Salle to manage visits to campus offices.
+
+It is written for two kinds of people, and has three parts:
+
+  Part A - For Visitors: how to book a visit, what happens next,
+           how your details are used, and how to get through the gate.
+
+  Part B - For Staff: how to review, approve, and decline requests,
+           run the office calendar, and manage offices, accounts,
+           and system options.
+
+  Part C - Diving Deeper: a closer look for the curious -- what each
+           piece of information you collect is actually used for, and
+           how the system works under the hood.
+
+Everything is written in plain language. No technical background is
+needed to read Parts A and B. Part C goes a little further, but each
+section there can still be read on its own.
+
+
+====================================================
+TABLE OF CONTENTS
+====================================================
+
+Part A - For Visitors
+  1. What the system does for you
+  2. Booking a visit, step by step
+  3. What happens after you book
+  4. The email updates you'll receive
+  5. Arriving on the day of your visit
+  6. The information you share, and why
+
+Part B - For Staff
+  7. Getting into the admin area
+  8. The two kinds of staff accounts
+  9. The admin area at a glance
+ 10. Handling booking requests
+ 11. The monthly calendar view
+ 12. Pausing time slots (blocking)
+ 13. Re-issuing a gate code
+ 14. Setting up offices
+ 15. Managing staff accounts
+ 16. Reviewing the activity log
+ 17. System options you can change
+
+Part C - Diving Deeper
+ 18. Every piece of data collected, and what it does
+ 19. How your information is stored and protected
+ 20. How the gate code works (the details)
+ 21. The life of a visit, from booking to entry
+ 22. Roles and permissions in detail
+ 23. What every status means
+ 24. How the system is built (for the technically curious)
+ 25. Frequently asked questions
+ 26. Common problems and how to solve them
+
+
+====================================================
+PART A - FOR VISITORS
+====================================================
+
+
+----------------------------------------------------
+1. WHAT THE SYSTEM DOES FOR YOU
+----------------------------------------------------
+
+The Online Appointment System lets you book a visit to a university
+office ahead of time. No waiting in line, no walking in and hoping
+for the best -- you choose when you want to come, and the office
+confirms whether that works.
+
+The whole process, in one glance:
+
+  1. You book a visit online. This takes a couple of minutes and
+     does NOT require you to create an account or install anything.
+
+  2. The office reviews your request and either APPROVES it or
+     DECLINES it.
+
+  3. If approved, an email is sent to you with an 8-character
+     REFERENCE NUMBER -- your "gate entry code." You also get
+     instructions on which gate to use and which ID to bring.
+
+  4. On the day of your visit, you go to the gate, give your
+     reference number to the guard, and present the ID you chose
+     when booking.
+
+  5. The guard checks your code on the kiosk, the visit is marked
+     as completed, and you're allowed in.
+
+You can do all of this from a phone, tablet, or computer. The
+website automatically adjusts to whatever screen you're using.
+
+
+----------------------------------------------------
+2. BOOKING A VISIT, STEP BY STEP
+----------------------------------------------------
+
+Open the OAS website. The address was given to you, for example a
+link on the university's main page or an official email. You'll land
+on the booking page.
+
+The booking form is done in TWO STEPS, and a small progress bar at
+the top shows where you are.
+
+Before you start, decide which valid ID you will present at the
+gate. Examples:
+
+  - A government-issued ID (driver's license, passport, UMID, etc.)
+  - Your school ID, if you are a student
+
+You only need to pick WHICH one you will bring -- you do not upload
+a photo of it anymore. You simply choose it from a list.
+
+
+STEP 1 - WHO YOU ARE
+
+Fill in these fields:
+
+  - Full Name
+    Your complete name, e.g. "Juan Dela Cruz." This is used to
+    identify you in the visit records and to address you in emails.
+
+  - Phone Number
+    A number where you can actually be reached, e.g. "0917 123 4567."
+    This is your BACKUP CONTACT. If there is ever a problem with
+    your appointment and email isn't working (for example, your
+    mailbox is full, or an email bounced), the office uses this
+    number to reach you.
+
+  - Email Address
+    Type this CAREFULLY. All updates about your visit go here,
+    and your approval email with your GATE ENTRY CODE is sent to
+    this address. A wrong character means you won't get your code.
+
+  - Visitor Category
+    Pick who you are from the list: General Public, Student,
+    Faculty / Staff, Alumni, or Vendor / Supplier. This helps the
+    office understand who is visiting.
+
+  - Valid ID to Present
+    Choose from the list the ID you will bring on the day. This is
+    the ID the guard will check against you at the gate.
+
+  - Consent Box
+    Tick the box to agree that your details may be stored and used
+    to process your visit. This is required by Philippine law
+    (the Data Privacy Act - RA 10173). Your information is used
+    only for your appointment.
+
+When everything is filled in, click "Next: Appointment Details."
+If you missed something, the form will point out exactly what needs
+fixing -- nothing gets lost.
+
+
+STEP 2 - YOUR VISIT DETAILS
+
+  1. Pick the office.
+     Offices appear as cards. Click the one you want to visit; the
+     card you choose gets highlighted.
+
+  2. Pick the date.
+     A calendar appears for that office. Each date is marked with a
+     colored dot:
+       GREEN    - good availability
+       AMBER    - nearly full (a few spots left)
+       RED      - full for that day (nothing left)
+       GREYED   - today already passed, a weekend, or too far ahead
+     You can browse months with the arrows. Only MONDAY TO FRIDAY
+     can be booked. Click the day you want.
+
+  3. Pick the time.
+     Available times for that day are shown as buttons, each labeled
+     with how many spots remain. Slots that are FULL or BLOCKED
+     (paused by the office) are greyed out. Click a time slot.
+
+  4. Choose how long you'll stay.
+     Either 30 minutes (a quick visit) or 60 minutes (an extended
+     visit). The office's capacity tells you how many people can
+     share the same time slot.
+
+  5. Purpose of visit (optional).
+     A short note about why you're visiting, e.g. "Requesting my
+     certificate of enrollment." This helps the office prepare.
+
+A BOOKING SUMMARY appears at the bottom, recapping your office,
+date, time, and duration. Review it before submitting.
+
+
+SUBMIT
+
+Click "Submit Appointment." After a moment you'll see a confirmation
+screen thanking you and telling you your request is PENDING REVIEW.
+A confirmation email is on its way to the address you gave.
+
+If you need to make another request, click "Book Another
+Appointment."
+
+NOTE: If two people try to grab the last spot in the same slot at
+the same moment, one of you may see "This time slot is fully
+booked. Please select another time." Just pick another slot and
+try again.
+
+
+----------------------------------------------------
+3. WHAT HAPPENS AFTER YOU BOOK
+----------------------------------------------------
+
+Once you submit, one of three things happens:
+
+  - APPROVED. The office accepted your visit. You get an email with
+    your 8-character reference number (gate entry code) and the
+    gate instructions. Show this at the gate on your appointment
+    day.
+
+  - DECLINED. The office couldn't fit you in. You get an email
+    telling you so, sometimes with a reason. You are welcome to
+    book again another time.
+
+  - STILL PENDING. The office hasn't reviewed it yet. No action is
+    needed from you -- just watch your email.
+
+TIP: If you don't see an email right away, check your SPAM or JUNK
+folder before asking for help.
+
+
+----------------------------------------------------
+4. THE EMAIL UPDATES YOU'LL RECEIVE
+----------------------------------------------------
+
+These are the emails the system can send to you. Each one uses the
+email address you gave when booking:
+
+  - Booking confirmation (sent right after you submit)
+    Confirms that your request was received and is pending review.
+    Includes your appointment details and the office's contact
+    information in case you have questions.
+
+  - Approval email (sent when the office says yes)
+    The important one. It contains:
+        - your appointment details,
+        - your REFERENCE NUMBER (your gate entry code), shown large,
+        - the ID you need to present, and
+        - the gate instructions (USLS Gate 2).
+    Keep this email, or write the code down or screenshot it.
+
+  - Decline email (sent when the office says no)
+    Lets you know the visit was declined, sometimes with a reason
+    and the office's contact details in case you believe it's a
+    mistake.
+
+  - Reference re-send (sent when the office issues you a new code)
+    Contains a brand-new reference number. Whenever this arrives,
+    the LATEST email is the one that works.
+
+
+----------------------------------------------------
+5. ARRIVING ON THE DAY OF YOUR VISIT
+----------------------------------------------------
+
+On the day of your appointment:
+
+  1. Go to USLS GATE 2. Entry is accepted only there.
+  2. Give the guard your reference number (read it off your phone
+     or a printout).
+  3. Show the VALID ID you selected when booking. The guard checks
+     it against you to make sure the person arriving is the person
+     who booked.
+
+A few important things to know about your reference number:
+
+  - It is SINGLE-USE. Once it's entered at the gate, it is used up.
+  - It only works on your appointment DATE. It cannot be used on
+    another day.
+  - If the office ever issues a new code, always use the LATEST one
+    you received. Old codes stop working.
+  - It can only be used once. If you leave and need to come back the
+    same day, the office may issue you a new code.
+
+That's it -- you're ready to visit.
+
+
+----------------------------------------------------
+6. THE INFORMATION YOU SHARE, AND WHY
+----------------------------------------------------
+
+When you book, you share a small set of information. Here is what
+each piece does:
+
+  Name          Who is visiting. Used to identify you in the visit
+                records and to address you politely in emails.
+
+  Phone number  Your BACKUP CONTACT. Used only if the office needs
+                to reach you and email isn't possible (bounced
+                email, urgent change, etc.).
+
+  Email address The system's main channel to you. All notifications
+                are sent here -- including the email that carries
+                your GATE ENTRY CODE (reference number).
+
+  Valid ID      The ID you must present at the gate so the guard can
+                confirm your identity. Only the type is stored.
+
+  Category      Helps the office understand who is visiting (student,
+                faculty, general public, etc.).
+
+  Office, date, time, duration
+                The schedule of your visit, so the office knows when
+                to expect you and can manage capacity.
+
+  Purpose (optional)
+                A short note to help the office prepare.
+
+Your information is handled in line with the Data Privacy Act. It is
+used only to process your visit, and is kept in the system's secure
+databases (see Part C for details).
+
+
+====================================================
+PART B - FOR STAFF
+====================================================
+
+
+----------------------------------------------------
+7. GETTING INTO THE ADMIN AREA
+----------------------------------------------------
+
+The admin area is where staff manage visits. It is separate from the
+public booking page and is login-protected, so only authorized staff
+can get in.
+
+To log in:
+
+  1. Go to the admin login page (the address given to staff, e.g.
+     the /admin link).
+  2. Type your EMAIL and PASSWORD.
+  3. Click "Sign In." Use the eye icon to show or hide your password
+     as you type.
+
+If your email isn't an approved staff account, you'll be told you're
+not authorized and returned to the login screen.
+
+FORGOT YOUR PASSWORD? Contact your system manager (the person who
+manages staff accounts). They can reset or set up access for you.
+
+When you're done working, click "Sign out" in the sidebar.
+
+
+----------------------------------------------------
+8. THE TWO KINDS OF STAFF ACCOUNTS
+----------------------------------------------------
+
+There are two roles:
+
+  - OFFICE STAFF (Office Admin)
+    Manages visits for ONE specific office. Sees that office's
+    requests and a monthly calendar. This is the role most staff
+    will have.
+
+  - SYSTEM MANAGER (Super Admin)
+    Has full control: all offices, the full list of visits, office
+    setup, staff accounts, and system options. Only a few people
+    should have this role.
+
+What you see in the admin area depends on your role. Office staff
+get the tools for handling their office's visits; system managers
+get extra menu items for offices, accounts, activity logs, and
+settings.
+
+
+----------------------------------------------------
+9. THE ADMIN AREA AT A GLANCE
+----------------------------------------------------
+
+The admin area has a MENU on the left and the MAIN WORKING AREA in
+the middle.
+
+  - On phones and tablets, the menu is tucked behind a "hamburger"
+    (three-line) button in the top-left corner. Tap it to open it.
+  - Below the menu you'll see who's logged in, your role, and the
+    "Sign out" button.
+
+Depending on your role you'll see some or all of these menu items:
+
+  Menu item           | Office staff | System manager
+  --------------------+--------------+----------------
+  Appointments/Calendar        YES             YES
+  Offices                      --              YES
+  Accounts                     --              YES
+  Activity Log                 --              YES
+  Settings                     --              YES
+
+
+----------------------------------------------------
+10. HANDLING BOOKING REQUESTS
+----------------------------------------------------
+
+When a visitor books a visit, a new request appears for your office.
+Your job is to review it and decide: approve or decline.
+
+
+REVIEWING A REQUEST
+
+Open the request (click "View" or the person's name). You'll see:
+
+  - The visitor's name, category, email, and phone number.
+  - The office, date, and time they picked.
+  - The valid ID type they'll present at the gate.
+  - Any note they left about the purpose of their visit.
+
+Take a moment to make sure the details are sensible before deciding.
+
+
+APPROVING A VISIT
+
+If everything looks good, click "Approve." This:
+
+  1. Marks the visit as APPROVED.
+  2. Generates a unique 8-character REFERENCE NUMBER for the visitor.
+  3. Emails the reference number and gate instructions to the
+     visitor's email address.
+  4. Records the action in the activity log.
+
+The dashboard updates right away; the email takes a few more seconds
+to go out in the background. There is ALSO an "Approve" option
+available to you in the email alert you receive -- you can act from
+your inbox without opening the dashboard.
+
+
+TURNING DOWN A VISIT
+
+If you can't fit the visitor in, click "Decline." A small box opens
+where you can optionally type a REASON. Click "Confirm Decline."
+
+This marks the visit as declined and emails the visitor -- including
+your reason if you gave one. The two-click confirm keeps declines
+from being accidental.
+
+
+VIEWING PAST VISITS
+
+The request list is filtered with tabs at the top:
+
+  Pending | Approved | Declined | History | All
+
+  - The HISTORY tab shows finalized records (declined, completed,
+    expired). Open any record to see its full details, including the
+    ID the visitor chose to present.
+
+  - The ALL tab shows everything together, and you can search and
+    page through the records.
+
+
+----------------------------------------------------
+11. THE MONTHLY CALENDAR VIEW
+----------------------------------------------------
+
+Office staff see their office's visits on a MONTHLY CALENDAR -- a
+quick visual overview of who is coming and when.
+
+  - Use the ARROWS to move between months.
+  - Use the tabs to show only Pending, Approved, or Declined, or
+    everything.
+  - Each visit appears as a small card with the time and the
+    visitor's first name, color-coded:
+        AMBER  - pending
+        GREEN  - approved
+        RED    - declined
+  - A day with more than two visits shows "+N more."
+  - Today is highlighted so you always know where you are.
+
+Click any visit on the calendar to open its full details, where you
+can approve or decline it.
+
+
+----------------------------------------------------
+12. PAUSING TIME SLOTS (BLOCKING)
+----------------------------------------------------
+
+Sometimes your office isn't taking visitors -- during lunch, a
+meeting, a holiday, or a deadline. Rather than turning people away
+after they book, you can PAUSE ("block") specific times ahead of
+time.
+
+To block a slot:
+
+  1. Hover over a future day on the calendar. A small "+" appears
+     in the corner of the day.
+  2. Click it to open the "Block Time Slots" panel for that day.
+  3. You'll see all of the day's time slots. CLICK a slot to block
+     it -- it turns red.
+  4. To re-open it, click the red slot again to unblock it.
+
+Once blocked, that time shows as "Blocked" on the visitor booking
+form, so nobody will try to book it.
+
+TIP: Blocking ahead of time is much easier than approving one
+visitor and rejecting another who picked the same time.
+
+
+----------------------------------------------------
+13. RE-ISSUING A GATE CODE
+----------------------------------------------------
+
+A visitor's reference number is single-use. If a visitor already
+entered and needs to come back the same day, or they lost or used
+their code, you can issue a NEW reference number:
+
+  1. Open the COMPLETED appointment's details.
+  2. Click "Reset QR & Re-send Email."
+  3. The visit becomes APPROVED again, a brand-new reference number
+     is generated, and an email with the new code goes to the
+     visitor.
+
+Use this sparingly -- every use is recorded in the activity log.
+
+
+----------------------------------------------------
+14. SETTING UP OFFICES
+----------------------------------------------------
+
+> System managers only.
+
+The OFFICES page shows every office that can accept bookings, as
+cards showing:
+
+  - Office name and email
+  - Operating hours
+  - Capacity (how many visitors may share the same time slot)
+  - Contact email and phone (what visitors see in their emails for
+    follow-up questions)
+  - Whether the office is Active or not
+
+ADD AN OFFICE
+  1. Click "Add Office."
+  2. Enter the office name, email, capacity per time, operating
+     hours (e.g. "8:00 AM - 5:00 PM" -- this sets which times
+     visitors can pick), contact email and phone, and a short
+     description.
+  3. Click "Create Office."
+
+EDIT AN OFFICE
+  Click "Edit" on a card to change any of its details (including
+  the contact email/phone), then "Update Office."
+
+TURN AN OFFICE ON/OFF
+  Click "Deactivate" to remove an office from the public booking
+  page (existing visits are unaffected). Click "Activate" to bring
+  it back.
+
+
+----------------------------------------------------
+15. MANAGING STAFF ACCOUNTS
+----------------------------------------------------
+
+> System managers only.
+
+Use the ACCOUNTS page to control who can log in to the admin area.
+Each staff account shows the person's name, email, role, and (for
+office staff) which office they handle.
+
+ADD A STAFF ACCOUNT
+  1. Click "Add Account."
+  2. Enter their EMAIL, NAME, and a PASSWORD (at least 6 characters).
+  3. Choose their role: Office Staff (manages one office) or System
+     Manager (full control).
+  4. If office staff, pick the OFFICE they should manage.
+  5. Click "Create Account." They can sign in right away.
+
+REMOVE A STAFF ACCOUNT
+  1. Click "Remove" on the account.
+  2. To confirm, enter YOUR OWN password. This step stops accidental
+     removals.
+  3. Click "Confirm Remove."
+
+
+----------------------------------------------------
+16. REVIEWING THE ACTIVITY LOG
+----------------------------------------------------
+
+> System managers only.
+
+The ACTIVITY LOG is a record of important actions, kept for
+accountability. Each line shows:
+
+  - WHEN something happened,
+  - WHO did it (their email),
+  - WHAT they did (a colored label, e.g., Approve, Decline, Create
+    Account, Login),
+  - DETAILS -- extra context, such as which person or record was
+    involved.
+
+You'll see entries for approving and declining visits, creating and
+removing offices and accounts, resetting reference numbers, and
+staff logins. If you ever need to check who did what and when, this
+is the place.
+
+
+----------------------------------------------------
+17. SYSTEM OPTIONS YOU CAN CHANGE
+----------------------------------------------------
+
+> System managers only.
+
+The SETTINGS page controls how the whole system behaves. It's split
+into simple panels:
+
+SYSTEM INFORMATION
+  The system's display name, plus support email and phone numbers.
+
+BOOKING RULES
+  - Max advance booking (days): how far ahead visitors can book
+    (normally 30).
+  - Minimum notice (hours): how far in advance a visit must be
+    booked before the appointment.
+
+EMAIL NOTIFICATIONS
+  Turn each automatic email on or off with a simple switch:
+  - Booking confirmation -- to the visitor when they book.
+  - Admin alert -- to your office when a new request is pending.
+  - Approval email -- to the visitor when accepted (carries the
+    reference number).
+  - Decline email -- to the visitor when declined.
+  - Reference re-send -- when a new code is issued.
+
+OFFICE CONTACT DETAILS
+  These are managed per office on the OFFICES page (Section 14), not
+  here.
+
+When you're done, click "Save Settings" at the bottom.
+
+REMINDER: Email can take a few seconds to send in the background.
+If a visitor reports they didn't get a message, double-check that
+the matching notification switch here is turned ON.
+
+
+====================================================
+PART C - DIVING DEEPER
+====================================================
+
+This part is for readers who want to understand more than "click
+here, do that." Each section digs into a specific topic: what your
+data is actually used for, why the code system is safe, and how the
+system works behind the scenes.
+
+
+----------------------------------------------------
+18. EVERY PIECE OF DATA COLLECTED, AND WHAT IT DOES
+----------------------------------------------------
+
+The system collects only what it needs -- and each field has a
+purpose. Here is the complete list, what each field does, and where
+it ends up.
+
+  FIELD            WHAT IT IS            WHAT IT'S USED FOR
+  ---------------  --------------------  --------------------------
+  Full name        Visitor's full name   Identifies who is visiting.
+                                          Used in visit records and
+                                          in the greeting of every
+                                          email (confirmation,
+                                          approval, decline).
+
+  Phone number     Backup contact        Reachable line in case
+                                          email fails. Used only
+                                          when staff need to contact
+                                          the visitor directly --
+                                          for example, a bounced
+                                          email, an urgent change,
+                                          or a same-day problem
+                                          with a request. It is
+                                          NOT used for marketing.
+
+  Email address    Primary channel       The system sends ALL visit
+                                          notifications here: booking
+                                          confirmation, approval,
+                                          decline, and the email
+                                          that carries the GATE
+                                          ENTRY CODE (reference
+                                          number). Because of this,
+                                          the email field is the
+                                          most important one to
+                                          type correctly.
+
+  Valid ID type    The ID to present     Chosen from a fixed list
+                                          (e.g., driver's license,
+                                          passport, school ID).
+                                          The guard checks this ID
+                                          against the visitor at
+                                          the gate. Only the TYPE
+                                          is stored -- no photo,
+                                          no ID number, no copy.
+
+  Visitor category Who the visitor is    Groups visitors (student,
+                                          faculty, general public,
+                                          etc.) so offices
+                                          understand their users.
+
+  Office & date    Schedule of visit     Tells the office when to
+  time & duration                         expect the visitor and
+                                          manages capacity per slot.
+
+  Purpose note     Optional note         Helps the office prepare
+  (optional)                              for the visit.
+
+  Created/review   Administrative        Record of when the request
+  timestamps and   history               was made, approved, or
+  action record                          declined, and who did it
+                                          (kept in the activity
+                                          log).
+
+WHAT IS NOT collected: no ID photos, no ID numbers, no fingerprints,
+no government identifiers. Only the type of ID is kept. This keeps
+the system focused and lowers privacy risk.
+
+
+----------------------------------------------------
+19. HOW YOUR INFORMATION IS STORED AND PROTECTED
+----------------------------------------------------
+
+The data is kept in two places, and both are secured:
+
+  LIVE DATABASE (Supabase)
+    This is the "working" copy. Every request, approval, decline,
+    and gate entry is written here instantly, and the admin
+    dashboard reads from it. It's the system of record. Supabase
+    is utilized for real-time faster operations.
+
+  MIRROR DATABASE (cPanel MySQL)
+    A backup copy that lives on the university's hosting. Whenever a
+    record is created or changed, the same write is also made to
+    this backup IN PARALLEL. Its job is resilience: even if one
+    database has problems, a full copy of the data still exists in
+    the other.
+
+  Who can see the data
+    - Visitors can only see what the system emails them about their
+      own appointment.
+    - Office staff can only see requests for their OWN office.
+    - System managers can see everything -- this is deliberate, and
+      their actions are themselves logged.
+
+  Protection measures
+    - Staff areas are password-protected and require a staff
+      account.
+    - Roles are enforced on the server for every request -- hiding a
+      button in the menu is not the actual protection.
+    - Every sensitive action (approve, decline, reset, create/remove
+      accounts) is written to the activity log with the actor's
+      email.
+    - Email action links are tamper-proof and expire (see Section
+      20).
+    - Passwords are stored hashed, never in plain text.
+
+  Privacy (RA 10173)
+    The system collects only the minimum needed to run visit
+    scheduling. Visitors consent on the booking form, data is only
+    used for its stated purpose, and access is restricted and
+    logged. The Data Privacy Act requires exactly this.
+
+  Data retention
+    Records stay in the system so the university can answer follow-
+    up questions and keep an audit trail. Retention is set and
+    reviewed by the system manager. Data collected within the University's
+    hosting will be kept for archives, however, data collected through
+    Supabase will be deleted every 1st week of the month.
+
+
+----------------------------------------------------
+20. HOW THE GATE CODE WORKS
+----------------------------------------------------
+
+Why a code instead of an ID number or a paper form? A reference
+number is short enough to read aloud or type quickly, and safe
+enough to use as a one-time ticket. Here's how the design works:
+
+  GENERATION
+    When a visit is approved, the system generates a random
+    8-character code. The alphabet deliberately skips characters
+    that are easy to confuse (like 0 and O, or 1 and I), so codes
+    are easy to read and hard to mis-type.
+
+  DELIVERY
+    The code is emailed to the visitor's email address. Because the
+    email carries the code, it is vital that visitors type their
+    email correctly -- a wrong character means the code goes
+    somewhere else.
+
+  VALIDATION AT THE GATE
+    The guard types the code (or the visitor reads it out) into the
+    kiosk. The system checks three things:
+      1. Does the code exist and is the visit APPROVED?
+      2. Is the visit scheduled for TODAY? (Codes don't work on
+         other days.)
+      3. Has the code NOT been used already? (It is single-use.)
+
+  SINGLE-USE GUARANTEE
+    The kiosk only marks the visit completed if it was still
+    "approved and unused." If two attempts happen at the same
+    moment, only one can win. So a code can't be scanned twice, and
+    it can't be replayed later.
+
+  RE-ISSUING
+    If a visitor needs to come back the same day, the office resets
+    the code. The old code is retired and a NEW one is generated and
+    emailed. Only the newest code works.
+
+  EMAIL ACTION LINKS (approve/decline)
+    When a new request comes in, office staff receive an email with
+    Approve and Decline buttons. These links are protected in two
+    ways:
+      - They are SIGNED: only this system can create valid links, so
+        a link can't be forged or edited.
+      - They EXPIRE after 72 hours, so an old email can't be used
+        later to change a visit.
+    Clicking one acts immediately -- that's why the two-minute email
+    review is so fast. A decline from email asks for a reason on the
+    page that opens; an approve acts straight away.
+
+
+----------------------------------------------------
+21. THE LIFE OF A VISIT, FROM BOOKING TO ENTRY
+----------------------------------------------------
+
+Follow one visit from start to finish:
+
+  1. PENDING - The visitor submits the form. Instantly:
+       - the request is saved,
+       - a confirmation email goes to the visitor,
+       - an alert email goes to the office admin, and
+       - a copy is written to the mirror database.
+
+  2. REVIEW - The office admin opens the request and checks it.
+
+  3. Either:
+       APPROVED - A reference number is generated and emailed with
+                  the gate instructions. Copy mirrored.
+       DECLINED - An email with the reason (if given) is sent.
+                  Copy mirrored.
+
+  4. GATE ENTRY (only after approval, on the appointment date) -
+     The guard enters the code at the kiosk. Validation passes:
+       - status becomes COMPLETED,
+       - the code is used up (single-use),
+       - the kiosk shows the visitor's name, office, time, and the
+         ID to ask for,
+       - the mirror is updated.
+
+  5. NO-SHOW - If the date passes without entry, the visit becomes
+     EXPIRED. Nothing to do -- it lands in History.
+
+Whatever happens, the final status is visible in the History tab,
+and the audit trail in the activity log shows who approved or
+declined it.
+
+
+----------------------------------------------------
+22. ROLES AND PERMISSIONS IN DETAIL
+----------------------------------------------------
+
+The system uses two roles, enforced at the server level:
+
+  OFFICE ADMIN (Office Staff)
+    - Sees only their own office's requests, calendar, and history.
+    - Can approve, decline, and reset codes for their office.
+    - Can block time slots.
+    - CANNOT see other offices, manage other staff, change system
+      options, or set up offices.
+
+  SYSTEM MANAGER (Super Admin)
+    - Everything the office admin can do, PLUS:
+    - Sees ALL offices and all appointments.
+    - Creates and edits offices (including contact details).
+    - Creates and removes staff accounts.
+    - Reads the activity log.
+    - Changes system options (booking rules, notification switches,
+      system name).
+
+  VISITORS (no account)
+    - Book appointments.
+    - Receive emails (confirmation, approval with code, decline,
+      resend).
+    - Present their code at the gate.
+    - Cannot log into the admin area at all.
+
+Why does this matter? It keeps mistakes and privacy problems small:
+an office admin simply has no way to reach another office's records,
+even by accident.
+
+
+----------------------------------------------------
+23. WHAT EVERY STATUS MEANS
+----------------------------------------------------
+
+  STATUS      WHAT IT MEANS            WHAT HAPPENS NEXT
+  ----------  ------------------------  --------------------------
+  Pending     Booked, waiting for      Office approves or
+              your decision            declines it
+  Approved    You accepted it          Visitor gets their code by
+                                       email
+  Declined    You turned it down       Visitor is emailed (with
+                                       your reason, if given)
+  Completed   Visitor entered the      You can re-issue a new
+              gate (code was used)     code if needed
+  Expired     The visit date passed    Nothing to do
+              without being used
+
+Remember: a visitor approved a week ago with a code already used at
+the gate shows COMPLETED -- that is normal. Only an UNUSED approved
+code is enterable at the gate.
+
+
+----------------------------------------------------
+24. HOW THE SYSTEM IS BUILT
+----------------------------------------------------
+
+The following details are those used during development:
+
+  - Build: Next.js application served on Vercel.
+  - Live data: Supabase (PostgreSQL). Tables include appointments,
+    offices, admins, settings, and email logs.
+  - Backup data: a single cPanel MySQL appointments table, mirrored
+    on every write (create, approve, decline, gate entry, reset).
+    Mirror failures are logged and never fail the visitor's request.
+  - Email: transactional email API (Resend/SMTP). Emails are sent
+    in the background so booking stays fast.
+  - Codes: server-generated 8-character reference numbers stored in
+    the appointment record (qr_token column, kept for historical
+    naming). Single-use is enforced by an atomic conditional update
+    at the gate.
+  - Email action links: HMAC-signed approve/decline URLs with a
+    72-hour expiry, so a link can't be forged or replayed later.
+  - Security: role-based access control is enforced server-side in
+    every API route; passwords are hashed; audit entries record
+    every privileged action.
+  - Public flow: booking page (two-step form) -> user emails ->
+    admin dashboard (approve/decline) -> visitor email with code ->
+    gate kiosk (enter code) -> completed.
+
+Developer notes and the full technical specification live in the
+project's PROMPT.md and PROGRAM_FLOW.txt files.
+
+
+----------------------------------------------------
+25. FREQUENTLY ASKED QUESTIONS
+----------------------------------------------------
+
+Q: Do visitors need their own account to book?
+A: No. Booking works without an account -- just fill in the form.
+
+Q: How far ahead can someone book?
+A: Usually from today up to 30 days in advance (the system manager
+   can change this). Weekends cannot be booked.
+
+Q: Can someone book more than one spot at the same time?
+A: Each form is for one person. For a group, book separately. Each
+   office limits how many people may share the same time slot.
+
+Q: A visitor's gate code isn't working.
+A: Check it's the LATEST code, they're on the CORRECT day, and it
+   hasn't ALREADY been used. If it was used by mistake, reset the
+   code and re-send it (Section 13).
+
+Q: A visitor says they didn't get an email.
+A: Ask them to check spam/junk first. Then confirm their email
+   address is correct, and that the matching notification switch in
+   Settings (Section 17) is turned on.
+
+Q: Can a visit be rescheduled?
+A: Not directly. For approved or expired visits, decline and let the
+   visitor rebook. For completed visits, issue a new code with the
+   reset option.
+
+Q: What if a visitor doesn't show up?
+A: Nothing to do. The visit shows as EXPIRED once the date passes
+   and lands in History.
+
+Q: Can office staff see other offices' visits?
+A: No -- office staff only see their own office. System managers see
+   everything.
+
+Q: Why do we ask for a phone number if everything is by email?
+A: The phone number is the BACKUP contact. If the office can't reach
+   a visitor by email (a bounced address, an urgent change, a filled
+   mailbox), the phone is the alternative. It is never used for
+   anything else.
+
+Q: Why does the email field matter so much?
+A: Because the email carries the GATE ENTRY CODE. If it's typed
+   wrong, the visitor's code goes to the wrong inbox and they can't
+   get in. Help visitors double-check it.
+
+Q: What information is collected and why?
+A: Name (identification), phone (backup contact), email (all
+   notifications, including the gate code), the type of valid ID
+   they'll present (gate identity check), category, office/date/time,
+   and an optional purpose note. All handled in line with the Data
+   Privacy Act; visitors consent on the booking form.
+
+Q: Who do we contact for help?
+A: Visitors use the office contact details shown in their emails.
+   Staff go to their system manager for access, resets, or settings
+   help.
+
+
+----------------------------------------------------
+26. COMMON PROBLEMS AND HOW TO SOLVE THEM
+----------------------------------------------------
+
+PROBLEM: A visitor booked, but no confirmation email arrived.
+  Check: spam/junk folder -> correct email address -> the Booking
+  Confirmation switch in Settings is ON -> the visitor's details
+  exist in Pending.
+
+PROBLEM: A visitor is at the gate and their code won't work.
+  Check the three rules: latest code? correct day? already used?
+  If already used, reset and issue a new code (Section 13).
+
+PROBLEM: Office staff can't see a request.
+  They may be assigned to the wrong office. Have the system manager
+  check the Accounts page (Section 15) and the office assignment.
+
+PROBLEM: A time slot that should be available shows as Blocked.
+  Open the calendar for that day and click the red slot to unblock
+  it (Section 12).
+
+PROBLEM: Someone says the system is slow or the email is late.
+  Emails are sent in the background and can take a few seconds.
+  If a page really hangs, log out and back in, and try again after
+  a moment.
+
+PROBLEM: Forgot the admin password.
+  The system manager can create a new account or re-issue access
+  from the Accounts page.
+
+----------------------------------------------------
+
+Thank you for using the USLS Online Appointment System!
+
+For developers and maintainers, technical notes live in the
+project's PROMPT.md and PROGRAM_FLOW.txt files.

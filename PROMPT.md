@@ -5,13 +5,13 @@
 
 ## 1. Project Overview
 
-**USLS OAS** is an online appointment booking system that allows campus visitors (including students) to schedule appointments with specific offices around campus. The system manages the full lifecycle of an appointment: booking → admin approval → QR code issuance → gate verification/scanning.
+**USLS OAS** is an online appointment booking system that allows campus visitors (including students) to schedule appointments with specific offices around campus. The system manages the full lifecycle of an appointment: booking → admin approval → reference-number issuance → gate verification.
 
 **Core goals:**
 - Let visitors self-book appointments without needing an account.
 - Give admins a real-time dashboard to approve/decline appointments.
-- Issue secure, single-use QR codes for verified entry at the gate.
-- Maintain a long-term archive of appointment records separate from the live system.
+- Issue secure, single-use reference numbers for verified entry at the gate.
+- Keep every appointment mirrored to a cPanel MySQL backup while Supabase remains the live system of record.
 
 ---
 
@@ -21,13 +21,12 @@
 |---|---|
 | Frontend/Backend framework | **Next.js** |
 | Hosting | **Vercel** |
-| Live database | **Supabase (Postgres)** |
-| Archive database | **cPanel MySQL** (periodic sync from Supabase) |
-| Image storage | **Vercel Blob** or S3-compatible (R2/B2) — *TBD* |
-| Email | **Nodemailer**, via transactional SMTP provider (Resend/SES/SendGrid — *TBD*) |
-| Auth/Sessions | Supabase Auth or Auth.js/Lucia, httpOnly session cookie |
-| QR generation/scanning | `qrcode` (generation), `html5-qrcode` (scanning) |
-| Image compression | `sharp` (server-side), `browser-image-compression` (client-side) |
+| Live database | **Supabase (Postgres)** — system of record |
+| Mirror database | **cPanel MySQL** (`appointments` table) — written in parallel on every create/status change |
+| Image storage | — *(not used; no ID photo upload)* |
+| Email | **Resend** (transactional SMTP) |
+| Auth/Sessions | Supabase Auth, httpOnly session cookie |
+| Reference numbers | Generated server-side (8 chars, unambiguous alphabet), stored in `qr_token`; HMAC-signed action links for email approve/decline |
 
 ---
 
@@ -38,7 +37,7 @@
 - Full name
 - Phone number
 - Email address
-- Upload photo of valid government-issued ID (or School ID if student)
+- Valid ID to present at the gate (dropdown of preconfigured ID types — no photo upload)
 
 **Step 2 — Appointment Details**
 - Select date and time
@@ -46,70 +45,60 @@
 - Select office to visit
 
 **Step 3 — Submission**
-- Data is saved to Supabase (status: `pending`)
-- ID image is compressed and uploaded to object storage
+- Data is saved to Supabase (status: `pending`) and mirrored to cPanel MySQL in parallel
 - Confirmation email sent to the visitor's submitted email
-- Notification email sent to admin(s) with **Approve/Decline** actions that open the admin dashboard (not one-click actions — see Security section)
+- Notification email sent to admin(s) with **Approve/Decline** one-click action links (HMAC-signed, 72-hour validity)
 
 ### 3.2 Admin Approval Flow
 - New appointments appear in the **admin dashboard**, queued for review.
-- Dashboard requires authentication — **session persists for 24 hours** ("login once a day"); device/browser session is checked before prompting login again.
-- Admin reviews visitor info + ID photo, then Approves or Declines.
+- Office admins only see/act on their own office; super admins see all.
+- Admin reviews visitor info + valid ID (shown as text), then Approves or Declines.
 - **On Approval:**
-  - Status updated to `approved`
-  - Unique, signed QR code generated
-  - Email sent to visitor with the QR code attached/embedded
+  - Status updated to `approved` (+ cPanel mirror)
+  - Unique, signed reference number generated (stored in `qr_token`)
+  - Email sent to visitor with the reference number and USLS Gate 2 entry instructions
 - **On Decline:**
-  - Status updated to `declined`
+  - Status updated to `declined` (+ cPanel mirror)
   - Email sent to visitor with decline notice (+ optional reason)
 
 ### 3.3 Gate Verification Flow
-- Dedicated **kiosk/scanner screen** at the gate.
-- Scans visitor's QR code via device camera.
-- On valid scan:
-  - QR code is immediately invalidated (single-use)
-  - Displays the visitor's submitted ID photo for guard comparison
-  - Option to capture a live photo at the gate for additional verification
-- Invalid/already-used/expired QR codes are flagged clearly.
+- Dedicated **kiosk screen** at `/entry` — a single reference-number input box.
+- The reference number is verified against Supabase.
+- On valid verification:
+  - Reference number is immediately invalidated (single-use, status → `completed`)
+  - Displays visitor name, office, time, and the valid ID to present
+- Invalid/already-used/expired reference numbers are flagged clearly.
 
-### 3.4 Archiving Flow (Supabase → cPanel)
-- Live, in-progress appointments remain in Supabase for speed and real-time updates.
-- Completed/terminal-state appointments (`completed`, `expired`, `declined`) are periodically synced to cPanel MySQL for long-term archival.
-- **Sync direction:** cPanel-side cron job **pulls** from Supabase's REST API (avoids exposing cPanel MySQL to inbound serverless traffic/connection churn).
-- **Sync frequency:** *TBD — recommend nightly batch.*
-- **Retention in Supabase after archiving:** *TBD — recommend keep-and-archive (not delete) initially.*
+### 3.4 Data Mirroring (Supabase → cPanel)
+- Every appointment write (create, approve, decline, gate entry, reset) is mirrored to the cPanel MySQL `appointments` table **in parallel** with the Supabase write.
+- Supabase is the source of truth for live data; the cPanel table is a backup/mirror.
+- The admin **History** view (declined/completed/expired) reads from Supabase; there is no separate archive job or "Sync Now".
 
 ---
 
 ## 4. Database Design Notes
 
 ### 4.1 Supabase (Live System) — Core Tables (draft)
-- `appointments` — id, full_name, phone, email, id_image_url, office_id, date, time_slot, duration, status, qr_token, qr_used_at, created_at, archived (bool)
+- `appointments` — id, full_name, phone, email, valid_id, office_id, date, time_slot, duration, status, qr_token, qr_used_at, created_at, archived (bool)
 - `offices` — id, name, operating_hours, capacity_per_slot, active
 - `admins` — id, name, email, role, office_id (nullable for super-admins)
 - `email_logs` — id, appointment_id, type, status, sent_at, error_message
 - `sessions` — managed via auth provider
 
-### 4.2 cPanel MySQL (Archive) — Mirrors relevant fields from `appointments` + related tables, insert-only from the sync job.
-
-*(Full schema to be finalized in next development phase.)*
+### 4.2 cPanel MySQL (Mirror) — Single `appointments` table mirroring every appointment write (schema in `supabase/migrations/012_cpanel_appointments_schema.sql`).
 
 ---
 
 ## 5. Security Requirements
 
-- **CAPTCHA** (hCaptcha/Turnstile) on the public booking form to prevent spam/bot submissions.
-- **Email/OTP verification** before an appointment is queued, to prevent fake email submissions.
-- **Signed QR payloads** (HMAC/JWT) — never encode just a raw appointment ID; verify signature server-side on scan.
-- **Atomic QR validation** — use DB transaction/row-level locking to prevent race conditions from simultaneous scans.
-- **Approve/Decline email links** open the dashboard for authenticated action — they do **not** perform the action directly via link click (prevents accidental approval via email scanners/previews).
-- **File upload validation** — restrict file types, size limits, and dimensions before compression/storage.
-- **Role-based access control** for the dashboard (super-admin vs. office-level admin).
-- **Audit trail** — log who approved/declined each appointment, when, and from what session.
-- **Data privacy compliance** (RA 10173 / Data Privacy Act):
-  - Consent checkbox on ID submission
-  - Defined retention period for ID images
-  - Restricted, logged access to stored ID images
+- **CAPTCHA** (hCaptcha/Turnstile) on the public booking form to prevent spam/bot submissions — *TBD*.
+- **Email/OTP verification** before an appointment is queued, to prevent fake email submissions — *TBD*.
+- **Reference numbers** are server-generated with an unambiguous alphabet; lookups are case/character normalized.
+- **Atomic single-use validation** — `/api/scan` only marks completed when `status = approved` and `qr_used_at IS NULL`, so simultaneous attempts can't double-use a reference.
+- **Approve/Decline email links** are HMAC-signed (72-hour expiry, office-scoped) and perform the action **immediately** on the first click; replays show "already reviewed".
+- **Role-based access control** for the dashboard (super-admin vs. office-level admin, enforced server-side in every route).
+- **Audit trail** — log who approved/declined/reset each appointment, when, and with what outcome.
+- **Data privacy compliance** (RA 10173 / Data Privacy Act): no ID photos are stored; only the selected ID type (text) is kept.
 
 ---
 
@@ -143,14 +132,12 @@
 
 ## 8. Open Decisions Needed Before/During Development
 
-- [ ] **Email/SMTP provider** (cPanel SMTP vs. Resend/SES/SendGrid/etc.)
-- [ ] **Image storage provider** (Vercel Blob vs. R2/B2/S3)
+- [ ] **Email/SMTP provider** — currently **Resend**
 - [ ] **List of offices**, their operating hours, and per-slot capacity (1 visitor at a time, or multiple concurrent?)
 - [ ] **Booking window rules** — how far in advance bookings are allowed, same-day cutoff, blackout dates/holidays
-- [ ] **Admin roles** — single super-admin, or per-office admins with scoped dashboard access?
+- [ ] **Admin roles** — implemented: `super_admin` + per-office `office_admin` with scoped dashboard access
 - [ ] **Visitor categories** — general public vs. student (student number required?) vs. faculty/alumni/vendor?
-- [ ] **Data retention period** for ID images and appointment records
-- [ ] **Archive sync frequency** and whether Supabase records are deleted after archiving
+- [ ] **Data retention period** for appointment records / cPanel mirror
 - [ ] **Branding assets** — USLS logo, color palette, fonts (or default to a clean generic design)
 - [ ] **Domain** to be pointed to the Vercel deployment
 
@@ -165,8 +152,8 @@
 5. Email integration (Nodemailer + confirmation/admin emails)
 6. Admin authentication + dashboard (queue, approve/decline)
 7. QR code generation + approval email
-8. Gate scanning kiosk screen
-9. cPanel archive sync job
+8. Gate entry kiosk screen (/entry)
+9. cPanel parallel mirror writes
 10. Security hardening pass (CAPTCHA, OTP, RBAC, audit logs)
 11. Testing + deployment
 

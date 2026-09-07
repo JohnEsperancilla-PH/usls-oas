@@ -39,7 +39,7 @@ export function requireSuperAdmin(admin: AuthAdmin): { ok: boolean; error?: stri
 }
 
 export async function logAudit(
-  adminId: string,
+  adminId: string | null,
   adminEmail: string,
   action: string,
   details: {

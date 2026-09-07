@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { sendMail, generateBookingConfirmationEmail, generateAdminAlertEmail, isNotificationEnabled } from "@/lib/email";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { generateActionToken } from "@/lib/action-token";
+import { isValidId } from "@/lib/valid-ids";
+import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-mirror";
+import type { Database } from "@/types/database";
 
 function getPrevSlot(timeSlot: string): string | null {
   const [h, m] = timeSlot.split(":").map(Number);
@@ -24,7 +28,7 @@ interface AppointmentRequest {
   fullName: string;
   phone: string;
   email: string;
-  idImageUrl: string;
+  validId: string;
   visitorCategory: string;
   officeId: string;
   date: string;
@@ -42,7 +46,7 @@ export async function POST(request: Request) {
     const body: AppointmentRequest = await request.json();
     
     // Validate required fields
-    const requiredFields = ["fullName", "phone", "email", "idImageUrl", "officeId", "date", "timeSlot", "duration"];
+    const requiredFields = ["fullName", "phone", "email", "validId", "officeId", "date", "timeSlot", "duration"];
     for (const field of requiredFields) {
       if (!body[field as keyof AppointmentRequest]) {
         return NextResponse.json(
@@ -57,6 +61,14 @@ export async function POST(request: Request) {
     if (!emailRegex.test(body.email)) {
       return NextResponse.json(
         { message: "Invalid email format" },
+        { status: 400 }
+      );
+    }
+
+    // Validate selected valid ID
+    if (!isValidId(body.validId)) {
+      return NextResponse.json(
+        { message: "Please select a valid government-issued ID" },
         { status: 400 }
       );
     }
@@ -192,24 +204,50 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create the appointment
-    const { data: appointment, error: appointmentError } = await supabase
-      .from("appointments")
-      .insert({
-        full_name: body.fullName,
-        phone: body.phone,
-        email: body.email,
-        id_image_url: body.idImageUrl,
-        visitor_category: body.visitorCategory || "general_public",
-        purpose_of_visit: body.purposeOfVisit || null,
-        office_id: body.officeId,
-        date: body.date,
-        time_slot: body.timeSlot,
-        duration: body.duration,
-        status: "pending",
-      })
-      .select()
-      .single();
+    // Create the appointment in Supabase, mirroring the same row to cPanel in parallel.
+    const appointmentId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+
+    const insertPayload = {
+      id: appointmentId,
+      full_name: body.fullName,
+      phone: body.phone,
+      email: body.email,
+      valid_id: body.validId,
+      visitor_category: body.visitorCategory || "general_public",
+      purpose_of_visit: body.purposeOfVisit || null,
+      office_id: body.officeId,
+      date: body.date,
+      time_slot: body.timeSlot,
+      duration: body.duration,
+      status: "pending",
+    } as unknown as Database["public"]["Tables"]["appointments"]["Insert"];
+
+    const [insertResult] = await Promise.all([
+      supabase.from("appointments").insert(insertPayload).select().single(),
+      mirrorAppointmentToCpanel(
+        buildCpanelAppointment({
+          id: appointmentId,
+          full_name: body.fullName,
+          phone: body.phone,
+          email: body.email,
+          valid_id: body.validId,
+          visitor_category: body.visitorCategory || "general_public",
+          purpose_of_visit: body.purposeOfVisit || null,
+          office_id: body.officeId,
+          office_name: office.name,
+          date: body.date,
+          time_slot: body.timeSlot,
+          duration: body.duration,
+          status: "pending",
+          archived: false,
+          created_at: nowIso,
+          updated_at: nowIso,
+        })
+      ),
+    ]);
+
+    const { data: appointment, error: appointmentError } = insertResult;
 
     if (appointmentError) {
       console.error("Error creating appointment:", appointmentError);
@@ -227,6 +265,7 @@ export async function POST(request: Request) {
         body.date,
         body.timeSlot,
         office.name,
+        body.validId,
         office.contact_email,
         office.contact_phone
       );
@@ -256,17 +295,31 @@ export async function POST(request: Request) {
         .select("email")
         .or(`office_id.eq.${body.officeId},role.eq.super_admin`);
 
-      if (admins && admins.length > 0) {
-        const adminEmail = await generateAdminAlertEmail(
-          body.fullName,
-          body.date,
-          body.timeSlot,
-          office.name,
-          appointment.id,
-          origin
-        );
+      const makeActionUrl = (adminEmail: string, action: "approve" | "decline") => {
+        const token = generateActionToken({
+          appointmentId: appointment.id,
+          action,
+          adminEmail,
+          officeId: body.officeId,
+        });
+        return `${origin}/api/appointments/email-action?action=${action}&appointmentId=${appointment.id}&token=${encodeURIComponent(token)}`;
+      };
 
+      if (admins && admins.length > 0) {
         for (const admin of admins) {
+          const adminEmail = await generateAdminAlertEmail(
+            body.fullName,
+            body.date,
+            body.timeSlot,
+            office.name,
+            appointment.id,
+            origin,
+            {
+              approveUrl: makeActionUrl(admin.email, "approve"),
+              declineUrl: makeActionUrl(admin.email, "decline"),
+            }
+          );
+
           const adminResult = await sendMail({
             to: admin.email,
             subject: "New Appointment Request - USLS OAS",
@@ -285,7 +338,18 @@ export async function POST(request: Request) {
       }
 
       if (office.email) {
-        const officeEmail = await generateAdminAlertEmail(body.fullName, body.date, body.timeSlot, office.name, appointment.id, origin);
+        const officeEmail = await generateAdminAlertEmail(
+          body.fullName,
+          body.date,
+          body.timeSlot,
+          office.name,
+          appointment.id,
+          origin,
+          {
+            approveUrl: makeActionUrl(office.email, "approve"),
+            declineUrl: makeActionUrl(office.email, "decline"),
+          }
+        );
         await sendMail({
           to: office.email,
           subject: `New Appointment - ${body.fullName} on ${body.date}`,

@@ -231,9 +231,9 @@ If a visitor already entered and needs to come back again the same day (or they 
 
 ### Viewing past / saved visits
 
-The list of requests can be filtered using the tabs at the top: **Pending, Approved, Declined, Saved (Archived), All.**
+The list of requests can be filtered using the tabs at the top: **Pending, Approved, Declined, History, All.**
 
-- The **Archived** tab shows older records that have been moved to long-term storage. You can **search** them, page through them, and open any record to see its full details (including the ID picture).
+- The **History** tab shows finalized records (declined, completed, expired). Open any record to see its full details, including the valid ID presented at the gate.
 
 ---
 
@@ -274,14 +274,14 @@ Once blocked, that time is hidden as "Blocked" in the visitor booking form, so n
 
 > **System managers only.** This section is for the people who maintain the system's list of offices.
 
-The **Offices** page shows every office that can accept bookings, shown as cards with the office name, email, **operating hours**, **capacity** (how many visitors can share the same time), and whether it's **Active**.
+The **Offices** page shows every office that can accept bookings, shown as cards with the office name, email, **operating hours**, **capacity** (how many visitors can share the same time), **contact email/phone** (shown to visitors for follow-ups), and whether it's **Active**.
 
 **Add an office**
 1. Click **"Add Office."**
-2. Enter the office **name**, **email**, **capacity per time** (how many visitors per slot), **operating hours** (e.g., *8:00 AM - 5:00 PM* — this sets which times visitors can pick), and a short **description**.
+2. Enter the office **name**, **email**, **capacity per time** (how many visitors per slot), **operating hours** (e.g., *8:00 AM - 5:00 PM* — this sets which times visitors can pick), **contact email/phone** (what visitors see in their emails for follow-ups), and a short **description**.
 3. Click **"Create Office."**
 
-**Edit an office** — click **"Edit"** on a card to change its details, then **"Update Office."**
+**Edit an office** — click **"Edit"** on a card to change its details (including contact email/phone), then **"Update Office."**
 
 **Turn an office on/off** — click **"Deactivate"** to remove an office from the public booking page (existing visits are unaffected), or **"Activate"** to bring it back.
 
@@ -333,21 +333,16 @@ You'll see entries for approving and declining visits, creating and removing off
 - **Max advance booking (days)** — how far ahead visitors can book (normally 30).
 - **Minimum notice (hours)** — how far in advance a visit must be booked.
 
-**Data storage (archiving)**
-- Choose which types of records are saved to the long-term archive (e.g., Completed, Declined, Approved, Expired).
-- Click **"Sync Now"** to immediately move the ready records to the archive.
-- A message confirms whether the sync worked.
-
 **Email notifications** — turn each automatic email on or off with a simple switch:
 - **Booking confirmation** — to the visitor when they book.
 - **Admin alert** — to your office when a new request is pending.
-- **Approval email** — to the visitor when accepted (carries the QR code).
+- **Approval email** — to the visitor when accepted (carries the reference number).
 - **Decline email** — to the visitor when declined.
-- **QR re-send** — when a QR code is re-issued.
+- **Reference re-send** — when a reference number is re-issued.
 
-**Office contact details** — set the **contact email** and **phone** shown to visitors for each office, then click that office's **Save**.
+> **Office contact details** (the email/phone shown to visitors) are managed per office on the **Offices** page — see [Section 10](#10-setting-up-offices-advanced).
 
-When you're done, click **"Save All Settings"** at the bottom (and save office contacts individually with each office's **Save** button).
+When you're done, click **"Save Settings"** at the bottom.
 
 > **Reminder:** Email can take a few seconds to send in the background, so if a visitor reports they haven't gotten a message, double-check that the matching notification switch here is turned on.
 

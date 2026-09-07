@@ -8,11 +8,7 @@ export function middleware(request: NextRequest) {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  const isScan = request.nextUrl.pathname === "/scan";
-  response.headers.set(
-    "Permissions-Policy",
-    `camera=${isScan ? "self" : "()"}, microphone=(), geolocation=()`,
-  );
+  response.headers.set("Permissions-Policy", `camera=(), microphone=(), geolocation=()`);
   response.headers.set("X-DNS-Prefetch-Control", "off");
 
   const isSecure = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
