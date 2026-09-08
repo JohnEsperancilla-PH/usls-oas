@@ -215,9 +215,10 @@ export default function PrivacyPolicyPage() {
       <section>
         <h2>12. Contact us</h2>
         <p>
-          For questions, requests, or concerns about this policy or your personal data, contact the office
-          handling your appointment, or reach the university through the contact details shown in your
-          appointment emails and on the university website (<a href="https://www.usls.edu.ph" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">usls.edu.ph</a>).
+          For questions, requests, or concerns about this policy or your personal data, contact the USLS Data Privacy
+          Office at <a href="mailto:dpo@usls.edu.ph" className="text-primary hover:underline">dpo@usls.edu.ph</a>. You may
+          also directly contact the office handling your appointment, or reach the university through the contact details
+          shown in your appointment emails and on the university website (<a href="https://www.usls.edu.ph" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">usls.edu.ph</a>).
         </p>
       </section>
     </LegalPage>
