@@ -103,20 +103,20 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
         </div>
 
         {/* Consent */}
-        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
-          <label className="flex items-start gap-3 cursor-pointer">
+        <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/50">
+          <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="checkbox" checked={consent} onChange={(e) => { setConsent(e.target.checked); if (errors.consent) setErrors((p) => ({ ...p, consent: "" })); }}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0" />
             <div>
-              <span className="text-sm font-medium text-gray-700">
-                I consent to the collection and processing of my personal information
+              <span className="text-sm font-medium text-gray-700 leading-snug">
+                I consent to the collection, use, and storage of my personal data (name, contact details, valid ID type, and appointment information) for the purpose of processing my appointment request and verifying my identity at the campus gate, in accordance with RA 10173 (Data Privacy Act of 2012) and the USLS OAS Privacy Policy.
               </span>
-              <p className="text-xs text-gray-400 mt-1">
-                Your information will be used solely for appointment and gate verification purposes in accordance with RA 10173 (Data Privacy Act).
+              <p className="text-xs text-gray-400 mt-0.5 leading-snug">
+                Learn more in our <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Privacy Policy</a>.
               </p>
             </div>
           </label>
-          {errors.consent && <p className="error-text mt-2">{errors.consent}</p>}
+          {errors.consent && <p className="error-text mt-1.5">{errors.consent}</p>}
         </div>
 
         <div className="flex justify-end pt-2">

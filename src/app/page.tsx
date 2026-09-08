@@ -165,10 +165,18 @@ export default function BookPage() {
       </main>
 
       <footer className="border-t border-gray-200 bg-white py-6">
-        <div className="container mx-auto px-4 text-center text-xs text-gray-400 space-y-0.5">
-          <p>&copy; {year} OAS &mdash; Online Appointment System</p>
-          <p><a href="https://www.usls.edu.ph/cmc" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Center for Marketing and Communications</a></p>
-          <p><a href="https://www.usls.edu.ph" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">University of St. La Salle</a></p>
+        <div className="container mx-auto px-4 text-center text-xs text-gray-400">
+          <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 mb-3">
+            <a href="/privacy" className="text-gray-500 hover:text-primary hover:underline">Privacy Policy</a>
+            <a href="/terms" className="text-gray-500 hover:text-primary hover:underline">Terms of Service</a>
+            <a href="/consent" className="text-gray-500 hover:text-primary hover:underline">Consent to Forms</a>
+            <a href="/cookies" className="text-gray-500 hover:text-primary hover:underline">Cookie Policy</a>
+          </nav>
+          <div className="space-y-0.5">
+            <p>&copy; {year} OAS &mdash; Online Appointment System</p>
+            <p><a href="https://www.usls.edu.ph/cmc" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Center for Marketing and Communications</a></p>
+            <p><a href="https://www.usls.edu.ph" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">University of St. La Salle</a></p>
+          </div>
         </div>
       </footer>
     </div>
