@@ -41,33 +41,38 @@ export async function POST(request: Request) {
     const newReference = await createUniqueReference(supabase);
     const updatedAt = new Date().toISOString();
 
-    const [updateResult] = await Promise.all([
-      supabase
-        .from("appointments")
-        .update({
-          status: "approved",
-          qr_token: newReference,
-          qr_used_at: null,
-          scanned_at: null,
-          updated_at: updatedAt,
-        })
-        .eq("id", appointment.id),
-      mirrorAppointmentToCpanel(
-        fromAppointmentRow(appointment, {
-          status: "approved",
-          qr_token: newReference,
-          qr_used_at: null,
-          scanned_at: null,
-          updated_at: updatedAt,
-        })
-      ),
-    ]);
-    const { error: updateError } = updateResult;
+    const { error: updateError, data: updated } = await supabase
+      .from("appointments")
+      .update({
+        status: "approved",
+        qr_token: newReference,
+        qr_used_at: null,
+        scanned_at: null,
+        updated_at: updatedAt,
+      })
+      .eq("id", appointment.id)
+      .eq("status", "completed")
+      .select("id")
+      .maybeSingle();
 
     if (updateError) {
       console.error(updateError);
       return NextResponse.json({ message: "Failed to reset reference number" }, { status: 500 });
     }
+
+    if (!updated) {
+      return NextResponse.json({ message: "This appointment's status changed while resetting. Refresh to see its current status." }, { status: 409 });
+    }
+
+    await mirrorAppointmentToCpanel(
+      fromAppointmentRow(appointment, {
+        status: "approved",
+        qr_token: newReference,
+        qr_used_at: null,
+        scanned_at: null,
+        updated_at: updatedAt,
+      })
+    );
 
     // Re-issue email runs post-response via `after()`.
     after(async () => {

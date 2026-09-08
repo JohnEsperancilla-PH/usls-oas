@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthAdmin } from "@/lib/rbac";
+import { sanitizeError } from "@/lib/http";
 
 export async function POST(request: Request) {
   if (process.env.NODE_ENV === "production") {
@@ -43,9 +44,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to send email", error: result.error }, { status: 500 });
     }
   } catch (error) {
-    console.error(error);
+    console.error(sanitizeError(error));
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Internal server error" },
+      { message: sanitizeError(error) },
       { status: 500 }
     );
   }

@@ -13,16 +13,7 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export function sanitizeError(error: unknown): string {
-  const msg = error instanceof Error ? error.message : String(error);
-  return msg
-    .replace(/password[^,]*/gi, "password [redacted]")
-    .replace(/key[^,]*/gi, "key [redacted]")
-    .replace(/token[^,]*/gi, "token [redacted]")
-    .replace(/secret[^,]*/gi, "secret [redacted]")
-    .replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, "[ip]")
-    .replace(/supabase\.co[^\s]*/gi, "[supabase-url]");
-}
+export { sanitizeError } from "@/lib/http";
 
 function getTransporter() {
   return nodemailer.createTransport({

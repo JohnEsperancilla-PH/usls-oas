@@ -132,62 +132,72 @@ async function executeAction(action: string | null, token: string | null, baseUr
   if (action === "approve") {
     const referenceNumber = await createUniqueReference(supabase);
     const updatedAt = new Date().toISOString();
-    const [result] = await Promise.all([
-      supabase
-        .from("appointments")
-        .update({
-          status: "approved",
-          qr_token: referenceNumber,
-          qr_used_at: null,
-          scanned_at: null,
-          updated_at: updatedAt,
-        })
-        .eq("id", appointment.id),
-      mirrorAppointmentToCpanel(
-        fromAppointmentRow(appointment, {
-          status: "approved",
-          qr_token: referenceNumber,
-          qr_used_at: null,
-          scanned_at: null,
-          updated_at: updatedAt,
-        })
-      ),
-    ]);
-    const { error } = result;
+    const { error, data: updated } = await supabase
+      .from("appointments")
+      .update({
+        status: "approved",
+        qr_token: referenceNumber,
+        qr_used_at: null,
+        scanned_at: null,
+        updated_at: updatedAt,
+      })
+      .eq("id", appointment.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       console.error(error);
       return renderPage({ stage: "error", message: "Failed to update the appointment. Please try again or use the admin panel.", baseUrl });
     }
+
+    if (!updated) {
+      return renderPage({ stage: "already", action, appointment, baseUrl });
+    }
+
+    await mirrorAppointmentToCpanel(
+      fromAppointmentRow(appointment, {
+        status: "approved",
+        qr_token: referenceNumber,
+        qr_used_at: null,
+        scanned_at: null,
+        updated_at: updatedAt,
+      })
+    );
 
     after(async () => {
       await runPostApprovalTasks(appointment, referenceNumber, adminId, adminEmail);
     });
   } else {
     const updatedAt = new Date().toISOString();
-    const [result] = await Promise.all([
-      supabase
-        .from("appointments")
-        .update({
-          status: "declined",
-          decline_reason: null,
-          updated_at: updatedAt,
-        })
-        .eq("id", appointment.id),
-      mirrorAppointmentToCpanel(
-        fromAppointmentRow(appointment, {
-          status: "declined",
-          decline_reason: null,
-          updated_at: updatedAt,
-        })
-      ),
-    ]);
-    const { error } = result;
+    const { error, data: updated } = await supabase
+      .from("appointments")
+      .update({
+        status: "declined",
+        decline_reason: null,
+        updated_at: updatedAt,
+      })
+      .eq("id", appointment.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       console.error(error);
       return renderPage({ stage: "error", message: "Failed to update the appointment. Please try again or use the admin panel.", baseUrl });
     }
+
+    if (!updated) {
+      return renderPage({ stage: "already", action, appointment, baseUrl });
+    }
+
+    await mirrorAppointmentToCpanel(
+      fromAppointmentRow(appointment, {
+        status: "declined",
+        decline_reason: null,
+        updated_at: updatedAt,
+      })
+    );
 
     after(async () => {
       await runPostDeclineTasks(appointment, undefined, adminId, adminEmail);

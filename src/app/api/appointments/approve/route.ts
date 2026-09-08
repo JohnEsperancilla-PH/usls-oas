@@ -40,33 +40,38 @@ export async function POST(request: Request) {
     const referenceNumber = await createUniqueReference(supabase);
     const updatedAt = new Date().toISOString();
 
-    const [updateResult] = await Promise.all([
-      supabase
-        .from("appointments")
-        .update({
-          status: "approved",
-          qr_token: referenceNumber,
-          qr_used_at: null,
-          scanned_at: null,
-          updated_at: updatedAt,
-        })
-        .eq("id", appointment.id),
-      mirrorAppointmentToCpanel(
-        fromAppointmentRow(appointment, {
-          status: "approved",
-          qr_token: referenceNumber,
-          qr_used_at: null,
-          scanned_at: null,
-          updated_at: updatedAt,
-        })
-      ),
-    ]);
-    const { error: updateError } = updateResult;
+    const { error: updateError, data: updated } = await supabase
+      .from("appointments")
+      .update({
+        status: "approved",
+        qr_token: referenceNumber,
+        qr_used_at: null,
+        scanned_at: null,
+        updated_at: updatedAt,
+      })
+      .eq("id", appointment.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
 
     if (updateError) {
       console.error(updateError);
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
+
+    if (!updated) {
+      return NextResponse.json({ message: "This appointment was already reviewed. Refresh to see its current status." }, { status: 409 });
+    }
+
+    await mirrorAppointmentToCpanel(
+      fromAppointmentRow(appointment, {
+        status: "approved",
+        qr_token: referenceNumber,
+        qr_used_at: null,
+        scanned_at: null,
+        updated_at: updatedAt,
+      })
+    );
 
     // Email and calendar run post-response; failures don't block the approval.
     after(async () => {
