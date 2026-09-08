@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
 
@@ -23,8 +24,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Offices GET error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }
 
@@ -68,8 +68,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Offices POST error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }
 
@@ -113,8 +112,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ message: "Office updated" });
   } catch (error) {
-    console.error("Offices PUT error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }
 
@@ -148,7 +146,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: "Office deactivated" });
   } catch (error) {
-    console.error("Offices DELETE error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }

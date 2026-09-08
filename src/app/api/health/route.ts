@@ -27,14 +27,14 @@ export async function GET(request: Request) {
     });
 
     if (error) {
-      console.error("Health check DB write failed:", error);
+      console.error(error);
       return NextResponse.json({ status: "db_error", error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ status: "ok", time: now });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("Health check error:", error);
+    console.error(error);
     return NextResponse.json({ status: "error", error: msg }, { status: 500 });
   }
 }

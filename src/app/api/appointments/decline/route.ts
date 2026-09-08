@@ -1,20 +1,16 @@
 import { NextResponse, after } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 import { runPostDeclineTasks } from "@/lib/appointment-actions";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
-
-interface DeclineRequest {
-  appointmentId: string;
-  reason?: string;
-}
 
 export async function POST(request: Request) {
   try {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
 
-    const body: DeclineRequest = await request.json();
+    const body = await request.json();
 
     if (!body.appointmentId) {
       return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 });
@@ -65,8 +61,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
 
-    // The decline email runs after the response is sent (kept alive via `after()`),
-    // so the admin gets an immediate response.
+    // Decline email runs post-response via `after()`.
     after(async () => {
       await runPostDeclineTasks(appointment, body.reason, admin.id, admin.email);
     });
@@ -78,7 +73,6 @@ export async function POST(request: Request) {
       appointment: { id: appointment.id, status: "declined" },
     });
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }

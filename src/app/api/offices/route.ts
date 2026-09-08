@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -12,7 +13,7 @@ export async function GET() {
       .order("name");
 
     if (error) {
-      console.error("Error fetching offices:", error);
+      console.error(error);
       return NextResponse.json(
         { message: "Failed to fetch offices" },
         { status: 500 }
@@ -21,10 +22,6 @@ export async function GET() {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json(
-      { message: "Internal server error" },
-      { status: 500 }
-    );
+    return handleRouteError(error);
   }
 }

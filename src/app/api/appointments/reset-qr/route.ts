@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 import { createUniqueReference } from "@/lib/reference";
@@ -6,16 +7,12 @@ import { sendMail, generateApprovalEmail, isNotificationEnabled } from "@/lib/em
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import type { AppointmentWithOffice } from "@/lib/appointment-actions";
 
-interface ResetRequest {
-  appointmentId: string;
-}
-
 export async function POST(request: Request) {
   try {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
 
-    const body: ResetRequest = await request.json();
+    const body = await request.json();
 
     if (!body.appointmentId) {
       return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 });
@@ -68,12 +65,11 @@ export async function POST(request: Request) {
     const { error: updateError } = updateResult;
 
     if (updateError) {
-      console.error("Error resetting reference number:", updateError);
+      console.error(updateError);
       return NextResponse.json({ message: "Failed to reset reference number" }, { status: 500 });
     }
 
-    // The re-issue email runs after the response is sent (kept alive via `after()`),
-    // so the admin gets an immediate response.
+    // Re-issue email runs post-response via `after()`.
     after(async () => {
       await runPostResetTasks(appointment, newReference, admin.id, admin.email);
     });
@@ -85,8 +81,7 @@ export async function POST(request: Request) {
       appointment: { id: appointment.id, status: "approved" },
     });
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }
 
@@ -120,11 +115,11 @@ async function runPostResetTasks(
     }
 
     if (!mailResult.success) {
-      console.error("Reference re-issue email failed:", mailResult.error);
+      console.error(mailResult.error);
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("Reference re-issue email generation failed:", msg);
+    console.error("approval email generation", msg);
     mailResult = { success: false, error: msg };
   }
 

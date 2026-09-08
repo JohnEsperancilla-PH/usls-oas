@@ -1,20 +1,17 @@
 import { NextResponse, after } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 import { createUniqueReference } from "@/lib/reference";
 import { runPostApprovalTasks } from "@/lib/appointment-actions";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 
-interface ApproveRequest {
-  appointmentId: string;
-}
-
 export async function POST(request: Request) {
   try {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
 
-    const body: ApproveRequest = await request.json();
+    const body = await request.json();
 
     if (!body.appointmentId) {
       return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 });
@@ -67,14 +64,11 @@ export async function POST(request: Request) {
     const { error: updateError } = updateResult;
 
     if (updateError) {
-      console.error("Error updating appointment:", updateError);
+      console.error(updateError);
       return NextResponse.json({ message: "Failed to update appointment" }, { status: 500 });
     }
 
-    // All slow work (approval email, Google Calendar) runs after the response is sent so
-    // the admin gets an immediate reply, but `after()` keeps the Vercel function
-    // alive until it completes (unlike fire-and-forget, which Vercel may kill).
-    // Email/calendar failures never affect approval.
+    // Email and calendar run post-response; failures don't block the approval.
     after(async () => {
       await runPostApprovalTasks(appointment, referenceNumber, admin.id, admin.email);
     });
@@ -86,7 +80,6 @@ export async function POST(request: Request) {
       appointment: { id: appointment.id, status: "approved" },
     });
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }

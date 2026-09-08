@@ -156,7 +156,7 @@ async function executeAction(action: string | null, token: string | null, baseUr
     const { error } = result;
 
     if (error) {
-      console.error("Email approve failed:", error);
+      console.error(error);
       return renderPage({ stage: "error", message: "Failed to update the appointment. Please try again or use the admin panel.", baseUrl });
     }
 
@@ -185,7 +185,7 @@ async function executeAction(action: string | null, token: string | null, baseUr
     const { error } = result;
 
     if (error) {
-      console.error("Email decline failed:", error);
+      console.error(error);
       return renderPage({ stage: "error", message: "Failed to update the appointment. Please try again or use the admin panel.", baseUrl });
     }
 

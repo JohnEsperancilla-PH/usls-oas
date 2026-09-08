@@ -4,17 +4,13 @@ import { normalizeReference } from "@/lib/reference";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 
-interface ScanRequest {
-  token: string;
-}
-
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
   const { allowed } = checkRateLimit(`scan:${ip}`, 30, 60 * 1000);
   if (!allowed) return rateLimitResponse();
 
   try {
-    const body: ScanRequest = await request.json();
+    const body = await request.json();
 
     const reference = normalizeReference(body.token || "");
 
@@ -94,7 +90,7 @@ export async function POST(request: Request) {
       .single();
 
     if (updateError || !updated) {
-      console.error("Error updating appointment:", updateError);
+      console.error(updateError);
       return NextResponse.json({
         success: false,
         message: "Reference number has already been used",
@@ -127,7 +123,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Unexpected error:", error);
+    console.error(error);
     return NextResponse.json(
       { success: false, message: "Internal server error" },
       { status: 500 }

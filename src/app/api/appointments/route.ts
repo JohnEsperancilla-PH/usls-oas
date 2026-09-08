@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { sendMail, generateBookingConfirmationEmail, generateAdminAlertEmail, isNotificationEnabled } from "@/lib/email";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
@@ -24,31 +25,18 @@ function getNextSlot(timeSlot: string): string | null {
   return `${nextH.toString().padStart(2, "0")}:${nextMM.toString().padStart(2, "0")}`;
 }
 
-interface AppointmentRequest {
-  fullName: string;
-  phone: string;
-  email: string;
-  validId: string;
-  visitorCategory: string;
-  officeId: string;
-  date: string;
-  timeSlot: string;
-  duration: 30 | 60;
-  purposeOfVisit?: string;
-}
-
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
   const { allowed } = checkRateLimit(`booking:${ip}`, 5, 15 * 60 * 1000);
   if (!allowed) return rateLimitResponse();
 
   try {
-    const body: AppointmentRequest = await request.json();
+    const body = await request.json();
     
     // Validate required fields
     const requiredFields = ["fullName", "phone", "email", "validId", "officeId", "date", "timeSlot", "duration"];
     for (const field of requiredFields) {
-      if (!body[field as keyof AppointmentRequest]) {
+      if (!body[field]) {
         return NextResponse.json(
           { message: `Missing required field: ${field}` },
           { status: 400 }
@@ -173,7 +161,7 @@ export async function POST(request: Request) {
       .in("status", ["pending", "approved"]);
 
     if (conflictError) {
-      console.error("Error checking conflicts:", conflictError);
+      console.error(conflictError);
       return NextResponse.json(
         { message: "Failed to check appointment availability" },
         { status: 500 }
@@ -208,8 +196,7 @@ export async function POST(request: Request) {
     const appointmentId = crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
-    const insertPayload = {
-      id: appointmentId,
+    const insertPayload: Database["public"]["Tables"]["appointments"]["Insert"] = {
       full_name: body.fullName,
       phone: body.phone,
       email: body.email,
@@ -221,10 +208,15 @@ export async function POST(request: Request) {
       time_slot: body.timeSlot,
       duration: body.duration,
       status: "pending",
-    } as unknown as Database["public"]["Tables"]["appointments"]["Insert"];
+      qr_token: null,
+      qr_used_at: null,
+      scanned_at: null,
+      decline_reason: null,
+      archived: false,
+    };
 
     const [insertResult] = await Promise.all([
-      supabase.from("appointments").insert(insertPayload).select().single(),
+      supabase.from("appointments").insert({ id: appointmentId, ...insertPayload }).select().single(),
       mirrorAppointmentToCpanel(
         buildCpanelAppointment({
           id: appointmentId,
@@ -250,7 +242,7 @@ export async function POST(request: Request) {
     const { data: appointment, error: appointmentError } = insertResult;
 
     if (appointmentError) {
-      console.error("Error creating appointment:", appointmentError);
+      console.error(appointmentError);
       return NextResponse.json(
         { message: "Failed to create appointment" },
         { status: 500 }
@@ -370,10 +362,6 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json(
-      { message: "Internal server error" },
-      { status: 500 }
-    );
+    return handleRouteError(error);
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
 
@@ -33,8 +34,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(data || []);
   } catch (err) {
-    console.error("Blocked times GET error:", err);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(err);
   }
 }
 
@@ -92,8 +92,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
-    console.error("Blocked times POST error:", err);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(err);
   }
 }
 
@@ -136,7 +135,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: "Unblocked" });
   } catch (err) {
-    console.error("Blocked times DELETE error:", err);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(err);
   }
 }

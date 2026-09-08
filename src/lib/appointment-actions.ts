@@ -40,18 +40,17 @@ export async function runPostApprovalTasks(
     }
 
     if (!mailResult.success) {
-      console.error("Approval email failed:", mailResult.error);
+      console.error(mailResult.error);
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("Approval email generation failed:", msg);
+    console.error("approval email generation", msg);
     mailResult = { success: false, error: msg };
   }
 
   try {
-    // The stored date/time_slot are local wall-clock times (Philippines, Asia/Manila, UTC+8).
-    // Build the UTC instant explicitly so Vercel's UTC server and Google Calendar's
-    // timezone handling both show the intended local appointment time.
+    // date/time_slot are local (Asia/Manila) wall-clock times; build the UTC instant
+    // explicitly so Vercel and Google Calendar show the intended appointment time.
     const start = new Date(`${appointment.date}T${appointment.time_slot}:00+08:00`);
     const end = new Date(start.getTime() + (appointment.duration || 30) * 60 * 1000);
     const officeName = appointment.offices?.name || "Unknown Office";
@@ -67,7 +66,7 @@ export async function runPostApprovalTasks(
     calendarResult = { id: event.id, htmlLink: event.htmlLink, skipped: false };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("Google Calendar event creation failed:", msg);
+    console.error("google calendar event", msg);
     calendarResult = { error: msg, skipped: false };
   }
 
@@ -123,7 +122,7 @@ export async function runPostDeclineTasks(
       });
     }
   } catch (error) {
-    console.error("Decline email failed:", error);
+    console.error(error);
   }
 
   const supabase = createServiceClient();

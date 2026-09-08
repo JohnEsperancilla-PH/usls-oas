@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 
 // All offices run a fixed 8:00 AM - 5:00 PM day, enforced at slot-generation
@@ -200,8 +201,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ message: "Provide date or month parameter" }, { status: 400 });
   } catch (error) {
-    console.error("Availability error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }
 

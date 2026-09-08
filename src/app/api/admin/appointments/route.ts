@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 
@@ -30,13 +31,12 @@ export async function GET(request: Request) {
     const { data, error: fetchError } = await query;
 
     if (fetchError) {
-      console.error("Error fetching appointments:", fetchError);
+      console.error(fetchError);
       return NextResponse.json({ message: "Failed to fetch appointments" }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }

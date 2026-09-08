@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
+import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/rbac";
-
-interface AuthCheckRequest {
-  email: string;
-}
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
@@ -13,7 +10,7 @@ export async function POST(request: Request) {
   if (!allowed) return rateLimitResponse();
 
   try {
-    const body: AuthCheckRequest = await request.json();
+    const body = await request.json();
 
     if (!body.email) {
       return NextResponse.json({ message: "Email is required" }, { status: 400 });
@@ -38,7 +35,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ authorized: true, admin });
   } catch (error) {
-    console.error("Auth check error:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return handleRouteError(error);
   }
 }
