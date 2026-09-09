@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { IdentityForm } from "@/components/forms/IdentityForm";
 import { AppointmentForm } from "@/components/forms/AppointmentForm";
+import WelcomeModal from "@/components/WelcomeModal";
 
 export interface BookingData {
   fullName: string;
@@ -111,6 +112,8 @@ export default function BookPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <WelcomeModal />
+
       <header className="bg-white border-b border-gray-100 py-5 overflow-hidden">
         <div className="container mx-auto px-4 flex items-center justify-center">
           <img src="/usls-oas.png" alt="USLS OAS" className="h-16 sm:h-20 w-auto" />
