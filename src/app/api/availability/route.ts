@@ -168,14 +168,13 @@ export async function GET(request: Request) {
         blockedMap[b.time_slot] = b.reason;
       });
 
-      const now = new Date();
-      const isToday = date === now.toISOString().split("T")[0];
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const nowMs = Date.now();
 
       const slots = allSlots.map((s) => {
-        const [h, m] = s.split(":").map(Number);
-        const slotMinutes = h * 60 + m;
-        const past = isToday && slotMinutes <= currentMinutes;
+        // date/time_slot are Asia/Manila wall-clock; build the UTC instant
+        // explicitly so Vercel (UTC server) and local machines agree.
+        const slotInstant = new Date(`${date}T${s}:00+08:00`).getTime();
+        const past = slotInstant <= nowMs;
         const booked = appointmentCounts[s] || 0;
         const isBlocked = s in blockedMap;
         const remaining = Math.max(0, office.capacity_per_slot - booked);

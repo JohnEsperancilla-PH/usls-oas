@@ -106,7 +106,7 @@ async function runPostResetTasks(
       appointment.offices?.name || "Unknown Office",
       appointment.valid_id || "",
       referenceNumber,
-      appointment.offices?.contact_email,
+      appointment.offices?.contact_email || appointment.offices?.email,
       appointment.offices?.contact_phone
     );
 

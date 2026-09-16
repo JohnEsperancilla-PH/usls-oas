@@ -5,6 +5,7 @@ import { sendMail, generateBookingConfirmationEmail, generateAdminAlertEmail, is
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { generateActionToken } from "@/lib/action-token";
 import { isValidId } from "@/lib/valid-ids";
+import { getManilaToday } from "@/lib/time";
 import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-mirror";
 import type { Database } from "@/types/database";
 
@@ -94,8 +95,7 @@ export async function POST(request: Request) {
     }
 
     // Validate date is not in the past
-    const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
+    const todayStr = getManilaToday();
     if (body.date < todayStr) {
       return NextResponse.json({ message: "Cannot book appointments in the past" }, { status: 400 });
     }
@@ -258,7 +258,7 @@ export async function POST(request: Request) {
         body.timeSlot,
         office.name,
         body.validId,
-        office.contact_email,
+        office.contact_email || office.email,
         office.contact_phone
       );
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatTimeSlot } from "@/lib/time";
 
 interface ScanResult {
   success: boolean;
@@ -90,7 +91,7 @@ export default function EntryPage() {
                     <div><span className="text-gray-500 text-xs">Visitor</span><p className="font-medium text-gray-900">{scanResult.appointment.fullName}</p></div>
                     <div><span className="text-gray-500 text-xs">Office</span><p className="font-medium text-gray-900">{scanResult.appointment.office}</p></div>
                     <div><span className="text-gray-500 text-xs">Date</span><p className="font-medium text-gray-900">{new Date(scanResult.appointment.date).toLocaleDateString()}</p></div>
-                    <div><span className="text-gray-500 text-xs">Time</span><p className="font-medium text-gray-900">{scanResult.appointment.timeSlot} ({scanResult.appointment.duration}m)</p></div>
+                    <div><span className="text-gray-500 text-xs">Time</span><p className="font-medium text-gray-900">{formatTimeSlot(scanResult.appointment.timeSlot)} ({scanResult.appointment.duration}m)</p></div>
                   </div>
                   {scanResult.scannedAt && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { IdentityForm } from "@/components/forms/IdentityForm";
 import { AppointmentForm } from "@/components/forms/AppointmentForm";
 import WelcomeModal from "@/components/WelcomeModal";
+import { formatTimeSlot } from "@/lib/time";
+import type { Office } from "@/types/database";
 
 export interface BookingData {
   fullName: string;
@@ -37,6 +39,14 @@ export default function BookPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offices, setOffices] = useState<Office[]>([]);
+
+  useEffect(() => {
+    fetch("/api/offices")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setOffices(data))
+      .catch(() => setOffices([]));
+  }, []);
 
   const handleNext = (data: Partial<BookingData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
@@ -53,6 +63,7 @@ export default function BookPage() {
     setError(null);
     try {
       const finalData = { ...formData, ...data };
+      setFormData(finalData);
       const response = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -82,6 +93,24 @@ export default function BookPage() {
   };
 
   if (submitSuccess) {
+    const office = offices.find((o) => o.id === formData.officeId);
+    const overviewRows = [
+      { label: "Office", value: office?.name || formData.officeId },
+      {
+        label: "Date",
+        value: new Date(formData.date + "T00:00:00").toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+      },
+      { label: "Time", value: formatTimeSlot(formData.timeSlot) },
+      { label: "Duration", value: `${formData.duration} minutes` },
+      { label: "Visitor", value: formData.fullName },
+    ];
+    const officeEmail = office?.contact_email || office?.email;
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="card max-w-md w-full text-center animate-fade-in">
@@ -92,10 +121,35 @@ export default function BookPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Appointment Submitted</h1>
           <p className="text-gray-500 mb-3">
-            Your appointment request has been received and is pending review.
+            Your appointment has been submitted and is pending review by the <strong className="text-gray-700">{office?.name || "office"}</strong>.
           </p>
-          <p className="text-sm text-gray-400 mb-8">
-            You will receive a confirmation email at <strong className="text-gray-600">{formData.email}</strong>.
+          <p className="text-sm text-gray-400 mb-6">
+            You will be updated by email once your appointment has been approved or declined. Updates will be sent to{" "}
+            <strong className="text-gray-600">{formData.email}</strong>.
+          </p>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-left mb-6">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Appointment Overview</h2>
+            <div className="space-y-2 text-sm">
+              {overviewRows.map((row) => (
+                <div key={row.label} className="flex items-center justify-between gap-4">
+                  <span className="text-gray-500">{row.label}</span>
+                  <span className="font-medium text-gray-900 text-right">{row.value}</span>
+                </div>
+              ))}
+              {formData.purposeOfVisit && (
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">Purpose</span>
+                  <span className="font-medium text-gray-900 text-right">{formData.purposeOfVisit}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500 mb-8">
+            If you have other questions, kindly send a message to{" "}
+            <strong className="text-gray-600">{officeEmail || "the office"}</strong> or{" "}
+            <strong className="text-gray-600">appointments@usls.edu.ph</strong>.
           </p>
           <button
             onClick={() => { setSubmitSuccess(false); setFormData(initialData); setStep(1); }}

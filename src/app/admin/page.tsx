@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import type { Appointment, Office, BlockedTime } from "@/types/database";
+import { formatTimeSlot, getManilaToday } from "@/lib/time";
 
 export default function AdminDashboardPage() {
   const { admin } = useAdmin();
@@ -215,7 +216,7 @@ export default function AdminDashboardPage() {
                   <td className="px-5 py-3.5 text-sm text-gray-600">{getOfficeName(a.office_id)}</td>
                   <td className="px-5 py-3.5">
                     <div className="text-sm text-gray-900">{new Date(a.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
-                    <div className="text-xs text-gray-400">{a.time_slot} · {a.duration}m</div>
+                    <div className="text-xs text-gray-400">{formatTimeSlot(a.time_slot)} · {a.duration}m</div>
                   </td>
                   <td className="px-5 py-3.5"><span className={getStatusBadge(a.status)}>{a.status}</span></td>
                   <td className="px-5 py-3.5 text-right">
@@ -258,7 +259,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-center gap-4 text-xs text-gray-500">
                 <span>{getOfficeName(a.office_id)}</span>
                 <span>{new Date(a.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                <span>{a.time_slot}</span>
+                <span>{formatTimeSlot(a.time_slot)}</span>
               </div>
               <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                 <button onClick={() => setSelectedAppointment(a)} className="flex-1 text-center text-xs font-medium text-gray-600 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">View Details</button>
@@ -429,7 +430,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
                   {da.slice(0, 2).map((a) => (
                     <button key={a.id} onClick={() => setSelectedAppointment(a)}
                       className={`block w-full text-left text-[10px] sm:text-xs px-1.5 py-0.5 rounded border truncate transition-colors hover:opacity-80 ${color(a.status)}`}>
-                      {a.time_slot.split(" ")[0]} {a.full_name.split(" ")[0]}
+                      {formatTimeSlot(a.time_slot)} {a.full_name.split(" ")[0]}
                     </button>
                   ))}
                   {db.length > 0 && (
@@ -518,18 +519,10 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
   const sortedDates = Object.keys(byDate)
     .filter((d) => d.startsWith(monthPrefix))
     .sort();
-  const now = new Date();
-  const todayStr = now.toISOString().split("T")[0];
+  const todayStr = getManilaToday();
 
   const formatDate = (ds: string) =>
     new Date(ds + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-
-  const formatTime = (ts: string) => {
-    const [h, m] = ts.split(":").map(Number);
-    const period = h >= 12 ? "PM" : "AM";
-    const dh = h > 12 ? h - 12 : h === 0 ? 12 : h;
-    return `${dh}:${m.toString().padStart(2, "0")} ${period}`;
-  };
 
   if (loading) {
     return (
@@ -610,7 +603,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                     <tbody className="divide-y divide-gray-50">
                       {dayAppointments.map((a) => (
                         <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{formatTime(a.time_slot)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{formatTimeSlot(a.time_slot)}</td>
                           <td className="px-4 py-3">
                             <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
                             <div className="text-xs text-gray-400">{a.email}</div>
@@ -628,7 +621,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                       ))}
                       {dayBlocks.map((b) => (
                         <tr key={`block-${b.id}`} className="bg-gray-50/40">
-                          <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap line-through">{formatTime(b.time_slot)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap line-through">{formatTimeSlot(b.time_slot)}</td>
                           <td className="px-4 py-3" colSpan={5}>
                             <span className="text-xs text-gray-400 flex items-center gap-1.5">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
@@ -636,7 +629,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <span className="text-xs text-gray-400">{formatTime(b.time_slot)}</span>
+                            <span className="text-xs text-gray-400">{formatTimeSlot(b.time_slot)}</span>
                           </td>
                         </tr>
                       ))}
@@ -650,7 +643,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
-                          <div className="text-xs text-gray-400">{a.email} · {formatTime(a.time_slot)} · {a.duration}m</div>
+                          <div className="text-xs text-gray-400">{a.email} · {formatTimeSlot(a.time_slot)} · {a.duration}m</div>
                         </div>
                         <span className={color(a.status)}>{a.status}</span>
                       </div>
@@ -661,7 +654,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                   {dayBlocks.map((b) => (
                     <div key={`block-${b.id}`} className="p-3 flex items-center gap-2 bg-gray-50/40 text-xs text-gray-400">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
-                      Blocked · {formatTime(b.time_slot)}
+                      Blocked · {formatTimeSlot(b.time_slot)}
                     </div>
                   ))}
                 </div>
@@ -785,7 +778,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
               ["Phone", appointment.phone],
               ["Office", officeName],
               ["Date", new Date(appointment.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
-              ["Time", `${appointment.time_slot} (${appointment.duration} min)`],
+              ["Time", `${formatTimeSlot(appointment.time_slot)} (${appointment.duration} min)`],
             ].map(([l, v]) => (
               <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
             ))}

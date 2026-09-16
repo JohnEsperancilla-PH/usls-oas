@@ -26,7 +26,7 @@ export async function runPostApprovalTasks(
       appointment.offices?.name || "Unknown Office",
       appointment.valid_id || "",
       referenceNumber,
-      appointment.offices?.contact_email,
+      appointment.offices?.contact_email || appointment.offices?.email,
       appointment.offices?.contact_phone
     );
 
@@ -109,7 +109,7 @@ export async function runPostDeclineTasks(
       appointment.time_slot,
       appointment.offices?.name || "Unknown Office",
       reason,
-      appointment.offices?.contact_email,
+      appointment.offices?.contact_email || appointment.offices?.email,
       appointment.offices?.contact_phone
     );
 

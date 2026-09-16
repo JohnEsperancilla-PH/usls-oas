@@ -90,6 +90,13 @@ export default function WelcomeModal() {
             Here is everything you need to know.
           </p>
 
+          <div className="mb-6 rounded-xl bg-primary/5 border border-primary/20 p-4">
+            <p className="text-xs text-primary-dark leading-relaxed">
+              If you are planning to visit the ASAO, the University Registrar, the University Bookstore, or the Business Office,
+              you do not need to book through OAS &mdash; you may visit these offices directly.
+            </p>
+          </div>
+
           <section className="mb-6">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">How it works</h3>
             <ol className="space-y-3">

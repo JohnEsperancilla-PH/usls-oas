@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/server";
+import { formatTimeSlot } from "@/lib/time";
 
 export function escapeHtml(str: string): string {
   return str
@@ -159,7 +160,7 @@ export async function generateBookingConfirmationEmail(name: string, date: strin
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", time)}
+      ${detailRow("Time", formatTimeSlot(time))}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Pending", "#b45309")}</td></tr>
     </table>
     <div style="margin-bottom:20px;padding:16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">
@@ -210,7 +211,7 @@ export async function generateAdminAlertEmail(
       ${detailRow("Name", name)}
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", time)}
+      ${detailRow("Time", formatTimeSlot(time))}
     </table>
     ${actionBlock}
     <p style="color:#999;font-size:12px;margin:0;">You are receiving this because you are an administrator for this office.</p>
@@ -242,7 +243,7 @@ export async function generateApprovalEmail(
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", time)}
+      ${detailRow("Time", formatTimeSlot(time))}
       ${detailRow("Valid ID to Present", validId)}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Approved", "#006633")}</td></tr>
     </table>
@@ -262,12 +263,21 @@ export async function generateApprovalEmail(
 
 export async function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string, contactEmail?: string | null, contactPhone?: string | null) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const rootUrl = process.env.NEXT_PUBLIC_APP_URL || "https://usls-oas.vercel.app";
+  const bookingUrl = `${rootUrl}/`;
   const contactLines: string[] = [];
   if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
   if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const officeContact = contactEmail && contactPhone
+    ? `${escapeHtml(contactEmail)} and ${escapeHtml(contactPhone)}`
+    : contactEmail
+      ? escapeHtml(contactEmail)
+      : contactPhone
+        ? escapeHtml(contactPhone)
+        : "the office";
   const contactBlock = contactLines.length > 0
-    ? `<div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;font-size:13px;color:#555;line-height:1.8;">If you believe this was an error, contact the office:<br/>${contactLines.join("<br/>")}</div>`
-    : `<p style="color:#999;font-size:13px;margin:0;">If you believe this was an error, please contact the office directly.</p>`;
+    ? `<div style="margin-top:16px;padding:12px 16px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;font-size:13px;color:#555;line-height:1.8;">If you believe this was an error, contact the office:<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:14px 0 0;">If you believe this was an error, please contact the office directly.</p>`;
   const result = await wrap("Appointment Declined", `
     <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
     <p style="color:#555;margin:0 0 24px;">We regret to inform you that your appointment has been declined.</p>
@@ -275,11 +285,14 @@ export async function generateDeclineEmail(name: string, date: string, time: str
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", time)}
+      ${detailRow("Time", formatTimeSlot(time))}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Declined", "#dc2626")}</td></tr>
       ${reason ? detailRow("Reason", reason) : ""}
     </table>
-    <p style="color:#555;margin:0 0 8px;">You may submit a new appointment request at any time if you would like to try again.</p>
+    <p style="color:#555;margin:0 0 4px;text-align:center;">Submit a new appointment or contact <strong>${officeContact}</strong>.</p>
+    <p style="text-align:center;margin:16px 0 0;">
+      <a href="${bookingUrl}" style="display:inline-block;background:#006633;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Submit a New Appointment</a>
+    </p>
     ${contactBlock}
   `);
   return { html: result.html, attachments: result.attachments };
