@@ -71,7 +71,8 @@ Fill in these fields:
 - **Phone Number** — a number where you can be reached (e.g., *0917 123 4567*).
 - **Email Address** — type this **carefully**, because all updates about your visit are sent here.
 - **Visitor Category** — pick who you are from the drop-down:
-  - General Public
+  - External (Companies, Organizations, Groups)
+  - Parents
   - Student
   - Faculty / Staff
   - Alumni
@@ -199,7 +200,7 @@ When a visitor books a visit, a new request appears in the admin area for your o
 ### Reviewing a request
 
 Open the request (click **View** or the person's name). You'll see:
-- The visitor's name, category (student, general public, etc.), email, and phone number.
+- The visitor's name, category (external, parents, student, etc.), email, and phone number.
 - The office, date, and time they picked.
 - Any note they left about the purpose of their visit.
 - A **picture of their ID**, which you should check.

@@ -123,6 +123,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
     setSelectedOfficeId(officeId);
     setExpandedCategories({});
     setChangingOffice(false);
+    setOfficeQuery("");
     setPersonToMeet("");
     setSelectedDate("");
     setSelectedTime("");
@@ -269,7 +270,8 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                 <div className="skeleton h-11 rounded-lg" />
               ) : (
                 <>
-                  <div className="relative mb-3">
+                  {!(selectedOffice && !changingOffice) && (
+                    <div className="relative mb-3">
                     <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -289,6 +291,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                       </button>
                     )}
                   </div>
+                  )}
 
                   {visibleOffices.length === 0 ? (
                     <div className="text-center py-8 text-sm text-gray-400 border border-gray-100 rounded-lg">No offices match your search</div>

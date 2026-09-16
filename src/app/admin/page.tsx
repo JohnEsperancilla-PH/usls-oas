@@ -773,7 +773,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
           <div className="grid grid-cols-2 gap-3">
             {[
               ["Visitor", appointment.full_name],
-              ["Category", (appointment.visitor_category || "general_public").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())],
+              ["Category", (appointment.visitor_category || "external").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())],
               ["Email", appointment.email],
               ["Phone", appointment.phone],
               ["Office", officeName],

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS archived_appointments (
   phone VARCHAR(20) NOT NULL,
   email VARCHAR(255) NOT NULL,
   id_image MEDIUMBLOB,
-  visitor_category VARCHAR(50) NOT NULL DEFAULT 'general_public',
+  visitor_category VARCHAR(50) NOT NULL DEFAULT 'external',
   purpose_of_visit TEXT,
   office_id VARCHAR(36) NOT NULL,
   office_name VARCHAR(255),

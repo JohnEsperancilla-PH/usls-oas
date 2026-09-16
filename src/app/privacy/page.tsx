@@ -64,7 +64,7 @@ export default function PrivacyPolicyPage() {
             </tr>
             <tr>
               <td>Visitor category</td>
-              <td>To understand who is visiting (student, faculty/staff, general public, alumni, vendor) so
+              <td>To understand who is visiting (external, parents, student, faculty/staff, alumni, vendor) so
                   offices can serve them appropriately.</td>
             </tr>
             <tr>

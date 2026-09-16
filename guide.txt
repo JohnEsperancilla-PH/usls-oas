@@ -140,7 +140,7 @@ Fill in these fields:
     this address. A wrong character means you won't get your code.
 
   - Visitor Category
-    Pick who you are from the list: General Public, Student,
+    Pick who you are from the list: External (Companies, Organizations, Groups), Parents, Student,
     Faculty / Staff, Alumni, or Vendor / Supplier. This helps the
     office understand who is visiting.
 
@@ -308,7 +308,7 @@ each piece does:
                 confirm your identity. Only the type is stored.
 
   Category      Helps the office understand who is visiting (student,
-                faculty, general public, etc.).
+                faculty, external, parents, etc.).
 
   Office, date, time, duration
                 The schedule of your visit, so the office knows when
@@ -697,7 +697,7 @@ it ends up.
                                           no ID number, no copy.
 
   Visitor category Who the visitor is    Groups visitors (student,
-                                          faculty, general public,
+                                          faculty, external, parents,
                                           etc.) so offices
                                           understand their users.
 

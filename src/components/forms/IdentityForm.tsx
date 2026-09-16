@@ -5,7 +5,8 @@ import { VALID_IDS } from "@/lib/valid-ids";
 import type { BookingData } from "@/app/page";
 
 const VISITOR_CATEGORIES = [
-  { value: "general_public", label: "General Public" },
+  { value: "external", label: "External (Companies, Organizations, Groups)" },
+  { value: "parents", label: "Parents" },
   { value: "student", label: "Student" },
   { value: "faculty", label: "Faculty / Staff" },
   { value: "alumni", label: "Alumni" },
@@ -19,7 +20,7 @@ interface IdentityFormProps {
 
 export function IdentityForm({ data, onNext }: IdentityFormProps) {
   const [formData, setFormData] = useState({ fullName: data.fullName, phone: data.phone, email: data.email });
-  const [visitorCategory, setVisitorCategory] = useState(data.visitorCategory || "general_public");
+  const [visitorCategory, setVisitorCategory] = useState(data.visitorCategory || "external");
   const [validId, setValidId] = useState(data.validId || "");
   const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});

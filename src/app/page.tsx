@@ -26,7 +26,7 @@ const initialData: BookingData = {
   phone: "",
   email: "",
   validId: "",
-  visitorCategory: "general_public",
+  visitorCategory: "external",
   officeId: "",
   personToMeet: "",
   date: "",
@@ -153,7 +153,7 @@ export default function BookPage() {
           <p className="text-sm text-gray-500 mb-8">
             If you have other questions, kindly send a message to{" "}
             <strong className="text-gray-600">{officeEmail || "the office"}</strong> or{" "}
-            <strong className="text-gray-600">appointments@usls.edu.ph</strong>.
+            <strong className="text-gray-600">lasalle@usls.edu.ph</strong>.
           </p>
           <button
             onClick={() => { setSubmitSuccess(false); setFormData(initialData); setStep(1); }}

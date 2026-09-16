@@ -1,6 +1,6 @@
 export type AppointmentStatus = "pending" | "approved" | "declined" | "completed" | "expired";
 export type AdminRole = "super_admin" | "office_admin";
-export type VisitorCategory = "general_public" | "student" | "faculty" | "alumni" | "vendor";
+export type VisitorCategory = "external" | "parents" | "student" | "faculty" | "alumni" | "vendor";
 export type AuditAction = "approve" | "decline" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time";
 
 export interface Office {

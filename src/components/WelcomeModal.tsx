@@ -79,14 +79,17 @@ export default function WelcomeModal() {
         </div>
 
           <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-            OASYS lets you book time with a USLS office ahead of your visit, so you have a confirmed slot and a faster entry.
-            Here is everything you need to know.
+            Planning a visit or meeting at USLS? We&rsquo;d like to make your time on campus as convenient as possible.
+            <br /><br />
+            With OASYS, you can schedule an appointment with a USLS office ahead of time, giving you a confirmed slot and a smoother, faster entry to campus.
+            <br /><br />
+            Here&rsquo;s everything you need to know.
           </p>
 
           <div className="mb-6 rounded-xl bg-primary/5 border border-primary/20 p-4">
             <p className="text-xs text-primary-dark leading-relaxed font-bold">
-              If you are planning to visit the ASAO, the University Registrar, the University Bookstore, or the Business Office,
-              you do not need to book through OASYS &mdash; you may visit these offices directly.
+              If you are visiting the Admissions Office, University Registrar, University Bookstore, or Business Office for regular transactions,
+              there is no need to book through OASYS. You may proceed directly to these offices.
             </p>
           </div>
 
