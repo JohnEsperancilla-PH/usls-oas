@@ -31,6 +31,7 @@ export default function AuditPage() {
       update_office: "bg-yellow-100 text-yellow-800",
       delete_office: "bg-red-100 text-red-800",
       login: "bg-indigo-100 text-indigo-800",
+      entry: "bg-green-100 text-green-800",
     };
     return badges[action] || "bg-gray-100 text-gray-600";
   };
@@ -73,6 +74,11 @@ export default function AuditPage() {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {log.target_email && <span>Target: {log.target_email}</span>}
+                      {log.action === "entry" && log.details && (
+                        <span className="block text-gray-700">
+                          Guard: {String(log.details.guard_name || "Unknown")} (Employee ID: {String(log.details.guard_employee_id || "—")})
+                        </span>
+                      )}
                       {log.details && <span className="ml-2 text-gray-400">{JSON.stringify(log.details)}</span>}
                     </td>
                   </tr>

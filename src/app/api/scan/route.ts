@@ -3,8 +3,14 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { normalizeReference } from "@/lib/reference";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
+import { getAuthAdmin, requireEntryUser, logAudit } from "@/lib/rbac";
 
 export async function POST(request: Request) {
+  const { admin, error, status } = await getAuthAdmin(request);
+  if (!admin) return NextResponse.json({ success: false, message: error }, { status });
+  const access = requireEntryUser(admin);
+  if (!access.ok) return NextResponse.json({ success: false, message: access.error }, { status: access.status });
+
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
   const { allowed } = checkRateLimit(`scan:${ip}`, 30, 60 * 1000);
   if (!allowed) return rateLimitResponse();
@@ -106,6 +112,20 @@ export async function POST(request: Request) {
       })
     );
 
+    await logAudit(admin.id, admin.email, "entry", {
+      appointment_id: appointment.id,
+      office_id: appointment.office_id,
+      meta: {
+        guard_name: admin.name,
+        guard_employee_id: admin.employee_id,
+        reference_number: reference,
+        visitor_name: appointment.full_name,
+        visitor_email: appointment.email,
+        office_name: appointment.offices?.name || "Unknown Office",
+        scanned_at: scanTime,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       message: "Reference number verified — entry approved",
@@ -115,11 +135,15 @@ export async function POST(request: Request) {
         fullName: appointment.full_name,
         email: appointment.email,
         phone: appointment.phone,
+        visitorCategory: appointment.visitor_category,
         office: appointment.offices?.name || "Unknown Office",
+        personToMeet: appointment.person_to_meet || "",
+        purposeOfVisit: appointment.purpose_of_visit || "",
         date: appointment.date,
         timeSlot: appointment.time_slot,
         duration: appointment.duration,
         validId: appointment.valid_id || "",
+        referenceNumber: reference,
       },
     });
   } catch (error) {

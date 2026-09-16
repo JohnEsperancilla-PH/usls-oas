@@ -28,6 +28,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ authorized: false, message: "Not an admin" }, { status: 403 });
     }
 
+    if (admin.role === "gate_user") {
+      return NextResponse.json({ authorized: false, message: "Gate accounts cannot access the admin dashboard" }, { status: 403 });
+    }
+
     // Record successful admin login/access so it appears in the audit logs.
     await logAudit(admin.id, admin.email, "login", {
       meta: { ip, office_id: admin.office_id, role: admin.role },

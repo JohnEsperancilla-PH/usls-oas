@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatTimeSlot } from "@/lib/time";
+import { createClient } from "@/lib/supabase/client";
+import type { Session } from "@supabase/supabase-js";
 
 interface ScanResult {
   success: boolean;
@@ -12,19 +14,77 @@ interface ScanResult {
     fullName: string;
     email: string;
     phone: string;
+    visitorCategory: string;
     office: string;
+    personToMeet: string;
+    purposeOfVisit: string;
     date: string;
     timeSlot: string;
     duration: number;
     validId: string;
+    referenceNumber: string;
   };
 }
 
 export default function EntryPage() {
+  const supabase = createClient();
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [employeeId, setEmployeeId] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
   const [reference, setReference] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/entry/auth")
+      .then((response) => response.json())
+      .then((data: { authenticated?: boolean }) => setAuthenticated(data.authenticated === true))
+      .catch(() => setAuthenticated(false))
+      .finally(() => setAuthLoading(false));
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const response = await fetch("/api/entry/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId, password }),
+      });
+      const data: { authenticated?: boolean; message?: string; session?: Session } = await response.json();
+      if (!response.ok || !data.authenticated) {
+        setAuthError(data.message || "Unable to sign in");
+        return;
+      }
+      if (!data.session) {
+        setAuthError("Unable to establish a session. Please try again.");
+        return;
+      }
+      const { error: sessionError } = await supabase.auth.setSession(data.session);
+      if (sessionError) {
+        setAuthError("Unable to establish a session. Please try again.");
+        return;
+      }
+      setEmployeeId("");
+      setPassword("");
+      setAuthenticated(true);
+    } catch {
+      setAuthError("Unable to sign in. Please try again.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setAuthenticated(false);
+    reset();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,11 +117,36 @@ export default function EntryPage() {
     setError(null);
   };
 
+  if (authLoading) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-500">Loading...</div>;
+  }
+
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm w-full max-w-sm">
+          <img src="/usls-oas.png" alt="USLS OASYS" className="h-14 w-auto mx-auto mb-5" />
+          <h1 className="text-lg font-bold text-gray-900 text-center">Gate Entry Login</h1>
+          <p className="text-sm text-gray-500 text-center mt-1 mb-5">Sign in to verify visitor appointments.</p>
+          <form onSubmit={handleLogin} className="space-y-3">
+            <label htmlFor="entry-employee-id" className="label">Employee ID</label>
+            <input id="entry-employee-id" type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} className="input w-full" autoComplete="username" required />
+            <label htmlFor="entry-password" className="label">Password</label>
+            <input id="entry-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input w-full" autoComplete="current-password" required />
+            {authError && <p className="text-red-700 text-sm">{authError}</p>}
+            <button type="submit" disabled={authLoading} className="btn-primary w-full disabled:opacity-50">Sign In</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-100 py-3 px-4 flex-shrink-0 overflow-hidden">
-        <div className="max-w-lg mx-auto flex items-center justify-center">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
           <img src="/usls-oas.png" alt="USLS OASYS" className="h-14 sm:h-16 w-auto" />
+          <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign Out</button>
         </div>
       </header>
 
@@ -89,9 +174,17 @@ export default function EntryPage() {
                 <div className="bg-white rounded-xl p-5 text-left space-y-4 mb-6 border border-gray-200">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div><span className="text-gray-500 text-xs">Visitor</span><p className="font-medium text-gray-900">{scanResult.appointment.fullName}</p></div>
+                    <div><span className="text-gray-500 text-xs">Visitor Category</span><p className="font-medium text-gray-900 capitalize">{scanResult.appointment.visitorCategory.replace(/_/g, " ")}</p></div>
+                    <div><span className="text-gray-500 text-xs">Email</span><p className="font-medium text-gray-900 break-all">{scanResult.appointment.email}</p></div>
+                    <div><span className="text-gray-500 text-xs">Phone</span><p className="font-medium text-gray-900">{scanResult.appointment.phone}</p></div>
                     <div><span className="text-gray-500 text-xs">Office</span><p className="font-medium text-gray-900">{scanResult.appointment.office}</p></div>
+                    <div><span className="text-gray-500 text-xs">Person to Meet</span><p className="font-medium text-gray-900">{scanResult.appointment.personToMeet || "—"}</p></div>
                     <div><span className="text-gray-500 text-xs">Date</span><p className="font-medium text-gray-900">{new Date(scanResult.appointment.date).toLocaleDateString()}</p></div>
                     <div><span className="text-gray-500 text-xs">Time</span><p className="font-medium text-gray-900">{formatTimeSlot(scanResult.appointment.timeSlot)} ({scanResult.appointment.duration}m)</p></div>
+                  </div>
+                  <div className="border-t border-gray-100 pt-3 space-y-3">
+                    <div><span className="text-gray-500 text-xs">Purpose of Visit</span><p className="mt-1 text-sm font-medium text-gray-900">{scanResult.appointment.purposeOfVisit || "—"}</p></div>
+                    <div><span className="text-gray-500 text-xs">Reference Number</span><p className="mt-1 text-sm font-bold tracking-wider text-gray-900">{scanResult.appointment.referenceNumber}</p></div>
                   </div>
                   {scanResult.scannedAt && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">

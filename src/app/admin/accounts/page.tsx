@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import type { Office } from "@/types/database";
 
-interface AdminAccount { id: string; email: string; name: string; role: string; office_id: string | null; active: boolean; }
+interface AdminAccount { id: string; email: string; employee_id: string | null; name: string; role: string; office_id: string | null; active: boolean; }
 
 export default function AccountsPage() {
   const { admin } = useAdmin();
@@ -13,7 +13,7 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [form, setForm] = useState({ email: "", name: "", password: "", role: "office_admin" as "super_admin" | "office_admin", office_id: "" });
+  const [form, setForm] = useState({ email: "", employee_id: "", name: "", password: "", role: "office_admin" as "super_admin" | "office_admin" | "gate_user", office_id: "" });
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -47,7 +47,7 @@ export default function AccountsPage() {
       if (!res.ok) throw new Error(data.message);
       setMessage({ type: "success", text: "Account created" });
       setModalOpen(false);
-      setForm({ email: "", name: "", password: "", role: "office_admin", office_id: "" });
+      setForm({ email: "", employee_id: "", name: "", password: "", role: "office_admin", office_id: "" });
       fetchData();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
     finally { setSaving(false); }
@@ -77,6 +77,8 @@ export default function AccountsPage() {
 
   const getRoleBadge = (role: string) => role === "super_admin"
     ? "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200"
+    : role === "gate_user"
+    ? "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200"
     : "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200";
 
   return (
@@ -86,7 +88,7 @@ export default function AccountsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
           <p className="text-sm text-gray-500 mt-0.5">{accounts.length} admin account{accounts.length !== 1 ? "s" : ""}</p>
         </div>
-        <button onClick={() => { setForm({ email: "", name: "", password: "", role: "office_admin", office_id: "" }); setModalOpen(true); }} className="btn-primary btn-sm flex items-center gap-1.5">
+        <button onClick={() => { setForm({ email: "", employee_id: "", name: "", password: "", role: "office_admin", office_id: "" }); setModalOpen(true); }} className="btn-primary btn-sm flex items-center gap-1.5">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           Add Account
         </button>
@@ -123,9 +125,10 @@ export default function AccountsPage() {
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">{a.name || "—"}</div>
                     <div className="text-xs text-gray-400 truncate">{a.email}</div>
+                    {a.role === "gate_user" && <div className="text-xs text-gray-500">Employee ID: {a.employee_id}</div>}
                   </div>
                 </div>
-                <span className={getRoleBadge(a.role)}>{a.role === "super_admin" ? "Super" : "Office"}</span>
+                  <span className={getRoleBadge(a.role)}>{a.role === "super_admin" ? "Super" : a.role === "gate_user" ? "Gate" : "Office"}</span>
               </div>
               {a.office_id && (
                 <div className="text-xs text-gray-500 mb-3">
@@ -152,10 +155,17 @@ export default function AccountsPage() {
               </button>
             </div>
             <form onSubmit={handleCreate} className="p-5 space-y-4">
-              <div>
+              {form.role === "gate_user" ? (
+                <div>
+                  <label className="label">Employee ID</label>
+                  <input required className="input" placeholder="Employee ID number" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} />
+                </div>
+              ) : (
+                <div>
                 <label className="label">Email</label>
                 <input type="email" required className="input" placeholder="name@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              </div>
+                </div>
+              )}
               <div>
                 <label className="label">Name</label>
                 <input required className="input" placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -172,8 +182,8 @@ export default function AccountsPage() {
               <div>
                 <label className="label">Role</label>
                 <div className="flex gap-2">
-                  {[{ v: "office_admin", l: "Office Admin" }, { v: "super_admin", l: "Super Admin" }].map((r) => (
-                    <button key={r.v} type="button" onClick={() => setForm({ ...form, role: r.v as "super_admin" | "office_admin" })}
+                  {[{ v: "office_admin", l: "Office Admin" }, { v: "super_admin", l: "Super Admin" }, { v: "gate_user", l: "Gate User" }].map((r) => (
+                    <button key={r.v} type="button" onClick={() => setForm({ ...form, role: r.v as "super_admin" | "office_admin" | "gate_user", email: "" })}
                       className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border-2 transition-all ${form.role === r.v ? "border-primary bg-primary/5 text-primary" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"}`}>
                       {r.l}
                     </button>

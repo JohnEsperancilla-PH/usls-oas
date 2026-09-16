@@ -5,7 +5,8 @@ export interface AuthAdmin {
   id: string;
   email: string;
   name: string;
-  role: "super_admin" | "office_admin";
+  employee_id: string | null;
+  role: "super_admin" | "office_admin" | "gate_user";
   office_id: string | null;
 }
 
@@ -34,6 +35,13 @@ export async function getAuthAdmin(request: Request): Promise<{ admin: AuthAdmin
 export function requireSuperAdmin(admin: AuthAdmin): { ok: boolean; error?: string; status?: number } {
   if (admin.role !== "super_admin") {
     return { ok: false, error: "Super admin access required", status: 403 };
+  }
+  return { ok: true };
+}
+
+export function requireEntryUser(admin: AuthAdmin): { ok: boolean; error?: string; status?: number } {
+  if (admin.role !== "gate_user" && admin.role !== "super_admin") {
+    return { ok: false, error: "Gate access required", status: 403 };
   }
   return { ok: true };
 }

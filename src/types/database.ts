@@ -1,7 +1,7 @@
 export type AppointmentStatus = "pending" | "approved" | "declined" | "completed" | "expired";
-export type AdminRole = "super_admin" | "office_admin";
+export type AdminRole = "super_admin" | "office_admin" | "gate_user";
 export type VisitorCategory = "external" | "parents" | "student" | "faculty" | "alumni" | "vendor";
-export type AuditAction = "approve" | "decline" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time";
+export type AuditAction = "approve" | "decline" | "entry" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login";
 
 export interface Office {
   id: string;
@@ -47,6 +47,7 @@ export interface Admin {
   id: string;
   name: string;
   email: string;
+  employee_id: string | null;
   role: AdminRole;
   office_id: string | null;
   created_at: string;
