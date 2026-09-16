@@ -182,7 +182,7 @@ export async function generateAdminAlertEmail(
   actionLinks?: { approveUrl?: string; declineUrl?: string }
 ) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const rootUrl = baseUrl || process.env.NEXT_PUBLIC_APP_URL || "https://usls-oas.vercel.app";
+  const rootUrl = baseUrl || process.env.NEXT_PUBLIC_APP_URL || "https://oasys.usls.edu.ph";
   const dashboardUrl = `${rootUrl}/admin`;
 
   const actionBlock = actionLinks?.approveUrl && actionLinks?.declineUrl
@@ -263,7 +263,7 @@ export async function generateApprovalEmail(
 
 export async function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string, contactEmail?: string | null, contactPhone?: string | null) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const rootUrl = process.env.NEXT_PUBLIC_APP_URL || "https://usls-oas.vercel.app";
+  const rootUrl = process.env.NEXT_PUBLIC_APP_URL || "https://oasys.usls.edu.ph";
   const bookingUrl = `${rootUrl}/`;
   const contactLines: string[] = [];
   if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);

@@ -12,10 +12,10 @@ const gotham = localFont({
   display: "swap",
 });
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://usls-oas.vercel.app";
+const appUrl = "https://oasys.usls.edu.ph";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(appUrl),
+  metadataBase: new URL("https://oasys.usls.edu.ph"),
   title: {
     default: "USLS Online Appointment System",
     template: "%s | USLS OASYS",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   keywords: ["USLS", "University of St. La Salle", "appointment", "campus", "visitor", "booking"],
   openGraph: {
     type: "website",
-    url: appUrl,
+    url: `${appUrl}/`,
     siteName: "USLS Online Appointment System",
     locale: "en_US",
   },
