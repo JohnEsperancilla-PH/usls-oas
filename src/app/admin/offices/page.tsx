@@ -11,8 +11,9 @@ export default function OfficesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOffice, setEditingOffice] = useState<Office | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "" });
+  const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "" });
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState("");
 
   const fetchOffices = useCallback(async () => {
     setLoading(true);
@@ -27,8 +28,8 @@ export default function OfficesPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchOffices(); }, []);
 
-  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "" }); setModalOpen(true); };
-  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "" }); setModalOpen(true); };
+  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "" }); setModalOpen(true); };
+  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "" }); setModalOpen(true); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setMessage(null);
@@ -53,6 +54,12 @@ export default function OfficesPage() {
     } catch { setMessage({ type: "error", text: "Failed" }); }
   };
 
+  const filteredOffices = offices.filter((o) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return o.name.toLowerCase().includes(q) || (o.category || "").toLowerCase().includes(q) || (o.email || "").toLowerCase().includes(q);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -73,6 +80,27 @@ export default function OfficesPage() {
         </div>
       )}
 
+      <div className="relative">
+        <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search offices by name, category, or email..."
+          className="input"
+          style={{ paddingLeft: "2.5rem" }}
+          autoComplete="off"
+        />
+        {query && (
+          <button type="button" onClick={() => setQuery("")} aria-label="Clear search"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        )}
+      </div>
+
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <div key={i} className="bg-white rounded-xl border border-gray-200 p-5"><div className="skeleton h-5 w-32 mb-3" /><div className="skeleton h-3 w-48 mb-2" /><div className="skeleton h-3 w-24" /></div>)}
@@ -85,13 +113,19 @@ export default function OfficesPage() {
           <p className="text-sm text-gray-500 mb-3">No offices yet</p>
           <button onClick={openCreate} className="text-sm font-medium text-primary hover:text-primary-light">Add your first office</button>
         </div>
+      ) : filteredOffices.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <p className="text-sm text-gray-500">No offices match your search.</p>
+          {query && <button onClick={() => setQuery("")} className="text-sm font-medium text-primary hover:text-primary-light mt-2">Clear search</button>}
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {offices.map((o) => (
+          {filteredOffices.map((o) => (
             <div key={o.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">{o.name}</h3>
+                  {o.category && <p className="text-[11px] text-primary font-medium truncate mt-0.5">{o.category}</p>}
                   {o.email && <p className="text-xs text-gray-400 truncate mt-0.5">{o.email}</p>}
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ml-2 ${o.active ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-50 text-gray-400 border border-gray-200"}`}>
@@ -138,6 +172,7 @@ export default function OfficesPage() {
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2"><label className="label">Office Name</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Registrar" /></div>
+                <div className="sm:col-span-2"><label className="label">Category</label><input className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Vice Chancellor for Academic Affairs" /><p className="text-[11px] text-gray-400 mt-1">Groups this office under a section on the booking form and encounters list.</p></div>
                 <div><label className="label">Email</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@email.com" /></div>
                 <div><label className="label">Capacity per Slot</label><input type="number" min={1} className="input" value={form.capacity_per_slot} onChange={(e) => setForm({ ...form, capacity_per_slot: parseInt(e.target.value) || 1 })} /></div>
                 <div><label className="label">Contact Email</label><input type="email" className="input" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} placeholder="Shown to visitors for follow-ups" /></div>

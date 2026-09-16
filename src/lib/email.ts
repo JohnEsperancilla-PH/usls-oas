@@ -116,7 +116,7 @@ async function wrap(title: string, body: string, extraAttachments: SendMailAttac
 <body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <div style="max-width:520px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
   <div style="background:#006633;padding:36px 24px;text-align:center;">
-    <img src="cid:logo" alt="USLS OAS" style="width:180px;height:auto;display:block;margin:0 auto;" />
+    <img src="cid:logo" alt="USLS OASYS" style="width:180px;height:auto;display:block;margin:0 auto;" />
   </div>
   <div style="padding:32px 28px;color:#333;line-height:1.6;font-size:15px;">
     <h2 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#111;">${title}</h2>
@@ -124,7 +124,7 @@ async function wrap(title: string, body: string, extraAttachments: SendMailAttac
     ${body}
   </div>
   <div style="padding:18px 28px;text-align:center;color:#999;font-size:11px;border-top:1px solid #eee;background:#fafafa;">
-    &copy; ${new Date().getFullYear()} OAS &mdash; Online Appointment System<br/>
+    &copy; ${new Date().getFullYear()} OASYS &mdash; Online Appointment System<br/>
     <a href="https://www.usls.edu.ph/cmc" style="color:#006633;text-decoration:none;">Center for Marketing and Communications</a><br/>
     <a href="https://www.usls.edu.ph" style="color:#006633;text-decoration:none;">University of St. La Salle</a>
   </div>

@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
     const body = await request.json();
-    const { name, email, description, operating_hours, capacity_per_slot, contact_email, contact_phone } = body;
+    const { name, email, description, operating_hours, capacity_per_slot, contact_email, contact_phone, category } = body;
 
     if (!name) {
       return NextResponse.json({ message: "Office name is required" }, { status: 400 });
@@ -55,6 +55,7 @@ export async function POST(request: Request) {
         capacity_per_slot: capacity_per_slot || 1,
         contact_email: contact_email || null,
         contact_phone: contact_phone || null,
+        category: category || null,
         active: true,
       })
       .select()
@@ -81,7 +82,7 @@ export async function PUT(request: Request) {
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
     const body = await request.json();
-    const { id, name, email, description, operating_hours, capacity_per_slot, active, contact_email, contact_phone } = body;
+    const { id, name, email, description, operating_hours, capacity_per_slot, active, contact_email, contact_phone, category } = body;
 
     if (!id) {
       return NextResponse.json({ message: "Office ID is required" }, { status: 400 });
@@ -98,6 +99,7 @@ export async function PUT(request: Request) {
     if (active !== undefined) updateData.active = active;
     if (contact_email !== undefined) updateData.contact_email = contact_email;
     if (contact_phone !== undefined) updateData.contact_phone = contact_phone;
+    if (category !== undefined) updateData.category = category;
 
     const { error: updateError } = await supabase
       .from("offices")

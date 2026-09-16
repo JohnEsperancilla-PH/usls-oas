@@ -16,7 +16,7 @@ export default function LegalPage({ title, updated, children }: { title: string;
       <header className="bg-white border-b border-gray-100 py-5">
         <div className="container mx-auto px-4 flex items-center justify-between">
           <Link href="/">
-            <Image src="/usls-oas.png" alt="USLS OAS" width={160} height={48} className="h-12 sm:h-14 w-auto" priority />
+            <Image src="/usls-oas.png" alt="USLS OASYS" width={160} height={48} className="h-12 sm:h-14 w-auto" priority />
           </Link>
           <Link href="/" className="text-sm text-primary hover:underline font-medium">
             &larr; Back to Booking
@@ -44,7 +44,7 @@ export default function LegalPage({ title, updated, children }: { title: string;
             ))}
           </nav>
           <div className="space-y-0.5">
-            <p>&copy; {year} OAS &mdash; Online Appointment System</p>
+            <p>&copy; {year} OASYS &mdash; Online Appointment System</p>
             <p>
               <a href="https://www.usls.edu.ph" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                 University of St. La Salle

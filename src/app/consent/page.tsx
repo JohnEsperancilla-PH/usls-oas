@@ -11,7 +11,7 @@ export default function ConsentPage() {
     <LegalPage title="Consent to Forms" updated="September 8, 2026">
       <section>
         <p>
-          When you submit the USLS OAS booking form, you are asked to give your <strong>consent</strong> to
+          When you submit the USLS OASYS booking form, you are asked to give your <strong>consent</strong> to
           the processing of your personal data. This page explains, in plain terms, exactly what you are
           consenting to. This consent is required by the Philippine{" "}
           <strong>Data Privacy Act of 2012 (RA 10173)</strong>.
@@ -25,7 +25,7 @@ export default function ConsentPage() {
           &quot;I consent to the collection, use, and storage of my personal data (name, contact details,
           valid ID type, and appointment information) for the purpose of processing my appointment request
           and verifying my identity at the campus gate, in accordance with RA 10173 (Data Privacy Act of 2012)
-          and the USLS OAS Privacy Policy.&quot;
+          and the USLS OASYS Privacy Policy.&quot;
         </div>
         <p>
           By ticking the consent box and submitting the form, you confirm that you have read and understood

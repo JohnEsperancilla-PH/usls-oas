@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "USLS Online Appointment System",
-    short_name: "USLS OAS",
+    short_name: "USLS OASYS",
     description:
       "Schedule your campus appointments online at University of St. La Salle. Quick, easy, and secure — no account required.",
     start_url: "/",

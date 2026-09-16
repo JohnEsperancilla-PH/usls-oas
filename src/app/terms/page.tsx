@@ -12,9 +12,9 @@ export default function TermsPage() {
       <section>
         <p>
           These Terms of Service (&quot;Terms&quot;) govern your use of the{" "}
-          <strong>USLS Online Appointment System (OAS)</strong>, operated by the{" "}
+          <strong>USLS Online Appointment System (OASYS)</strong>, operated by the{" "}
           <strong>University of St. La Salle</strong> (&quot;USLS&quot;, &quot;we&quot;, &quot;our&quot;).
-          By accessing or using the OAS website (the &quot;Service&quot;), you agree to these Terms. If you
+          By accessing or using the OASYS website (the &quot;Service&quot;), you agree to these Terms. If you
           do not agree, please do not use the Service.
         </p>
       </section>

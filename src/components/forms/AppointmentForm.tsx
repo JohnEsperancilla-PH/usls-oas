@@ -44,6 +44,10 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedOfficeId, setSelectedOfficeId] = useState(data.officeId);
+  const [officeQuery, setOfficeQuery] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [changingOffice, setChangingOffice] = useState(false);
+  const [personToMeet, setPersonToMeet] = useState(data.personToMeet || "");
   const [selectedDate, setSelectedDate] = useState(data.date);
   const [selectedTime, setSelectedTime] = useState(data.timeSlot);
   const [duration, setDuration] = useState<30 | 60>(data.duration);
@@ -117,6 +121,9 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
 
   const handleOfficeChange = (officeId: string) => {
     setSelectedOfficeId(officeId);
+    setExpandedCategories({});
+    setChangingOffice(false);
+    setPersonToMeet("");
     setSelectedDate("");
     setSelectedTime("");
     setDaySlots([]);
@@ -137,12 +144,55 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
 
   const selectedOffice = offices.find((o) => o.id === selectedOfficeId);
 
+  const searching = officeQuery.trim().length > 0;
+
+  const visibleOffices = offices.filter((o) => o.active).filter((o) => {
+    const q = officeQuery.trim().toLowerCase();
+    if (!q) return true;
+    return o.name.toLowerCase().includes(q) || (o.category || "").toLowerCase().includes(q);
+  });
+
+  const groupedOffices = visibleOffices.reduce<Record<string, Office[]>>((acc, o) => {
+    const cat = o.category || "Other Offices";
+    (acc[cat] = acc[cat] || []).push(o);
+    return acc;
+  }, {});
+
+  const SECTION_LABELS: Record<string, string> = {
+    "Vice Chancellor for Finance": "Finance",
+    "Vice Chancellor for Administration": "Administration",
+    "Vice Chancellor for Academic Affairs": "Academic Affairs",
+    "Vice Chancellor for Mission and Development": "Missions and Development",
+    "Basic Education Unit (Kinder to Grade 12)": "Basic Education",
+    "President": "President",
+  };
+
+  const CATEGORY_ORDER = [
+    "Vice Chancellor for Finance",
+    "Vice Chancellor for Administration",
+    "Vice Chancellor for Academic Affairs",
+    "Vice Chancellor for Mission and Development",
+    "Basic Education Unit (Kinder to Grade 12)",
+    "President",
+  ];
+
+  const orderedCategories = Object.keys(groupedOffices).sort((a, b) => {
+    const ia = CATEGORY_ORDER.indexOf(a);
+    const ib = CATEGORY_ORDER.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || a.localeCompare(b);
+  });
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
   const getMinDate = () => new Date().toISOString().split("T")[0];
   const getMaxDate = () => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split("T")[0]; };
 
   const validate = () => {
     const e: Record<string, string> = {};
     if (!selectedOfficeId) e.officeId = "Please select an office";
+    if (!personToMeet.trim()) e.personToMeet = "Please enter the person you intend to meet";
     if (!selectedDate) e.date = "Please select a date";
     else {
       const d = new Date(selectedDate + "T00:00:00");
@@ -153,6 +203,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
       else if (d.getDay() === 0 || d.getDay() === 6) e.date = "Weekends are not available";
     }
     if (!selectedTime) e.timeSlot = "Please select a time";
+    if (!purposeOfVisit.trim()) e.purposeOfVisit = "Please describe your purpose of visit";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -160,7 +211,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validate()) {
-      onSubmit({ officeId: selectedOfficeId, date: selectedDate, timeSlot: selectedTime, duration, purposeOfVisit });
+      onSubmit({ officeId: selectedOfficeId, personToMeet, date: selectedDate, timeSlot: selectedTime, duration, purposeOfVisit });
     }
   };
 
@@ -218,17 +269,99 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                 <div className="skeleton h-11 rounded-lg" />
               ) : (
                 <>
-                  <select
-                    className="input"
-                    value={selectedOfficeId || ""}
-                    onChange={(e) => handleOfficeChange(e.target.value)}>
-                    <option value="">Select an office...</option>
-                    {offices.map((o) => (
-                      <option key={o.id} value={o.id}>{o.name}</option>
-                    ))}
-                  </select>
+                  <div className="relative mb-3">
+                    <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={officeQuery}
+                      onChange={(e) => setOfficeQuery(e.target.value)}
+                      placeholder="Search offices..."
+                      className="input"
+                      style={{ paddingLeft: "2.5rem" }}
+                      autoComplete="off"
+                    />
+                    {officeQuery && (
+                      <button type="button" onClick={() => setOfficeQuery("")} aria-label="Clear search"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    )}
+                  </div>
+
+                  {visibleOffices.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-gray-400 border border-gray-100 rounded-lg">No offices match your search</div>
+                  ) : selectedOffice && !searching && !changingOffice ? (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <button type="button"
+                        onClick={() => {
+                          setChangingOffice(true);
+                          setSelectedOfficeId("");
+                          setPersonToMeet("");
+                          setSelectedDate("");
+                          setSelectedTime("");
+                          setDaySlots([]);
+                          setMonthAvailability({});
+                          setErrors({});
+                          setExpandedCategories({ [selectedOffice.category || "Other Offices"]: true });
+                        }}
+                        className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 bg-primary/5 hover:bg-primary/10 transition-colors text-left">
+                        <span className="text-sm font-semibold text-primary truncate">{selectedOffice.name}</span>
+                        <span className="flex items-center gap-1 text-xs text-gray-500 font-medium flex-shrink-0">
+                          Change
+                          <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+                      {orderedCategories.map((cat) => {
+                        const list = groupedOffices[cat];
+                        const expanded = searching || !!expandedCategories[cat];
+                        return (
+                          <div key={cat}>
+                            <button type="button" onClick={() => toggleCategory(cat)}
+                              className="w-full flex items-center justify-between px-3.5 py-2.5 bg-[#006633] text-white hover:bg-[#005428] transition-colors text-left">
+                              <span className="text-xs font-semibold uppercase tracking-wide truncate">{SECTION_LABELS[cat] || cat}</span>
+                              <span className="flex items-center gap-1.5 flex-shrink-0">
+                                <span className="text-[10px] text-white/70">{list.length}</span>
+                                <svg className={`w-3.5 h-3.5 text-white/80 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </span>
+                            </button>
+                            {expanded && (
+                              <div className="bg-white">
+                                {list.map((o) => {
+                                  const isSelected = !changingOffice && selectedOfficeId === o.id;
+                                  return (
+                                    <button key={o.id} type="button"
+                                      onClick={() => handleOfficeChange(o.id)}
+                                      className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors border-b border-gray-50 last:border-0 ${
+                                        isSelected ? "bg-primary/5" : "hover:bg-gray-50"
+                                      }`}>
+                                      <span className={`text-sm truncate ${isSelected ? "font-semibold text-primary" : "text-gray-700"}`}>{o.name}</span>
+                                      {isSelected && (
+                                        <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {selectedOffice && (
-                    <p className="text-xs text-gray-400 mt-1.5">
+                    <p className="text-xs text-gray-400 mt-2">
                       {selectedOffice.operating_hours} · {selectedOffice.capacity_per_slot} spot{selectedOffice.capacity_per_slot !== 1 ? "s" : ""} per slot
                     </p>
                   )}
@@ -238,6 +371,25 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
           )}
           {errors.officeId && <p className="error-text mt-1">{errors.officeId}</p>}
         </div>
+
+        {/* Person to Meet */}
+        {selectedOffice && (
+          <div className="animate-fade-in">
+            <label htmlFor="personToMeet" className="label flex items-center gap-2">
+              Person to Meet <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="personToMeet"
+              value={personToMeet}
+              onChange={(e) => { setPersonToMeet(e.target.value); if (errors.personToMeet) setErrors((p) => ({ ...p, personToMeet: "" })); }}
+              className={`input mt-2 ${errors.personToMeet ? "input-error" : ""}`}
+              placeholder={`Enter the person you intend to meet at ${selectedOffice.name}`}
+              maxLength={120}
+            />
+            {errors.personToMeet && <p className="error-text mt-1">{errors.personToMeet}</p>}
+          </div>
+        )}
 
         {/* Step 2: Calendar */}
         {selectedOfficeId && (
@@ -385,11 +537,12 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
             <label className="label flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">5</span>
               Purpose of Visit
-              <span className="text-xs text-gray-400 font-normal">(optional)</span>
+              <span className="text-red-500">*</span>
             </label>
-            <textarea value={purposeOfVisit} onChange={(e) => setPurposeOfVisit(e.target.value)}
+            <textarea value={purposeOfVisit} onChange={(e) => { setPurposeOfVisit(e.target.value); if (errors.purposeOfVisit) setErrors((p) => ({ ...p, purposeOfVisit: "" })); }}
               placeholder="Briefly describe the reason for your visit..."
-              className="input mt-2" rows={3} maxLength={500} />
+              className={`input mt-2 ${errors.purposeOfVisit ? "input-error" : ""}`} rows={3} maxLength={500} />
+            {errors.purposeOfVisit && <p className="error-text mt-1">{errors.purposeOfVisit}</p>}
             <div className="text-xs text-gray-400 mt-1 text-right">{purposeOfVisit.length}/500</div>
           </div>
         )}
@@ -405,6 +558,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
             </h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div><span className="text-gray-500">Office</span><p className="font-medium">{selectedOffice.name}</p></div>
+              <div><span className="text-gray-500">Person to Meet</span><p className="font-medium">{personToMeet}</p></div>
               <div><span className="text-gray-500">Date</span><p className="font-medium">{new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</p></div>
               <div><span className="text-gray-500">Time</span><p className="font-medium">{daySlots.find((s) => s.time === selectedTime)?.label}</p></div>
               <div><span className="text-gray-500">Duration</span><p className="font-medium">{duration} min</p></div>
@@ -414,7 +568,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
 
         {/* Nav */}
         <div className="flex justify-between pt-2">
-          <button type="button" onClick={() => onBack({ officeId: selectedOfficeId, date: selectedDate, timeSlot: selectedTime, duration, purposeOfVisit })} className="btn-ghost">
+          <button type="button" onClick={() => onBack({ officeId: selectedOfficeId, personToMeet, date: selectedDate, timeSlot: selectedTime, duration, purposeOfVisit })} className="btn-ghost">
             <svg className="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>

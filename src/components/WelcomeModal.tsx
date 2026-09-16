@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "usls-oas-welcome-seen";
-
 const STEPS = [
   {
     title: "Book",
@@ -41,15 +39,10 @@ const FAQS = [
 export default function WelcomeModal() {
   const [open, setOpen] = useState(false);
 
-  const close = () => {
-    localStorage.setItem(STORAGE_KEY, "1");
-    setOpen(false);
-  };
+  const close = () => setOpen(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!localStorage.getItem(STORAGE_KEY)) setOpen(true);
-    }, 0);
+    const timer = setTimeout(() => setOpen(true), 0);
     return () => clearTimeout(timer);
   }, []);
 
@@ -81,19 +74,19 @@ export default function WelcomeModal() {
 <div className="mb-5 pr-8">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">USLS Online Appointment System</p>
-            <h2 id="welcome-title" className="text-xl font-bold text-gray-900">Welcome to OAS</h2>
+            <h2 id="welcome-title" className="text-xl font-bold text-gray-900">Welcome to OASYS</h2>
           </div>
         </div>
 
           <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-            OAS lets you book time with a USLS office ahead of your visit, so you have a confirmed slot and a faster entry.
+            OASYS lets you book time with a USLS office ahead of your visit, so you have a confirmed slot and a faster entry.
             Here is everything you need to know.
           </p>
 
           <div className="mb-6 rounded-xl bg-primary/5 border border-primary/20 p-4">
-            <p className="text-xs text-primary-dark leading-relaxed">
+            <p className="text-xs text-primary-dark leading-relaxed font-bold">
               If you are planning to visit the ASAO, the University Registrar, the University Bookstore, or the Business Office,
-              you do not need to book through OAS &mdash; you may visit these offices directly.
+              you do not need to book through OASYS &mdash; you may visit these offices directly.
             </p>
           </div>
 

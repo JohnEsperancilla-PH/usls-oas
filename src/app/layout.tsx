@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: {
     default: "USLS Online Appointment System",
-    template: "%s | USLS OAS",
+    template: "%s | USLS OASYS",
   },
   description: "Schedule your campus appointments online at University of St. La Salle. Quick, easy, and secure — no account required.",
   keywords: ["USLS", "University of St. La Salle", "appointment", "campus", "visitor", "booking"],
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "USLS OAS",
+    title: "USLS OASYS",
     statusBarStyle: "default",
   },
   robots: { index: true, follow: true },

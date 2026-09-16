@@ -12,7 +12,7 @@ export default function CookiesPage() {
       <section>
         <p>
           This Cookie Policy explains what cookies are, which cookies the{" "}
-          <strong>USLS Online Appointment System (OAS)</strong> uses, and how you can control them.
+          <strong>USLS Online Appointment System (OASYS)</strong> uses, and how you can control them.
         </p>
       </section>
 
@@ -28,7 +28,7 @@ export default function CookiesPage() {
       <section>
         <h2>2. Cookies we use</h2>
         <p>
-          The OAS website uses only <strong>strictly necessary</strong> cookies and similar technologies
+          The OASYS website uses only <strong>strictly necessary</strong> cookies and similar technologies
           needed for the Service to function. We use <strong>no</strong> advertising cookies, tracking
           cookies, or third-party analytics cookies.
         </p>

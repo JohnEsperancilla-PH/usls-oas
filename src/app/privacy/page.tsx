@@ -11,9 +11,9 @@ export default function PrivacyPolicyPage() {
     <LegalPage title="Privacy Policy" updated="September 8, 2026">
       <section>
         <p>
-          The <strong>USLS Online Appointment System (OAS)</strong> is operated by the{" "}
+          The <strong>USLS Online Appointment System (OASYS)</strong> is operated by the{" "}
           <strong>University of St. La Salle</strong> (&quot;USLS&quot;, &quot;we&quot;, &quot;our&quot;, or &quot;us&quot;).
-          This Privacy Policy explains what personal data we collect when you use the OAS website (the &quot;Service&quot;),
+          This Privacy Policy explains what personal data we collect when you use the OASYS website (the &quot;Service&quot;),
           why we collect it, how it is used and protected, and the rights you have over your data.
         </p>
         <p>
@@ -25,7 +25,7 @@ export default function PrivacyPolicyPage() {
       <section>
         <h2>1. What this policy covers</h2>
         <p>
-          This policy applies to all personal data processed through the OAS booking website, including
+          This policy applies to all personal data processed through the OASYS booking website, including
           data you enter on the public booking form and data processed in the USLS admin area when offices
           review and manage appointments.
         </p>

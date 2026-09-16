@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     const result = await sendMail({
       to,
-      subject: "USLS OAS - Sample Approval Email",
+      subject: "USLS OASYS - Sample Approval Email",
       html: emailContent.html,
       attachments: emailContent.attachments,
     });

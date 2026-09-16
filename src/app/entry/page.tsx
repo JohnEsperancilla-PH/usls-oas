@@ -61,7 +61,7 @@ export default function EntryPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-100 py-3 px-4 flex-shrink-0 overflow-hidden">
         <div className="max-w-lg mx-auto flex items-center justify-center">
-          <img src="/usls-oas.png" alt="USLS OAS" className="h-14 sm:h-16 w-auto" />
+          <img src="/usls-oas.png" alt="USLS OASYS" className="h-14 sm:h-16 w-auto" />
         </div>
       </header>
 

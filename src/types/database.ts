@@ -6,6 +6,7 @@ export type AuditAction = "approve" | "decline" | "create_account" | "delete_acc
 export interface Office {
   id: string;
   name: string;
+  category: string | null;
   email: string | null;
   description: string | null;
   operating_hours: string;
@@ -25,6 +26,7 @@ export interface Appointment {
   valid_id: string | null;
   visitor_category: VisitorCategory;
   purpose_of_visit: string | null;
+  person_to_meet: string | null;
   office_id: string;
   date: string;
   time_slot: string;

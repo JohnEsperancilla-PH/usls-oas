@@ -35,14 +35,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     
     // Validate required fields
-    const requiredFields = ["fullName", "phone", "email", "validId", "officeId", "date", "timeSlot", "duration"];
+    const requiredFields = ["fullName", "phone", "email", "validId", "officeId", "personToMeet", "date", "timeSlot", "duration"];
     for (const field of requiredFields) {
-      if (!body[field]) {
+      if (!body[field] || (typeof body[field] === "string" && !body[field].trim())) {
         return NextResponse.json(
           { message: `Missing required field: ${field}` },
           { status: 400 }
         );
       }
+    }
+
+    if (!body.purposeOfVisit || !body.purposeOfVisit.trim()) {
+      return NextResponse.json({ message: "Purpose of visit is required" }, { status: 400 });
     }
 
     // Validate email format
@@ -76,6 +80,9 @@ export async function POST(request: Request) {
     }
     if (body.phone.length > 20) {
       return NextResponse.json({ message: "Phone number is too long (max 20 characters)" }, { status: 400 });
+    }
+    if (body.personToMeet.length > 120) {
+      return NextResponse.json({ message: "Person to meet is too long (max 120 characters)" }, { status: 400 });
     }
     if (body.email.length > 254) {
       return NextResponse.json({ message: "Email is too long" }, { status: 400 });
@@ -202,7 +209,8 @@ export async function POST(request: Request) {
       email: body.email,
       valid_id: body.validId,
       visitor_category: body.visitorCategory || "general_public",
-      purpose_of_visit: body.purposeOfVisit || null,
+      purpose_of_visit: body.purposeOfVisit,
+      person_to_meet: body.personToMeet,
       office_id: body.officeId,
       date: body.date,
       time_slot: body.timeSlot,
@@ -225,7 +233,8 @@ export async function POST(request: Request) {
           email: body.email,
           valid_id: body.validId,
           visitor_category: body.visitorCategory || "general_public",
-          purpose_of_visit: body.purposeOfVisit || null,
+          purpose_of_visit: body.purposeOfVisit,
+          person_to_meet: body.personToMeet,
           office_id: body.officeId,
           office_name: office.name,
           date: body.date,
@@ -264,7 +273,7 @@ export async function POST(request: Request) {
 
       confirmationResult = await sendMail({
         to: body.email,
-        subject: "Appointment Confirmation - USLS OAS",
+        subject: "Appointment Confirmation - USLS OASYS",
         html: confirmationEmail.html,
         attachments: confirmationEmail.attachments,
       });
@@ -314,7 +323,7 @@ export async function POST(request: Request) {
 
           const adminResult = await sendMail({
             to: admin.email,
-            subject: "New Appointment Request - USLS OAS",
+            subject: "New Appointment Request - USLS OASYS",
             html: adminEmail.html,
             attachments: adminEmail.attachments,
           });

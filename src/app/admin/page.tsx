@@ -777,6 +777,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
               ["Email", appointment.email],
               ["Phone", appointment.phone],
               ["Office", officeName],
+              ["Person to Meet", appointment.person_to_meet || "—"],
               ["Date", new Date(appointment.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
               ["Time", `${formatTimeSlot(appointment.time_slot)} (${appointment.duration} min)`],
             ].map(([l, v]) => (

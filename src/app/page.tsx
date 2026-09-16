@@ -14,6 +14,7 @@ export interface BookingData {
   validId: string;
   visitorCategory: string;
   officeId: string;
+  personToMeet: string;
   date: string;
   timeSlot: string;
   duration: 30 | 60;
@@ -27,6 +28,7 @@ const initialData: BookingData = {
   validId: "",
   visitorCategory: "general_public",
   officeId: "",
+  personToMeet: "",
   date: "",
   timeSlot: "",
   duration: 30,
@@ -74,6 +76,7 @@ export default function BookPage() {
           validId: finalData.validId,
           visitorCategory: finalData.visitorCategory,
           officeId: finalData.officeId,
+          personToMeet: finalData.personToMeet,
           date: finalData.date,
           timeSlot: finalData.timeSlot,
           duration: finalData.duration,
@@ -96,6 +99,7 @@ export default function BookPage() {
     const office = offices.find((o) => o.id === formData.officeId);
     const overviewRows = [
       { label: "Office", value: office?.name || formData.officeId },
+      { label: "Person to Meet", value: formData.personToMeet },
       {
         label: "Date",
         value: new Date(formData.date + "T00:00:00").toLocaleDateString("en-US", {
@@ -170,7 +174,7 @@ export default function BookPage() {
 
       <header className="bg-white border-b border-gray-100 py-5 overflow-hidden">
         <div className="container mx-auto px-4 flex items-center justify-center">
-          <img src="/usls-oas.png" alt="USLS OAS" className="h-16 sm:h-20 w-auto" />
+          <img src="/usls-oas.png" alt="USLS OASYS" className="h-16 sm:h-20 w-auto" />
         </div>
       </header>
 
@@ -224,13 +228,14 @@ export default function BookPage() {
       <footer className="border-t border-gray-200 bg-white py-6">
         <div className="container mx-auto px-4 text-center text-xs text-gray-400">
           <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 mb-3">
+            <a href="/offices" className="text-gray-500 hover:text-primary hover:underline">University Offices</a>
             <a href="/privacy" className="text-gray-500 hover:text-primary hover:underline">Privacy Policy</a>
             <a href="/terms" className="text-gray-500 hover:text-primary hover:underline">Terms of Service</a>
             <a href="/consent" className="text-gray-500 hover:text-primary hover:underline">Consent to Forms</a>
             <a href="/cookies" className="text-gray-500 hover:text-primary hover:underline">Cookie Policy</a>
           </nav>
           <div className="space-y-0.5">
-            <p>&copy; {year} OAS &mdash; Online Appointment System</p>
+            <p>&copy; {year} OASYS &mdash; Online Appointment System</p>
             <p><a href="https://www.usls.edu.ph/cmc" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Center for Marketing and Communications</a></p>
             <p><a href="https://www.usls.edu.ph" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">University of St. La Salle</a></p>
           </div>

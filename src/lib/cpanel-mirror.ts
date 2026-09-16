@@ -8,6 +8,7 @@ export interface CpanelAppointment {
   valid_id: string | null;
   visitor_category: string;
   purpose_of_visit: string | null;
+  person_to_meet: string | null;
   office_id: string;
   office_name: string | null;
   date: string;
@@ -30,6 +31,7 @@ export function buildCpanelAppointment(fields: Partial<CpanelAppointment> & Pick
     valid_id: null,
     visitor_category: "general_public",
     purpose_of_visit: null,
+    person_to_meet: null,
     office_name: null,
     qr_token: null,
     qr_used_at: null,
@@ -49,6 +51,7 @@ export function fromAppointmentRow(
     valid_id?: string | null;
     visitor_category?: string | null;
     purpose_of_visit?: string | null;
+    person_to_meet?: string | null;
     office_id: string;
     date: string;
     time_slot: string;
@@ -73,6 +76,7 @@ export function fromAppointmentRow(
     valid_id: row.valid_id ?? null,
     visitor_category: row.visitor_category || "general_public",
     purpose_of_visit: row.purpose_of_visit ?? null,
+    person_to_meet: row.person_to_meet ?? null,
     office_id: row.office_id,
     office_name: row.offices?.name ?? null,
     date: row.date,
@@ -96,22 +100,22 @@ export async function mirrorAppointmentToCpanel(apt: CpanelAppointment): Promise
     await pool.execute(
       `INSERT INTO appointments
         (id, full_name, phone, email, valid_id, visitor_category, purpose_of_visit,
-         office_id, office_name, date, time_slot, duration, status, qr_token,
-         qr_used_at, scanned_at, decline_reason, archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         person_to_meet, office_id, office_name, date, time_slot, duration, status,
+         qr_token, qr_used_at, scanned_at, decline_reason, archived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          full_name=VALUES(full_name), phone=VALUES(phone), email=VALUES(email),
          valid_id=VALUES(valid_id), visitor_category=VALUES(visitor_category),
-         purpose_of_visit=VALUES(purpose_of_visit), office_id=VALUES(office_id),
-         office_name=VALUES(office_name), date=VALUES(date), time_slot=VALUES(time_slot),
-         duration=VALUES(duration), status=VALUES(status), qr_token=VALUES(qr_token),
-         qr_used_at=VALUES(qr_used_at), scanned_at=VALUES(scanned_at),
-         decline_reason=VALUES(decline_reason), archived=VALUES(archived),
-         created_at=VALUES(created_at), updated_at=VALUES(updated_at)`,
+         purpose_of_visit=VALUES(purpose_of_visit), person_to_meet=VALUES(person_to_meet),
+         office_id=VALUES(office_id), office_name=VALUES(office_name), date=VALUES(date),
+         time_slot=VALUES(time_slot), duration=VALUES(duration), status=VALUES(status),
+         qr_token=VALUES(qr_token), qr_used_at=VALUES(qr_used_at),
+         scanned_at=VALUES(scanned_at), decline_reason=VALUES(decline_reason),
+         archived=VALUES(archived), created_at=VALUES(created_at), updated_at=VALUES(updated_at)`,
       [
         apt.id, apt.full_name, apt.phone, apt.email, apt.valid_id,
-        apt.visitor_category, apt.purpose_of_visit, apt.office_id, apt.office_name,
-        apt.date, apt.time_slot, apt.duration, apt.status, apt.qr_token,
+        apt.visitor_category, apt.purpose_of_visit, apt.person_to_meet, apt.office_id,
+        apt.office_name, apt.date, apt.time_slot, apt.duration, apt.status, apt.qr_token,
         apt.qr_used_at, apt.scanned_at, apt.decline_reason, apt.archived,
         apt.created_at, apt.updated_at,
       ]

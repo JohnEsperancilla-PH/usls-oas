@@ -43,7 +43,7 @@ export default function AdminLoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-8">
-          <img src="/usls-oas.png" alt="USLS OAS" className="h-24 sm:h-20 w-auto mx-auto mb-4" />
+          <img src="/usls-oas.png" alt="USLS OASYS" className="h-24 sm:h-20 w-auto mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900">Admin Login</h1>
           <p className="text-gray-500 text-sm mt-1">USLS Online Appointment System</p>
         </div>
@@ -91,7 +91,7 @@ export default function AdminLoginPage() {
         </div>
 
         <a href="/" className="block text-center text-sm text-gray-400 hover:text-gray-600 mt-6 transition-colors">
-          ← Back to USLS OAS
+          ← Back to USLS OASYS
         </a>
       </div>
     </div>

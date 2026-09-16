@@ -109,7 +109,7 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
               className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0" />
             <div>
               <span className="text-sm font-medium text-gray-700 leading-snug">
-                I consent to the collection, use, and storage of my personal data (name, contact details, valid ID type, and appointment information) for the purpose of processing my appointment request and verifying my identity at the campus gate, in accordance with RA 10173 (Data Privacy Act of 2012) and the USLS OAS Privacy Policy.
+                I consent to the collection, use, and storage of my personal data (name, contact details, valid ID type, and appointment information) for the purpose of processing my appointment request and verifying my identity at the campus gate, in accordance with RA 10173 (Data Privacy Act of 2012) and the USLS OASYS Privacy Policy.
               </span>
               <p className="text-xs text-gray-400 mt-0.5 leading-snug">
                 Learn more in our <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Privacy Policy</a>.

@@ -31,7 +31,7 @@ function renderPage({ stage, action, appointment, message, baseUrl }: PageOption
 
   if (stage === "success") {
     return new Response(
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OAS — Done</title>
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OASYS — Done</title>
 <script>try{window.close();}catch(e){}</script></head>
 <body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <div style="max-width:440px;margin:24px auto;background:#fff;border-radius:12px;padding:32px 28px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
@@ -58,11 +58,11 @@ function renderPage({ stage, action, appointment, message, baseUrl }: PageOption
     `;
   }
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OAS — ${escapeHtml(title)}</title></head>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OASYS — ${escapeHtml(title)}</title>></head>
 <body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <div style="max-width:520px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
     <div style="background:${accent};padding:32px 24px;text-align:center;">
-      <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:0.5px;">USLS OAS</div>
+      <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:0.5px;">USLS OASYS</div>
       <div style="color:rgba(255,255,255,0.85);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-top:2px;">Online Appointment System</div>
     </div>
     <div style="padding:32px 28px;color:#333;line-height:1.6;font-size:15px;">
@@ -71,7 +71,7 @@ function renderPage({ stage, action, appointment, message, baseUrl }: PageOption
       ${body}
     </div>
     <div style="padding:18px 28px;text-align:center;color:#999;font-size:11px;border-top:1px solid #eee;background:#fafafa;">
-      &copy; ${new Date().getFullYear()} OAS &mdash; Online Appointment System<br/>
+      &copy; ${new Date().getFullYear()} OASYS &mdash; Online Appointment System<br/>
       University of St. La Salle
     </div>
   </div>
