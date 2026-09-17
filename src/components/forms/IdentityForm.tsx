@@ -22,6 +22,8 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
   const [formData, setFormData] = useState({ fullName: data.fullName, phone: data.phone, email: data.email });
   const [visitorCategory, setVisitorCategory] = useState(data.visitorCategory || "external");
   const [validId, setValidId] = useState(data.validId || "");
+  const [visitorCount, setVisitorCount] = useState(data.visitorCount || 1);
+  const [additionalVisitors, setAdditionalVisitors] = useState(data.additionalVisitors || []);
   const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -39,6 +41,10 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
     if (!formData.email.trim()) newErrors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Enter a valid email";
     if (!validId) newErrors.validId = "Please select the valid ID you will present at the gate";
+    additionalVisitors.forEach((visitor, index) => {
+      if (!visitor.fullName.trim()) newErrors[`visitor-${index}-name`] = "Name is required";
+      if (!visitor.validId) newErrors[`visitor-${index}-id`] = "Please select a valid ID";
+    });
     if (!consent) newErrors.consent = "You must consent to data collection to proceed";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -46,7 +52,18 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) onNext({ ...formData, visitorCategory, validId });
+    if (validate()) onNext({ ...formData, visitorCategory, validId, visitorCount, additionalVisitors });
+  };
+
+  const changeVisitorCount = (nextCount: number) => {
+    const count = Math.min(10, Math.max(1, nextCount));
+    setVisitorCount(count);
+    setAdditionalVisitors((previous) => Array.from({ length: count - 1 }, (_, index) => previous[index] || { fullName: "", validId: "" }));
+  };
+
+  const updateAdditionalVisitor = (index: number, field: "fullName" | "validId", value: string) => {
+    setAdditionalVisitors((previous) => previous.map((visitor, visitorIndex) => visitorIndex === index ? { ...visitor, [field]: value } : visitor));
+    setErrors((previous) => ({ ...previous, [`visitor-${index}-${field === "fullName" ? "name" : "id"}`]: "" }));
   };
 
   return (
@@ -102,6 +119,36 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
           </p>
           {errors.validId && <p className="error-text mt-1">{errors.validId}</p>}
         </div>
+
+        <div className="border-t border-gray-100 pt-5">
+          <label className="label" htmlFor="visitorCount">Number of Visitors</label>
+          <p className="text-xs text-gray-400 mt-1">The person booking is included. Everyone must enter together using the booking person&apos;s gate entry code.</p>
+          <div className="mt-2 flex items-center gap-3">
+            <button type="button" onClick={() => changeVisitorCount(visitorCount - 1)} disabled={visitorCount <= 1} aria-label="Decrease number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">-</button>
+            <input id="visitorCount" type="number" min={1} max={10} value={visitorCount} onChange={(e) => changeVisitorCount(Number(e.target.value))} className="input w-20 text-center" />
+            <button type="button" onClick={() => changeVisitorCount(visitorCount + 1)} disabled={visitorCount >= 10} aria-label="Increase number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">+</button>
+          </div>
+        </div>
+
+        {additionalVisitors.length > 0 && (
+          <div className="space-y-4 border border-primary/10 bg-primary/5 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-900">Additional Visitors</h3>
+            {additionalVisitors.map((visitor, index) => (
+              <div key={index} className="border-t border-primary/10 pt-4 first:border-0 first:pt-0">
+                <p className="text-xs font-semibold text-gray-500 mb-2">Visitor {index + 2}</p>
+                <label htmlFor={`visitor-${index}-name`} className="sr-only">Visitor {index + 2} full name</label>
+                <input id={`visitor-${index}-name`} type="text" value={visitor.fullName} onChange={(e) => updateAdditionalVisitor(index, "fullName", e.target.value)} className={`input ${errors[`visitor-${index}-name`] ? "input-error" : ""}`} placeholder="Full name" maxLength={100} />
+                {errors[`visitor-${index}-name`] && <p className="error-text">{errors[`visitor-${index}-name`]}</p>}
+                <label htmlFor={`visitor-${index}-id`} className="sr-only">Visitor {index + 2} valid ID</label>
+                <select id={`visitor-${index}-id`} value={visitor.validId} onChange={(e) => updateAdditionalVisitor(index, "validId", e.target.value)} className={`input mt-2 ${errors[`visitor-${index}-id`] ? "input-error" : ""}`}>
+                  <option value="">Select a government-issued ID...</option>
+                  {VALID_IDS.map((id) => <option key={id} value={id}>{id}</option>)}
+                </select>
+                {errors[`visitor-${index}-id`] && <p className="error-text">{errors[`visitor-${index}-id`]}</p>}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Consent */}
         <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/50">

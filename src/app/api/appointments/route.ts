@@ -49,6 +49,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Purpose of visit is required" }, { status: 400 });
     }
 
+    const visitorCount = Number(body.visitorCount || 1);
+    const additionalVisitors = Array.isArray(body.additionalVisitors) ? body.additionalVisitors : [];
+    if (!Number.isInteger(visitorCount) || visitorCount < 1 || visitorCount > 10 || additionalVisitors.length !== visitorCount - 1) {
+      return NextResponse.json({ message: "Visitor count and visitor details are invalid" }, { status: 400 });
+    }
+    for (const visitor of additionalVisitors) {
+      if (!visitor || typeof visitor.fullName !== "string" || !visitor.fullName.trim() || visitor.fullName.length > 100 || !isValidId(visitor.validId)) {
+        return NextResponse.json({ message: "Each additional visitor must have a name and valid government-issued ID" }, { status: 400 });
+      }
+    }
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(body.email)) {
@@ -161,7 +172,7 @@ export async function POST(request: Request) {
 
     const { data: conflictingAppointments, error: conflictError } = await supabase
       .from("appointments")
-      .select("id, time_slot, duration")
+      .select("id, time_slot, duration, visitor_count")
       .eq("office_id", body.officeId)
       .eq("date", body.date)
       .in("time_slot", Array.from(slotsToQuery))
@@ -191,7 +202,7 @@ export async function POST(request: Request) {
 
     for (const slot of slotsToCheck) {
       const booked = slotCounts[slot] || 0;
-      if (booked >= office.capacity_per_slot) {
+      if (booked + 1 > office.capacity_per_slot) {
         return NextResponse.json(
           { message: "This time slot is fully booked. Please select another time." },
           { status: 409 }
@@ -215,6 +226,7 @@ export async function POST(request: Request) {
       date: body.date,
       time_slot: body.timeSlot,
       duration: body.duration,
+      visitor_count: visitorCount,
       status: "pending",
       qr_token: null,
       qr_used_at: null,
@@ -240,6 +252,7 @@ export async function POST(request: Request) {
           date: body.date,
           time_slot: body.timeSlot,
           duration: body.duration,
+          visitor_count: visitorCount,
           status: "pending",
           archived: false,
           created_at: nowIso,
@@ -258,6 +271,22 @@ export async function POST(request: Request) {
       );
     }
 
+    const visitorRows = [
+      { appointment_id: appointment.id, visitor_number: 1, full_name: body.fullName, valid_id: body.validId, is_booker: true },
+      ...additionalVisitors.map((visitor: { fullName: string; validId: string }, index: number) => ({
+        appointment_id: appointment.id,
+        visitor_number: index + 2,
+        full_name: visitor.fullName.trim(),
+        valid_id: visitor.validId,
+        is_booker: false,
+      })),
+    ];
+    const { error: visitorsError } = await supabase.from("appointment_visitors").insert(visitorRows);
+    if (visitorsError) {
+      console.error(visitorsError);
+      return NextResponse.json({ message: "Failed to save visitor details" }, { status: 500 });
+    }
+
     // Send confirmation email to visitor
     let confirmationResult = { success: false };
     if (await isNotificationEnabled("confirmation")) {
@@ -268,7 +297,8 @@ export async function POST(request: Request) {
         office.name,
         body.validId,
         office.contact_email || office.email,
-        office.contact_phone
+        office.contact_phone,
+        visitorRows.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
       );
 
       confirmationResult = await sendMail({
@@ -318,7 +348,8 @@ export async function POST(request: Request) {
             {
               approveUrl: makeActionUrl(admin.email, "approve"),
               declineUrl: makeActionUrl(admin.email, "decline"),
-            }
+            },
+            visitorRows.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
           );
 
           const adminResult = await sendMail({
@@ -349,7 +380,8 @@ export async function POST(request: Request) {
           {
             approveUrl: makeActionUrl(office.email, "approve"),
             declineUrl: makeActionUrl(office.email, "decline"),
-          }
+          },
+          visitorRows.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
         );
         await sendMail({
           to: office.email,

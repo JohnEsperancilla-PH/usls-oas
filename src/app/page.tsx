@@ -5,6 +5,7 @@ import { IdentityForm } from "@/components/forms/IdentityForm";
 import { AppointmentForm } from "@/components/forms/AppointmentForm";
 import WelcomeModal from "@/components/WelcomeModal";
 import { formatTimeSlot } from "@/lib/time";
+import { ENTRY_TIMING_NOTE } from "@/lib/time";
 import type { Office } from "@/types/database";
 
 export interface BookingData {
@@ -19,6 +20,8 @@ export interface BookingData {
   timeSlot: string;
   duration: 30 | 60;
   purposeOfVisit: string;
+  visitorCount: number;
+  additionalVisitors: { fullName: string; validId: string }[];
 }
 
 const initialData: BookingData = {
@@ -33,6 +36,8 @@ const initialData: BookingData = {
   timeSlot: "",
   duration: 30,
   purposeOfVisit: "",
+  visitorCount: 1,
+  additionalVisitors: [],
 };
 
 export default function BookPage() {
@@ -81,6 +86,8 @@ export default function BookPage() {
           timeSlot: finalData.timeSlot,
           duration: finalData.duration,
           purposeOfVisit: finalData.purposeOfVisit,
+          visitorCount: finalData.visitorCount,
+          additionalVisitors: finalData.additionalVisitors,
         }),
       });
       if (!response.ok) {
@@ -112,6 +119,7 @@ export default function BookPage() {
       { label: "Time", value: formatTimeSlot(formData.timeSlot) },
       { label: "Duration", value: `${formData.duration} minutes` },
       { label: "Visitor", value: formData.fullName },
+      { label: "Number of Visitors", value: String(formData.visitorCount) },
     ];
     const officeEmail = office?.contact_email || office?.email;
 
@@ -148,6 +156,11 @@ export default function BookPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mb-6">
+            <h2 className="text-sm font-semibold text-amber-900">Gate 2 arrival requirements</h2>
+            <p className="text-xs text-amber-800 mt-1 leading-relaxed">{ENTRY_TIMING_NOTE}</p>
           </div>
 
           <p className="text-sm text-gray-500 mb-8">

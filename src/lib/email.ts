@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/server";
-import { formatTimeSlot } from "@/lib/time";
+import { ENTRY_TIMING_NOTE, formatTimeSlot } from "@/lib/time";
 
 export function escapeHtml(str: string): string {
   return str
@@ -145,7 +145,26 @@ function statusBadge(status: string, color: string) {
   return `<span style="display:inline-block;background:${color}15;color:${color};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">${status}</span>`;
 }
 
-export async function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string, validId: string, contactEmail?: string | null, contactPhone?: string | null) {
+export interface EmailVisitor {
+  fullName: string;
+  validId: string;
+  isBooker?: boolean;
+}
+
+function visitorDetails(visitors: EmailVisitor[] = []) {
+  if (visitors.length <= 1) return "";
+  return `<div style="margin:0 0 20px;padding:16px;background:#fff7ed;border-radius:8px;border:1px solid #fed7aa;font-size:13px;color:#555;line-height:1.8;">
+    <strong style="color:#9a3412;">Group entry note</strong><br/>
+    All ${visitors.length} visitors must enter together. The booking person will receive and present the single gate entry code.<br/>
+    ${visitors.map((visitor, index) => `${index + 1}. <strong>${escapeHtml(visitor.fullName)}</strong> &mdash; ${escapeHtml(visitor.validId)}`).join("<br/>")}
+  </div>`;
+}
+
+function entryTimingDetails() {
+  return `<div style="margin:0 0 20px;padding:16px;background:#fff7ed;border-radius:8px;border:1px solid #fed7aa;font-size:13px;color:#555;line-height:1.8;"><strong style="color:#9a3412;">Gate 2 timing requirements</strong><br/>${ENTRY_TIMING_NOTE}</div>`;
+}
+
+export async function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string, validId: string, contactEmail?: string | null, contactPhone?: string | null, visitors?: EmailVisitor[]) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const contactLines: string[] = [];
   if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
@@ -163,6 +182,8 @@ export async function generateBookingConfirmationEmail(name: string, date: strin
       ${detailRow("Time", formatTimeSlot(time))}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Pending", "#b45309")}</td></tr>
     </table>
+    ${visitorDetails(visitors)}
+    ${entryTimingDetails()}
     <div style="margin-bottom:20px;padding:16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">
       <strong style="color:#006633;">Gate Entry Instructions</strong><br/>
       On the day of your appointment, entry is accepted only at <strong>USLS Gate 2</strong>. Please present the <strong>${escapeHtml(validId)}</strong> you selected at the Guard to receive your visitor&apos;s pass.
@@ -180,6 +201,7 @@ export async function generateAdminAlertEmail(
   _appointmentId: string,
   baseUrl?: string,
   actionLinks?: { approveUrl?: string; declineUrl?: string }
+  , visitors?: EmailVisitor[]
 ) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const rootUrl = baseUrl || process.env.NEXT_PUBLIC_APP_URL || "https://oasys.usls.edu.ph";
@@ -212,7 +234,9 @@ export async function generateAdminAlertEmail(
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
       ${detailRow("Time", formatTimeSlot(time))}
+      ${visitors && visitors.length > 1 ? detailRow("Number of Visitors", String(visitors.length)) : ""}
     </table>
+    ${visitorDetails(visitors)}
     ${actionBlock}
     <p style="color:#999;font-size:12px;margin:0;">You are receiving this because you are an administrator for this office.</p>
   `);
@@ -227,7 +251,8 @@ export async function generateApprovalEmail(
   validId: string,
   referenceNumber: string,
   contactEmail?: string | null,
-  contactPhone?: string | null
+  contactPhone?: string | null,
+  visitors?: EmailVisitor[]
 ) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const contactLines: string[] = [];
@@ -247,6 +272,8 @@ export async function generateApprovalEmail(
       ${detailRow("Valid ID to Present", validId)}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Approved", "#006633")}</td></tr>
     </table>
+    ${visitorDetails(visitors)}
+    ${entryTimingDetails()}
     <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
       <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
       <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
@@ -261,7 +288,7 @@ export async function generateApprovalEmail(
   return { html: result.html, attachments: result.attachments };
 }
 
-export async function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string, contactEmail?: string | null, contactPhone?: string | null) {
+export async function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string, contactEmail?: string | null, contactPhone?: string | null, visitors?: EmailVisitor[]) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const rootUrl = process.env.NEXT_PUBLIC_APP_URL || "https://oasys.usls.edu.ph";
   const bookingUrl = `${rootUrl}/`;
@@ -289,6 +316,8 @@ export async function generateDeclineEmail(name: string, date: string, time: str
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Declined", "#dc2626")}</td></tr>
       ${reason ? detailRow("Reason", reason) : ""}
     </table>
+    ${visitorDetails(visitors)}
+    ${entryTimingDetails()}
     <p style="color:#555;margin:0 0 4px;text-align:center;">Submit a new appointment or contact <strong>${officeContact}</strong>.</p>
     <p style="text-align:center;margin:16px 0 0;">
       <a href="${bookingUrl}" style="display:inline-block;background:#006633;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Submit a New Appointment</a>

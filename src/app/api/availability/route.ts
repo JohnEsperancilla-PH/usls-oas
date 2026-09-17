@@ -46,7 +46,6 @@ function buildSlotCounts(appointments: { time_slot: string; duration: number }[]
   }
   return counts;
 }
-
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

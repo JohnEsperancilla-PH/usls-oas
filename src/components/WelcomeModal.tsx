@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ENTRY_TIMING_NOTE } from "@/lib/time";
 
 const STEPS = [
   {
@@ -13,7 +14,7 @@ const STEPS = [
   },
   {
     title: "Enter at the gate",
-    body: "Present your reference number and the valid ID you selected at USLS Gate 2 on the day of your visit.",
+    body: `${ENTRY_TIMING_NOTE} Present your reference number and the valid ID you selected at USLS Gate 2.`,
   },
 ];
 

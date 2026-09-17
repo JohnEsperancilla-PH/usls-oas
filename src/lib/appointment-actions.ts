@@ -3,6 +3,7 @@ import { sendMail, generateApprovalEmail, generateDeclineEmail, isNotificationEn
 import { createCalendarEvent } from "@/lib/calendar";
 import { logAudit } from "@/lib/rbac";
 import type { Appointment, Office } from "@/types/database";
+import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 
 export interface AppointmentWithOffice extends Appointment {
   offices?: Office | null;
@@ -12,6 +13,7 @@ function buildCalendarDescription(appointment: AppointmentWithOffice, referenceN
   const officeName = appointment.offices?.name || "Unknown Office";
   const officeContact = appointment.offices?.contact_email || appointment.offices?.email || "Not provided";
   const phone = appointment.offices?.contact_phone || "Not provided";
+  const visitorLines = (appointment.visitors || []).map((visitor) => `${visitor.full_name} (${visitor.valid_id})`);
 
   return [
     "USLS OASYS Appointment",
@@ -21,6 +23,8 @@ function buildCalendarDescription(appointment: AppointmentWithOffice, referenceN
     `Phone: ${appointment.phone}`,
     `Visitor category: ${appointment.visitor_category}`,
     `Valid ID to present: ${appointment.valid_id || "Not provided"}`,
+     `Number of visitors: ${appointment.visitor_count || visitorLines.length || 1}`,
+     visitorLines.length > 1 ? `Additional visitors: ${visitorLines.slice(1).join(", ")}` : "",
     `Person to meet: ${appointment.person_to_meet || "Not provided"}`,
     `Purpose of visit: ${appointment.purpose_of_visit || "Not provided"}`,
     "",
@@ -43,6 +47,8 @@ export async function runPostApprovalTasks(
   adminId: string | null,
   adminEmail: string
 ) {
+  const visitors = appointment.visitors || await getAppointmentVisitors(createServiceClient(), appointment.id);
+  const appointmentWithVisitors = { ...appointment, visitors };
   const startedAt = Date.now();
   let mailResult: { success: boolean; error?: string | null } = { success: false, error: "Notifications disabled" };
   let calendarResult: { id?: string; htmlLink?: string | null; error?: string; skipped: boolean } = { skipped: true };
@@ -56,7 +62,8 @@ export async function runPostApprovalTasks(
       appointment.valid_id || "",
       referenceNumber,
       appointment.offices?.contact_email || appointment.offices?.email,
-      appointment.offices?.contact_phone
+      appointment.offices?.contact_phone,
+      visitors.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
     );
 
     if (await isNotificationEnabled("approval")) {
@@ -86,8 +93,8 @@ export async function runPostApprovalTasks(
     const attendees = [appointment.email];
     if (appointment.offices?.email) attendees.push(appointment.offices.email);
     const event = await createCalendarEvent({
-      title: `Appointment - ${appointment.full_name} (${officeName})`,
-      description: buildCalendarDescription(appointment, referenceNumber),
+      title: `Appointment - ${appointmentWithVisitors.full_name} (${officeName})`,
+      description: buildCalendarDescription(appointmentWithVisitors, referenceNumber),
       location: "University of St. La Salle - Gate 2",
       start,
       end,
@@ -130,6 +137,7 @@ export async function runPostDeclineTasks(
   adminId: string | null,
   adminEmail: string
 ) {
+  const visitors = appointment.visitors || await getAppointmentVisitors(createServiceClient(), appointment.id);
   let emailResult = { success: false };
 
   try {
@@ -140,7 +148,8 @@ export async function runPostDeclineTasks(
       appointment.offices?.name || "Unknown Office",
       reason,
       appointment.offices?.contact_email || appointment.offices?.email,
-      appointment.offices?.contact_phone
+      appointment.offices?.contact_phone,
+      visitors.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
     );
 
     if (await isNotificationEnabled("decline")) {

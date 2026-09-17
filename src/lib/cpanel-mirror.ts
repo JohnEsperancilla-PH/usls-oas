@@ -7,6 +7,7 @@ export interface CpanelAppointment {
   email: string;
   valid_id: string | null;
   visitor_category: string;
+  visitor_count: number;
   purpose_of_visit: string | null;
   person_to_meet: string | null;
   office_id: string;
@@ -31,6 +32,7 @@ export function buildCpanelAppointment(fields: Partial<CpanelAppointment> & Pick
     email: "",
     valid_id: null,
     visitor_category: "external",
+    visitor_count: 1,
     purpose_of_visit: null,
     person_to_meet: null,
     office_name: null,
@@ -52,6 +54,7 @@ export function fromAppointmentRow(
     email: string;
     valid_id?: string | null;
     visitor_category?: string | null;
+    visitor_count?: number | null;
     purpose_of_visit?: string | null;
     person_to_meet?: string | null;
     office_id: string;
@@ -78,6 +81,7 @@ export function fromAppointmentRow(
     email: row.email,
     valid_id: row.valid_id ?? null,
     visitor_category: row.visitor_category || "external",
+    visitor_count: row.visitor_count || 1,
     purpose_of_visit: row.purpose_of_visit ?? null,
     person_to_meet: row.person_to_meet ?? null,
     office_id: row.office_id,
@@ -103,13 +107,13 @@ export async function mirrorAppointmentToCpanel(apt: CpanelAppointment): Promise
     const pool = getMySQLPool();
     await pool.execute(
       `INSERT INTO appointments
-        (id, full_name, phone, email, valid_id, visitor_category, purpose_of_visit,
+        (id, full_name, phone, email, valid_id, visitor_category, visitor_count, purpose_of_visit,
          person_to_meet, office_id, office_name, date, time_slot, duration, status,
          qr_token, qr_used_at, scanned_at, checked_out_at, decline_reason, archived, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          full_name=VALUES(full_name), phone=VALUES(phone), email=VALUES(email),
-         valid_id=VALUES(valid_id), visitor_category=VALUES(visitor_category),
+         valid_id=VALUES(valid_id), visitor_category=VALUES(visitor_category), visitor_count=VALUES(visitor_count),
          purpose_of_visit=VALUES(purpose_of_visit), person_to_meet=VALUES(person_to_meet),
          office_id=VALUES(office_id), office_name=VALUES(office_name), date=VALUES(date),
          time_slot=VALUES(time_slot), duration=VALUES(duration), status=VALUES(status),
@@ -118,7 +122,7 @@ export async function mirrorAppointmentToCpanel(apt: CpanelAppointment): Promise
          archived=VALUES(archived), created_at=VALUES(created_at), updated_at=VALUES(updated_at)`,
       [
         apt.id, apt.full_name, apt.phone, apt.email, apt.valid_id,
-        apt.visitor_category, apt.purpose_of_visit, apt.person_to_meet, apt.office_id,
+        apt.visitor_category, apt.visitor_count, apt.purpose_of_visit, apt.person_to_meet, apt.office_id,
         apt.office_name, apt.date, apt.time_slot, apt.duration, apt.status, apt.qr_token,
         apt.qr_used_at, apt.scanned_at, apt.checked_out_at, apt.decline_reason, apt.archived,
         apt.created_at, apt.updated_at,

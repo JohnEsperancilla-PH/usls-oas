@@ -4,16 +4,17 @@ import { normalizeReference } from "@/lib/reference";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import { getAuthAdmin, requireEntryUser, logAudit } from "@/lib/rbac";
-import { getManilaToday } from "@/lib/time";
+import { getEntryTimingStatus, getManilaToday } from "@/lib/time";
 import type { Appointment } from "@/types/database";
+import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 
-type ScanReason = "preview" | "not_found" | "pending" | "cancelled" | "expired" | "wrong_date" | "already_used" | "duplicate_scan" | "invalid_id" | "checked_out" | "entry_denied";
+type ScanReason = "preview" | "not_found" | "pending" | "cancelled" | "expired" | "wrong_date" | "already_used" | "duplicate_scan" | "invalid_id" | "checked_out" | "entry_denied" | "too_early" | "too_late";
 
 function scanFailure(message: string, reason: ScanReason, appointment?: Record<string, unknown>, status = 200) {
   return NextResponse.json({ success: false, reason, message, ...(appointment ? { appointment } : {}) }, { status });
 }
 
-function appointmentSummary(appointment: Appointment & { offices?: { name?: string | null } | null }) {
+function appointmentSummary(appointment: Appointment & { offices?: { name?: string | null } | null }, visitors: Awaited<ReturnType<typeof getAppointmentVisitors>> = []) {
   return {
     id: appointment.id,
     fullName: appointment.full_name,
@@ -27,6 +28,8 @@ function appointmentSummary(appointment: Appointment & { offices?: { name?: stri
     timeSlot: appointment.time_slot,
     duration: appointment.duration,
     validId: appointment.valid_id || "",
+    visitorCount: appointment.visitor_count || 1,
+    visitors: visitors.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker })),
     referenceNumber: appointment.qr_token || "",
     status: appointment.status,
     scannedAt: appointment.scanned_at,
@@ -56,10 +59,10 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     date: today,
-    visitors: (data || []).map((appointment) => ({
-      ...appointmentSummary(appointment),
+    visitors: await Promise.all((data || []).map(async (appointment) => ({
+      ...appointmentSummary(appointment, await getAppointmentVisitors(supabase, appointment.id)),
       status: appointment.status,
-    })),
+    }))),
   });
 }
 
@@ -98,7 +101,7 @@ export async function POST(request: Request) {
       return scanFailure("Reference number not found", "not_found", undefined, 404);
     }
 
-    const summary = appointmentSummary(appointment);
+    const summary = appointmentSummary(appointment, await getAppointmentVisitors(supabase, appointment.id));
 
     if (action === "deny_entry") {
       if (appointment.status !== "approved") return scanFailure("Only an approved appointment can be denied at the gate", "already_used", summary, 409);
@@ -164,6 +167,27 @@ export async function POST(request: Request) {
 
     if (appointment.qr_used_at) {
       return scanFailure("Reference number has already been used", "already_used", summary, 409);
+    }
+
+    if (action === "preview" || action === "allow_entry") {
+      const timingStatus = getEntryTimingStatus(appointment.date, appointment.time_slot);
+      if (timingStatus === "too_early") {
+        return scanFailure("Entry is allowed only from 30 minutes before the scheduled time. Please arrive at Gate 2 by 20 minutes before the appointment for security screening.", "too_early", summary, 409);
+      }
+      if (timingStatus === "too_late") {
+        const expiredAt = new Date().toISOString();
+        const { data: expired } = await supabase
+          .from("appointments")
+          .update({ status: "expired", updated_at: expiredAt })
+          .eq("id", appointment.id)
+          .eq("status", "approved")
+          .select()
+          .maybeSingle();
+        if (expired) {
+          await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, { status: "expired", updated_at: expiredAt }));
+        }
+        return scanFailure("This gate entry code is void because the visitor arrived more than 15 minutes after the scheduled time. Please reapply for a new appointment.", "too_late", { ...summary, status: "expired" }, 409);
+      }
     }
 
     if (action === "preview") {
@@ -250,6 +274,8 @@ export async function POST(request: Request) {
         timeSlot: appointment.time_slot,
         duration: appointment.duration,
         validId: appointment.valid_id || "",
+        visitorCount: appointment.visitor_count || 1,
+        visitors: summary.visitors,
         referenceNumber: reference,
         status: "completed",
         scannedAt: scanTime,

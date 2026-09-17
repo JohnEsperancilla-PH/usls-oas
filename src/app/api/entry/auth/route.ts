@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   if (!admin) return NextResponse.json({ authenticated: false, message: error }, { status });
   const access = requireEntryUser(admin);
   if (!access.ok) return NextResponse.json({ authenticated: false, message: access.error }, { status: access.status });
-  return NextResponse.json({ authenticated: true });
+  return NextResponse.json({ authenticated: true, officerName: admin.name });
 }
 
 export async function POST(request: Request) {
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const serviceClient = createServiceClient();
     const { data: account } = await serviceClient
       .from("admins")
-      .select("email, role")
+      .select("name, email, role")
       .eq("employee_id", employeeId)
       .eq("role", "gate_user")
       .maybeSingle();
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const { data, error } = await authClient.auth.signInWithPassword({ email: getGateAuthEmail(employeeId), password: body.password });
     if (error || !data.session) return NextResponse.json({ authenticated: false, message: "Invalid employee ID or password" }, { status: 401 });
 
-    return NextResponse.json({ authenticated: true, session: data.session });
+    return NextResponse.json({ authenticated: true, session: data.session, officerName: account.name });
   } catch {
     return NextResponse.json({ authenticated: false, message: "Invalid request" }, { status: 400 });
   }

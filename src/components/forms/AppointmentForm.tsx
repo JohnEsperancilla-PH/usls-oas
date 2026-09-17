@@ -52,6 +52,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   const [selectedTime, setSelectedTime] = useState(data.timeSlot);
   const [duration, setDuration] = useState<30 | 60>(data.duration);
   const [purposeOfVisit, setPurposeOfVisit] = useState(data.purposeOfVisit || "");
+  const visitorCount = data.visitorCount || 1;
 
   const [calendarMonth, setCalendarMonth] = useState(() => {
     if (data.date) {
@@ -94,18 +95,26 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
       setMonthAvailability(d.availability || {});
     } catch { /* */ }
     finally { setLoadingMonth(false); }
-  }, []);
+  }, [visitorCount]);
 
   const fetchDaySlots = useCallback(async (officeId: string, date: string) => {
     setLoadingDay(true);
     try {
       const res = await fetch(`/api/availability?officeId=${officeId}&date=${date}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        setDaySlots([]);
+        setErrors((previous) => ({ ...previous, timeSlot: "Unable to load time slots. Please try again." }));
+        return;
+      }
       const d = await res.json();
       setDaySlots(d.slots || []);
-    } catch { /* */ }
+      setErrors((previous) => ({ ...previous, timeSlot: "" }));
+    } catch {
+      setDaySlots([]);
+      setErrors((previous) => ({ ...previous, timeSlot: "Unable to load time slots. Please try again." }));
+    }
     finally { setLoadingDay(false); }
-  }, []);
+  }, [visitorCount]);
 
   useEffect(() => {
     if (selectedOfficeId) {
@@ -483,6 +492,10 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                 </div>
               ) : daySlots.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-400">No time slots available</div>
+              ) : !daySlots.some((slot) => slot.available) ? (
+                <div className="text-center py-8 px-4 text-sm text-gray-500 border border-amber-100 bg-amber-50 rounded-lg">
+                  No available time slots for this date. All {visitorCount} visitors will be included under one appointment slot.
+                </div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {daySlots.map((slot) => (

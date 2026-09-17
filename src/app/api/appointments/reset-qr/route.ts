@@ -6,6 +6,7 @@ import { createUniqueReference } from "@/lib/reference";
 import { sendMail, generateApprovalEmail, isNotificationEnabled } from "@/lib/email";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import type { AppointmentWithOffice } from "@/lib/appointment-actions";
+import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 
 export async function POST(request: Request) {
   try {
@@ -96,6 +97,7 @@ async function runPostResetTasks(
   adminId: string,
   adminEmail: string
 ) {
+  const visitors = appointment.visitors || await getAppointmentVisitors(createServiceClient(), appointment.id);
   let mailResult: { success: boolean; error?: string | null } = { success: false, error: "Notifications disabled" };
 
   try {
@@ -107,7 +109,8 @@ async function runPostResetTasks(
       appointment.valid_id || "",
       referenceNumber,
       appointment.offices?.contact_email || appointment.offices?.email,
-      appointment.offices?.contact_phone
+      appointment.offices?.contact_phone,
+      visitors.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
     );
 
     if (await isNotificationEnabled("qr_resend")) {

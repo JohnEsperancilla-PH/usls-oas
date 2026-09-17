@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
+import { attachAppointmentVisitors } from "@/lib/appointment-visitors";
 
 export async function GET(request: Request) {
   try {
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Failed to fetch appointments" }, { status: 500 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(await attachAppointmentVisitors(supabase, data || []));
   } catch (error) {
     return handleRouteError(error);
   }

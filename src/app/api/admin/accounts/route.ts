@@ -101,6 +101,7 @@ export async function POST(request: Request) {
     }
 
     const { error: insertError } = await supabase.from("admins").insert({
+      id: authData.user.id,
       name,
       email: authEmail,
       employee_id: role === "gate_user" ? normalizedEmployeeId : null,
@@ -183,7 +184,21 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ message: "Failed to delete admin record" }, { status: 500 });
     }
 
-    await supabase.auth.admin.deleteUser(targetAdminId);
+    const { data: authUsers, error: listUsersError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+    if (listUsersError) {
+      return NextResponse.json({ message: "Failed to fetch auth users" }, { status: 500 });
+    }
+
+    const authUser = authUsers.users.find(
+      (user) => user.email?.toLowerCase() === targetAdmin.email.toLowerCase()
+    );
+
+    if (authUser) {
+      const { error: deleteUserError } = await supabase.auth.admin.deleteUser(authUser.id);
+      if (deleteUserError) {
+        return NextResponse.json({ message: "Failed to delete auth user" }, { status: 500 });
+      }
+    }
 
     await logAudit(admin.id, admin.email, "delete_account", {
       target_email: targetAdmin.email,

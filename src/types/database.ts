@@ -39,9 +39,21 @@ export interface Appointment {
   checked_out_at: string | null;
   decline_reason: string | null;
   archived: boolean;
+  visitor_count: number;
   created_at: string;
   updated_at: string;
   office?: Office;
+  visitors?: AppointmentVisitor[];
+}
+
+export interface AppointmentVisitor {
+  id: string;
+  appointment_id: string;
+  visitor_number: number;
+  full_name: string;
+  valid_id: string;
+  is_booker: boolean;
+  created_at: string;
 }
 
 export interface Admin {
@@ -66,7 +78,7 @@ export interface EmailLog {
 
 export interface AuditLog {
   id: string;
-  admin_id: string;
+  admin_id: string | null;
   admin_email: string;
   action: AuditAction;
   appointment_id: string | null;
@@ -106,6 +118,11 @@ export interface Database {
         Row: Appointment;
         Insert: Omit<Appointment, "id" | "created_at" | "updated_at" | "checked_out_at">;
         Update: Partial<Omit<Appointment, "id" | "created_at" | "updated_at">>;
+      };
+      appointment_visitors: {
+        Row: AppointmentVisitor;
+        Insert: Omit<AppointmentVisitor, "id" | "created_at">;
+        Update: Partial<Omit<AppointmentVisitor, "id" | "created_at" | "appointment_id">>;
       };
       admins: {
         Row: Admin;

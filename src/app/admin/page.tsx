@@ -212,6 +212,7 @@ export default function AdminDashboardPage() {
                   <td className="px-5 py-3.5">
                     <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
                     <div className="text-xs text-gray-400">{a.email}</div>
+                    {a.visitor_count > 1 && <div className="text-xs text-primary">{a.visitor_count} visitors</div>}
                   </td>
                   <td className="px-5 py-3.5 text-sm text-gray-600">{getOfficeName(a.office_id)}</td>
                   <td className="px-5 py-3.5">
@@ -253,6 +254,7 @@ export default function AdminDashboardPage() {
                 <div>
                   <div className="font-medium text-gray-900">{a.full_name}</div>
                   <div className="text-xs text-gray-400">{a.email}</div>
+                  {a.visitor_count > 1 && <div className="text-xs text-primary">{a.visitor_count} visitors</div>}
                 </div>
                 <span className={getStatusBadge(a.status)}>{a.status}</span>
               </div>
@@ -607,6 +609,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                           <td className="px-4 py-3">
                             <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
                             <div className="text-xs text-gray-400">{a.email}</div>
+                            {a.visitor_count > 1 && <div className="text-xs text-primary">{a.visitor_count} visitors</div>}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600 capitalize">{a.visitor_category.replace(/_/g, " ")}</td>
                           <td className="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate">{a.purpose_of_visit || "—"}</td>
@@ -644,6 +647,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                         <div>
                           <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
                           <div className="text-xs text-gray-400">{a.email} · {formatTimeSlot(a.time_slot)} · {a.duration}m</div>
+                          {a.visitor_count > 1 && <div className="text-xs text-primary mt-1">{a.visitor_count} visitors entering together</div>}
                         </div>
                         <span className={color(a.status)}>{a.status}</span>
                       </div>
@@ -780,6 +784,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
               ["Person to Meet", appointment.person_to_meet || "—"],
               ["Date", new Date(appointment.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
               ["Time", `${formatTimeSlot(appointment.time_slot)} (${appointment.duration} min)`],
+              ["Number of Visitors", String(appointment.visitor_count || appointment.visitors?.length || 1)],
             ].map(([l, v]) => (
               <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
             ))}
@@ -794,6 +799,20 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onResetQR, on
             <div className="text-xs text-gray-400 mb-1.5">Valid ID to Present</div>
             <div className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-lg p-3">{appointment.valid_id || "—"}</div>
           </div>
+          {appointment.visitors && appointment.visitors.length > 1 && (
+            <div>
+              <div className="text-xs text-gray-400 mb-1.5">Visitors entering together</div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                {appointment.visitors.map((visitor) => (
+                  <div key={visitor.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-gray-900">{visitor.full_name}{visitor.is_booker ? " (booker)" : ""}</span>
+                    <span className="text-gray-600 text-right">{visitor.valid_id}</span>
+                  </div>
+                ))}
+                <p className="text-xs text-amber-700 pt-1">All visitors must enter together using the booking person&apos;s reference number.</p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">Status:</span>
             <span className={getStatusBadge(appointment.status)}>{appointment.status}</span>
