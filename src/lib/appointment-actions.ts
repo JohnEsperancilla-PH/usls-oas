@@ -33,7 +33,7 @@ export async function runPostApprovalTasks(
     if (await isNotificationEnabled("approval")) {
       mailResult = await sendMail({
         to: appointment.email,
-        subject: "Appointment Approved - USLS OASYS",
+        subject: `Appointment Approved - ${appointment.full_name} - ${appointment.offices?.name || "Unknown Office"} - USLS OASYS`,
         html: emailResult.html,
         attachments: emailResult.attachments,
       });
@@ -116,7 +116,7 @@ export async function runPostDeclineTasks(
     if (await isNotificationEnabled("decline")) {
       emailResult = await sendMail({
         to: appointment.email,
-        subject: "Appointment Declined - USLS OASYS",
+        subject: `Appointment Declined - ${appointment.full_name} - ${appointment.offices?.name || "Unknown Office"} - USLS OASYS`,
         html: emailContent.html,
         attachments: emailContent.attachments,
       });

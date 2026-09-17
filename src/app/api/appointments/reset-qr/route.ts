@@ -113,7 +113,7 @@ async function runPostResetTasks(
     if (await isNotificationEnabled("qr_resend")) {
       mailResult = await sendMail({
         to: appointment.email,
-        subject: "Appointment Re-approved — USLS OASYS",
+        subject: `Appointment Re-approved - ${appointment.full_name} - ${appointment.offices?.name || "Unknown Office"} - USLS OASYS`,
         html: emailResult.html,
         attachments: emailResult.attachments,
       });
