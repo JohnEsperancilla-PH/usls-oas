@@ -49,6 +49,7 @@ function getCalendarId(): string | null {
 export interface CalendarEventParams {
   title: string;
   description?: string;
+  location?: string;
   start: Date;
   end: Date;
   attendees?: string[];
@@ -72,7 +73,7 @@ function formatWallClock(date: Date, timeZone: string): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
-export async function createCalendarEvent({ title, description, start, end, attendees, timeZone }: CalendarEventParams): Promise<{ id: string; htmlLink: string | null | undefined }> {
+export async function createCalendarEvent({ title, description, location, start, end, attendees, timeZone }: CalendarEventParams): Promise<{ id: string; htmlLink: string | null | undefined }> {
   const client = getServiceAccountAuth();
   const calendarId = getCalendarId();
   const tz = timeZone || DEFAULT_TIME_ZONE;
@@ -89,6 +90,7 @@ export async function createCalendarEvent({ title, description, start, end, atte
     requestBody: {
       summary: title,
       description,
+      location,
       start: { dateTime: formatWallClock(start, tz), timeZone: tz },
       end: { dateTime: formatWallClock(end, tz), timeZone: tz },
       attendees: attendees?.map((email) => ({ email })),

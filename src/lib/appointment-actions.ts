@@ -8,6 +8,35 @@ export interface AppointmentWithOffice extends Appointment {
   offices?: Office | null;
 }
 
+function buildCalendarDescription(appointment: AppointmentWithOffice, referenceNumber: string): string {
+  const officeName = appointment.offices?.name || "Unknown Office";
+  const officeContact = appointment.offices?.contact_email || appointment.offices?.email || "Not provided";
+  const phone = appointment.offices?.contact_phone || "Not provided";
+
+  return [
+    "USLS OASYS Appointment",
+    "",
+    `Visitor: ${appointment.full_name}`,
+    `Email: ${appointment.email}`,
+    `Phone: ${appointment.phone}`,
+    `Visitor category: ${appointment.visitor_category}`,
+    `Valid ID to present: ${appointment.valid_id || "Not provided"}`,
+    `Person to meet: ${appointment.person_to_meet || "Not provided"}`,
+    `Purpose of visit: ${appointment.purpose_of_visit || "Not provided"}`,
+    "",
+    `Office: ${officeName}`,
+    `Office contact email: ${officeContact}`,
+    `Office contact phone: ${phone}`,
+    "",
+    `Appointment date: ${appointment.date}`,
+    `Appointment time: ${appointment.time_slot}`,
+    `Duration: ${appointment.duration} minutes`,
+    `Reference number: ${referenceNumber}`,
+    "",
+    "Entry location: University of St. La Salle - Gate 2",
+  ].join("\n");
+}
+
 export async function runPostApprovalTasks(
   appointment: AppointmentWithOffice,
   referenceNumber: string,
@@ -58,7 +87,8 @@ export async function runPostApprovalTasks(
     if (appointment.offices?.email) attendees.push(appointment.offices.email);
     const event = await createCalendarEvent({
       title: `Appointment - ${appointment.full_name} (${officeName})`,
-      description: appointment.purpose_of_visit || "No purpose of visit provided.",
+      description: buildCalendarDescription(appointment, referenceNumber),
+      location: "University of St. La Salle - Gate 2",
       start,
       end,
       attendees,

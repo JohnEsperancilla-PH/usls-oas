@@ -54,6 +54,7 @@ export default function EntryPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [denyReason, setDenyReason] = useState("");
+  const [showDenyReason, setShowDenyReason] = useState(false);
   const [expectedVisitors, setExpectedVisitors] = useState<ExpectedVisitor[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
 
@@ -151,6 +152,7 @@ export default function EntryPage() {
     setReference("");
     setError(null);
     setDenyReason("");
+    setShowDenyReason(false);
     void loadExpectedVisitors();
   };
 
@@ -309,13 +311,23 @@ export default function EntryPage() {
 
                   {scanResult.reason === "preview" && scanResult.appointment.status === "approved" && (
                     <div className="border-t border-gray-100 pt-3 space-y-3">
-                      <button onClick={handleAllowEntry} disabled={loading} className="w-full py-3 rounded-lg font-medium bg-primary text-white hover:bg-primary-light disabled:opacity-50">
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={handleAllowEntry} disabled={loading} className="w-full py-3 rounded-lg font-medium bg-primary text-white hover:bg-primary-light disabled:opacity-50">
                         {loading ? "Allowing entry..." : "Allow Entry"}
-                      </button>
-                      <textarea value={denyReason} onChange={(e) => setDenyReason(e.target.value)} maxLength={500} rows={2} placeholder="Reason for denying entry" className="input w-full resize-none" />
-                      <button onClick={handleDenyEntry} disabled={loading || !denyReason.trim()} className="w-full py-3 rounded-lg font-medium border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50">
-                        {loading ? "Denying entry..." : "Deny Entry"}
-                      </button>
+                        </button>
+                        {!showDenyReason ? (
+                          <button type="button" onClick={() => setShowDenyReason(true)} disabled={loading} className="w-full py-3 rounded-lg font-medium border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50">
+                            Deny Entry
+                          </button>
+                        ) : (
+                          <button onClick={handleDenyEntry} disabled={loading || !denyReason.trim()} className="w-full py-3 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                            {loading ? "Denying..." : "Confirm Denial"}
+                          </button>
+                        )}
+                      </div>
+                      {showDenyReason && (
+                        <textarea value={denyReason} onChange={(e) => setDenyReason(e.target.value)} maxLength={500} rows={2} placeholder="Reason for denying entry" className="input w-full resize-none" autoFocus />
+                      )}
                     </div>
                   )}
 
