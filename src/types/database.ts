@@ -1,7 +1,7 @@
-export type AppointmentStatus = "pending" | "approved" | "declined" | "completed" | "expired";
+export type AppointmentStatus = "pending" | "approved" | "declined" | "entry_denied" | "completed" | "expired";
 export type AdminRole = "super_admin" | "office_admin" | "gate_user";
 export type VisitorCategory = "external" | "parents" | "student" | "faculty" | "alumni" | "vendor";
-export type AuditAction = "approve" | "decline" | "entry" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login";
+export type AuditAction = "approve" | "decline" | "entry" | "checkout" | "entry_denied" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login";
 
 export interface Office {
   id: string;
@@ -36,6 +36,7 @@ export interface Appointment {
   qr_token: string | null;
   qr_used_at: string | null;
   scanned_at: string | null;
+  checked_out_at: string | null;
   decline_reason: string | null;
   archived: boolean;
   created_at: string;
@@ -103,7 +104,7 @@ export interface Database {
       };
       appointments: {
         Row: Appointment;
-        Insert: Omit<Appointment, "id" | "created_at" | "updated_at">;
+        Insert: Omit<Appointment, "id" | "created_at" | "updated_at" | "checked_out_at">;
         Update: Partial<Omit<Appointment, "id" | "created_at" | "updated_at">>;
       };
       admins: {

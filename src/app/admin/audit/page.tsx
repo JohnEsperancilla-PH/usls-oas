@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { AuditLog } from "@/types/database";
+import { getAuditActionLabel, getAuditSummary, getAuditTarget } from "@/lib/audit";
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -36,8 +37,6 @@ export default function AuditPage() {
     return badges[action] || "bg-gray-100 text-gray-600";
   };
 
-  const formatAction = (action: string) => action.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -55,9 +54,9 @@ export default function AuditPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Admin</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actor</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target and summary</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -66,20 +65,18 @@ export default function AuditPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(log.created_at).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.admin_email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div>{log.admin_email}</div>
+                      {log.details?.role !== undefined && <div className="text-xs text-gray-400">{String(log.details.role)}</div>}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getActionBadge(log.action)}`}>
-                        {formatAction(log.action)}
+                        {getAuditActionLabel(log.action)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {log.target_email && <span>Target: {log.target_email}</span>}
-                      {log.action === "entry" && log.details && (
-                        <span className="block text-gray-700">
-                          Guard: {String(log.details.guard_name || "Unknown")} (Employee ID: {String(log.details.guard_employee_id || "—")})
-                        </span>
-                      )}
-                      {log.details && <span className="ml-2 text-gray-400">{JSON.stringify(log.details)}</span>}
+                      <div className="font-medium text-gray-800">{getAuditTarget(log)}</div>
+                      <div>{getAuditSummary(log)}</div>
                     </td>
                   </tr>
                 ))}

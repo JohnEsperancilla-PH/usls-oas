@@ -21,6 +21,31 @@ interface PageOptions {
   baseUrl: string;
 }
 
+function renderConfirmation(action: ActionType, token: string, baseUrl: string): Response {
+  const isApprove = action === "approve";
+  const title = isApprove ? "Approve Appointment" : "Deny Appointment";
+  const message = isApprove
+    ? "Are you sure you want to approve this appointment?"
+    : "Are you sure you want to deny this appointment?";
+  const actionUrl = `${baseUrl}/api/appointments/email-action?action=${action}&token=${encodeURIComponent(token)}`;
+  const accent = isApprove ? "#006633" : "#dc2626";
+
+  return new Response(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OASYS — ${title}</title></head>
+<body style="margin:0;padding:24px;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <div style="max-width:440px;margin:24px auto;background:#fff;border-radius:12px;padding:32px 28px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+    <div style="color:${accent};font-size:20px;font-weight:800;letter-spacing:0.5px;">USLS OASYS</div>
+    <h1 style="margin:24px 0 8px;color:#111;font-size:22px;">${title}</h1>
+    <p style="margin:0 0 28px;color:#555;font-size:15px;line-height:1.5;">${message}</p>
+    <form method="post" action="${escapeHtml(actionUrl)}">
+      <button type="submit" style="border:0;border-radius:8px;background:${accent};color:#fff;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;">Confirm</button>
+    </form>
+  </div>
+</body></html>`,
+    { headers: { "Content-Type": "text/html; charset=utf-8" } }
+  );
+}
+
 function renderPage({ stage, action, appointment, message, baseUrl }: PageOptions): Response {
   const isApprove = action === "approve";
   const accent = isApprove ? "#006633" : "#dc2626";
@@ -32,13 +57,17 @@ function renderPage({ stage, action, appointment, message, baseUrl }: PageOption
   if (stage === "success") {
     return new Response(
       `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OASYS — Done</title>
-<script>try{window.close();}catch(e){}</script></head>
+<script>
+  try { window.close(); } catch (e) {}
+  try { setTimeout(function () { window.history.back(); }, 150); } catch (e) {}
+</script></head>
 <body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <div style="max-width:440px;margin:24px auto;background:#fff;border-radius:12px;padding:32px 28px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
     <div style="font-size:16px;font-weight:700;color:#111;">${isApprove ? "Appointment Approved" : "Appointment Denied"}</div>
     <p style="color:#666;font-size:13px;margin:10px 0 0;">Done. You can close this tab and return to your email.</p>
+    <button type="button" onclick="try{window.close();}catch(e){} try{window.history.back();}catch(e){}" style="margin-top:20px;border:0;border-radius:8px;background:#006633;color:#fff;padding:11px 22px;font-size:14px;font-weight:600;cursor:pointer;">Return to email</button>
   </div>
-  <script>try{setTimeout(function(){window.close();},300);}catch(e){}</script>
+  <script>try{setTimeout(function(){window.close();},500);}catch(e){}</script>
 </body></html>`,
       {
         headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -95,7 +124,7 @@ function getParams(request: Request): ActionParams {
   };
 }
 
-async function executeAction(action: string | null, token: string | null, baseUrl: string): Promise<Response> {
+async function executeAction(action: string | null, token: string | null, baseUrl: string, showConfirmation = false): Promise<Response> {
   if (action !== "approve" && action !== "decline") {
     return renderPage({ stage: "error", message: "Invalid action specified.", baseUrl });
   }
@@ -123,6 +152,10 @@ async function executeAction(action: string | null, token: string | null, baseUr
 
   if (appointment.status !== "pending") {
     return renderPage({ stage: "already", action, appointment, baseUrl });
+  }
+
+  if (showConfirmation) {
+    return renderConfirmation(action, token, baseUrl);
   }
 
   const supabase = createServiceClient();
@@ -207,12 +240,12 @@ async function executeAction(action: string | null, token: string | null, baseUr
   return renderPage({ stage: "success", action, appointment, baseUrl });
 }
 
-// The email "Approve / Deny" buttons link here (GET) and act immediately — no
-// intermediate confirmation page. POST is kept for the legacy confirm form.
+// Email "Approve / Deny" buttons open a confirmation page on GET. The POST
+// from that page performs the signed appointment action.
 export async function GET(request: Request) {
   const { action, token } = getParams(request);
   const baseUrl = new URL(request.url).origin;
-  return executeAction(action, token, baseUrl);
+  return executeAction(action, token, baseUrl, true);
 }
 
 export async function POST(request: Request) {

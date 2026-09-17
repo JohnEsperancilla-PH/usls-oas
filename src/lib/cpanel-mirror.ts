@@ -18,6 +18,7 @@ export interface CpanelAppointment {
   qr_token: string | null;
   qr_used_at: string | null;
   scanned_at: string | null;
+  checked_out_at: string | null;
   decline_reason: string | null;
   archived: boolean;
   created_at: string;
@@ -36,6 +37,7 @@ export function buildCpanelAppointment(fields: Partial<CpanelAppointment> & Pick
     qr_token: null,
     qr_used_at: null,
     scanned_at: null,
+    checked_out_at: null,
     decline_reason: null,
     archived: false,
     ...fields,
@@ -60,6 +62,7 @@ export function fromAppointmentRow(
     qr_token?: string | null;
     qr_used_at?: string | null;
     scanned_at?: string | null;
+    checked_out_at?: string | null;
     decline_reason?: string | null;
     archived?: boolean;
     created_at: string;
@@ -86,6 +89,7 @@ export function fromAppointmentRow(
     qr_token: row.qr_token ?? null,
     qr_used_at: row.qr_used_at ?? null,
     scanned_at: row.scanned_at ?? null,
+    checked_out_at: row.checked_out_at ?? null,
     decline_reason: row.decline_reason ?? null,
     archived: row.archived ?? false,
     created_at: row.created_at,
@@ -101,8 +105,8 @@ export async function mirrorAppointmentToCpanel(apt: CpanelAppointment): Promise
       `INSERT INTO appointments
         (id, full_name, phone, email, valid_id, visitor_category, purpose_of_visit,
          person_to_meet, office_id, office_name, date, time_slot, duration, status,
-         qr_token, qr_used_at, scanned_at, decline_reason, archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         qr_token, qr_used_at, scanned_at, checked_out_at, decline_reason, archived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          full_name=VALUES(full_name), phone=VALUES(phone), email=VALUES(email),
          valid_id=VALUES(valid_id), visitor_category=VALUES(visitor_category),
@@ -110,13 +114,13 @@ export async function mirrorAppointmentToCpanel(apt: CpanelAppointment): Promise
          office_id=VALUES(office_id), office_name=VALUES(office_name), date=VALUES(date),
          time_slot=VALUES(time_slot), duration=VALUES(duration), status=VALUES(status),
          qr_token=VALUES(qr_token), qr_used_at=VALUES(qr_used_at),
-         scanned_at=VALUES(scanned_at), decline_reason=VALUES(decline_reason),
+         scanned_at=VALUES(scanned_at), checked_out_at=VALUES(checked_out_at), decline_reason=VALUES(decline_reason),
          archived=VALUES(archived), created_at=VALUES(created_at), updated_at=VALUES(updated_at)`,
       [
         apt.id, apt.full_name, apt.phone, apt.email, apt.valid_id,
         apt.visitor_category, apt.purpose_of_visit, apt.person_to_meet, apt.office_id,
         apt.office_name, apt.date, apt.time_slot, apt.duration, apt.status, apt.qr_token,
-        apt.qr_used_at, apt.scanned_at, apt.decline_reason, apt.archived,
+        apt.qr_used_at, apt.scanned_at, apt.checked_out_at, apt.decline_reason, apt.archived,
         apt.created_at, apt.updated_at,
       ]
     );
