@@ -1,7 +1,7 @@
 export type AppointmentStatus = "pending" | "approved" | "declined" | "postponed" | "entry_denied" | "completed" | "expired";
 export type AdminRole = "super_admin" | "office_admin" | "gate_user";
 export type VisitorCategory = "external" | "parents" | "alumni" | "vendor";
-export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation";
+export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation" | "create_contact" | "update_contact" | "delete_contact";
 
 export interface Office {
   id: string;
@@ -14,6 +14,27 @@ export interface Office {
   active: boolean;
   contact_email: string | null;
   contact_phone: string | null;
+  created_at: string;
+}
+
+export interface OfficeContact {
+  id: string;
+  office_id: string;
+  name: string;
+  email: string;
+  position: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppointmentContact {
+  id: string;
+  appointment_id: string;
+  contact_id: string | null;
+  name: string;
+  email: string;
+  position: string | null;
   created_at: string;
 }
 
@@ -156,10 +177,20 @@ export interface Database {
         Insert: Omit<AuditLog, "id" | "created_at">;
         Update: Partial<Omit<AuditLog, "id" | "created_at">>;
       };
-      blocked_times: {
+blocked_times: {
         Row: BlockedTime;
         Insert: Omit<BlockedTime, "id" | "created_at">;
         Update: Partial<Omit<BlockedTime, "id" | "created_at">>;
+      };
+      office_contacts: {
+        Row: OfficeContact;
+        Insert: Omit<OfficeContact, "id" | "created_at" | "updated_at">;
+        Update: Partial<Omit<OfficeContact, "id" | "created_at" | "updated_at">>;
+      };
+      appointment_contacts: {
+        Row: AppointmentContact;
+        Insert: Omit<AppointmentContact, "id" | "created_at">;
+        Update: Partial<Omit<AppointmentContact, "id" | "created_at" | "appointment_id">>;
       };
     };
   };

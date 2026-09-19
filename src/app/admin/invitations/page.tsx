@@ -28,6 +28,7 @@ interface Invitation {
   createdAt: string;
   emailStatus: "sent" | "failed" | "none" | string;
   vehicles: InvitationVehicle[];
+  contacts: { id: string | null; name: string; email: string; position: string | null }[];
 }
 
 function formatDate(date: string): string {
@@ -133,6 +134,16 @@ export default function InvitationsPage() {
                         {invitation.vehicles.map((vehicle, index) => (
                           <span key={index} className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 font-mono text-[11px]">
                             {vehicle.plateNumber}{vehicle.makeModel ? ` · ${vehicle.makeModel}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {invitation.contacts.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                        <span className="text-gray-400">Tagged contacts:</span>
+                        {invitation.contacts.map((contact, index) => (
+                          <span key={index} className="px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-800 border border-cyan-100 text-[11px]">
+                            {contact.name}{contact.position ? ` (${contact.position})` : ""}
                           </span>
                         ))}
                       </div>

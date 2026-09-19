@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import { NewInvitationModal } from "@/components/admin/NewInvitationModal";
+import { ModalShell } from "@/components/admin/ModalShell";
 import type { Appointment, Office, BlockedTime } from "@/types/database";
 import { formatTimeSlot, getManilaToday } from "@/lib/time";
 
@@ -754,56 +755,46 @@ function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onU
   const dateLabel = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-y-auto animate-fade-in">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-          <div>
-            <h3 className="font-semibold text-gray-900">Block Time Slots</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{dateLabel}</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+    <ModalShell open={true} title="Block Time Slots" subtitle={dateLabel} onClose={onClose} maxWidthClass="max-w-xl"
+      footer={
+        <button onClick={onClose} className="btn-secondary flex-1">Close</button>
+      }>
+      <p className="text-xs text-gray-500 mb-3">{officeName} · Click a slot to block or unblock it</p>
+      {loading ? (
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3, 4, 5, 6].map((i) => <div key={i} className="skeleton h-10 rounded-lg" />)}
         </div>
-        <div className="p-5">
-          <p className="text-xs text-gray-500 mb-3">{officeName} · Click a slot to block or unblock it</p>
-          {loading ? (
-            <div className="grid grid-cols-3 gap-2">
-              {[1, 2, 3, 4, 5, 6].map((i) => <div key={i} className="skeleton h-10 rounded-lg" />)}
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {allSlots.map((slot) => {
-                const isBlocked = blockedSet.has(slot);
-                const h = parseInt(slot.split(":")[0]);
-                const m = parseInt(slot.split(":")[1]);
-                const period = h >= 12 ? "PM" : "AM";
-                const dh = h > 12 ? h - 12 : h === 0 ? 12 : h;
-                const label = `${dh}:${m.toString().padStart(2, "0")} ${period}`;
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {allSlots.map((slot) => {
+            const isBlocked = blockedSet.has(slot);
+            const h = parseInt(slot.split(":")[0]);
+            const m = parseInt(slot.split(":")[1]);
+            const period = h >= 12 ? "PM" : "AM";
+            const dh = h > 12 ? h - 12 : h === 0 ? 12 : h;
+            const label = `${dh}:${m.toString().padStart(2, "0")} ${period}`;
 
-                if (isBlocked) {
-                  const block = blockedSlots.find((b) => b.time_slot === slot);
-                  return (
-                    <button key={slot} onClick={() => block && onUnblock(block.id)}
-                      className="p-2 rounded-lg border-2 border-red-200 bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-colors text-center">
-                      <div className="line-through">{label}</div>
-                      <div className="text-[10px] text-red-400 mt-0.5">Click to unblock</div>
-                    </button>
-                  );
-                }
+            if (isBlocked) {
+              const block = blockedSlots.find((b) => b.time_slot === slot);
+              return (
+                <button key={slot} onClick={() => block && onUnblock(block.id)}
+                  className="p-2 rounded-lg border-2 border-red-200 bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-colors text-center">
+                  <div className="line-through">{label}</div>
+                  <div className="text-[10px] text-red-400 mt-0.5">Click to unblock</div>
+                </button>
+              );
+            }
 
-                return (
-                  <button key={slot} onClick={() => onBlock(date, slot)} disabled={blockingSlot === slot}
-                    className="p-2 rounded-lg border-2 border-gray-200 bg-white text-gray-700 text-xs font-medium hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors text-center disabled:opacity-50">
-                    {blockingSlot === slot ? <span className="animate-pulse">Blocking...</span> : label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+            return (
+              <button key={slot} onClick={() => onBlock(date, slot)} disabled={blockingSlot === slot}
+                className="p-2 rounded-lg border-2 border-gray-200 bg-white text-gray-700 text-xs font-medium hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-colors text-center disabled:opacity-50">
+                {blockingSlot === slot ? <span className="animate-pulse">Blocking...</span> : label}
+              </button>
+            );
+          })}
         </div>
-      </div>
-    </div>
+      )}
+    </ModalShell>
   );
 }
 
@@ -840,160 +831,148 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto animate-fade-in">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-          <h3 className="font-semibold text-gray-900">Appointment Details</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+    <ModalShell open={true} title="Appointment Details" subtitle={`${officeName} · ${formatTimeSlot(appointment.time_slot)} (${appointment.duration} min)`} onClose={onClose} maxWidthClass="max-w-2xl"
+      footer={
+        appointment.status === "completed" ? (
+          <button onClick={() => onResetQR(appointment)} disabled={isBusy} className="btn-secondary flex-1 btn-sm disabled:opacity-50 flex items-center justify-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            {isProcessing && processing.action === "reset" ? "Re-issuing..." : "Re-issue Reference & Re-send Email"}
           </button>
+        ) : (appointment.status === "pending" || appointment.status === "postponed") ? (
+          <div className="w-full space-y-3">
+            {showPostpone ? (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label htmlFor="postpone-date" className="label">New Date</label>
+                    <input id="postpone-date" type="date" className="input" value={postponeDate} min={getManilaToday()}
+                      onChange={(e) => { setPostponeDate(e.target.value); setPostponeError(null); }} />
+                  </div>
+                  <div>
+                    <label htmlFor="postpone-time" className="label">New Time</label>
+                    <select id="postpone-time" className="input" value={postponeTime}
+                      onChange={(e) => { setPostponeTime(e.target.value); setPostponeError(null); }}>
+                      <option value="">Select...</option>
+                      {postponeSlots.map((slot) => <option key={slot} value={slot}>{formatTimeSlot(slot)}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <textarea value={postponeReason} onChange={(e) => setPostponeReason(e.target.value)} placeholder="Reason for postponement (optional — included in the visitor's email)" className="input" rows={2} />
+                {postponeError && <p className="error-text">{postponeError}</p>}
+                <div className="flex gap-2">
+                  <button onClick={submitPostpone} disabled={isBusy} className="btn-primary flex-1 btn-sm disabled:opacity-50">
+                    {isProcessing && processing.action === "postpone" ? "Processing..." : "Confirm Postpone"}
+                  </button>
+                  <button onClick={() => { setShowPostpone(false); setPostponeError(null); }} className="btn-secondary flex-1 btn-sm">Cancel</button>
+                </div>
+              </>
+            ) : showDeclineReason ? (
+              <>
+                <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Reason for decline (optional)" className="input" rows={2} />
+                <div className="flex gap-2">
+                  <button onClick={() => { onDecline(appointment, declineReason); setShowDeclineReason(false); setDeclineReason(""); }} disabled={isBusy} className="btn-danger flex-1 btn-sm disabled:opacity-50">
+                    {isProcessing && processing.action === "decline" ? "Processing..." : "Confirm Decline"}
+                  </button>
+                  <button onClick={() => { setShowDeclineReason(false); setDeclineReason(""); }} className="btn-secondary flex-1 btn-sm">Cancel</button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => onApprove(appointment)} disabled={isBusy} className="btn-primary flex-1 btn-sm disabled:opacity-50">
+                  {isProcessing && processing.action === "approve" ? "Processing..." : "Approve"}
+                </button>
+                <button onClick={() => setShowDeclineReason(true)} disabled={isBusy} className="btn-danger flex-1 btn-sm disabled:opacity-50">
+                  {isProcessing && processing.action === "decline" ? "Processing..." : "Decline"}
+                </button>
+                <button onClick={() => setShowPostpone(true)} disabled={isBusy} className="btn-secondary flex-1 btn-sm disabled:opacity-50 flex items-center justify-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  {isProcessing && processing.action === "postpone" ? "Processing..." : "Postpone"}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button onClick={onClose} className="btn-secondary flex-1">Close</button>
+        )
+      }>
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          ["Visitor", appointment.full_name],
+          ["Category", (appointment.visitor_category || "external").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())],
+          ["Email", appointment.email],
+          ["Phone", appointment.phone],
+          ["Office", officeName],
+          ["Person to Meet", appointment.person_to_meet || "—"],
+          ["Date", new Date(appointment.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
+          ["Time", `${formatTimeSlot(appointment.time_slot)} (${appointment.duration} min)`],
+          ["Number of Visitors", String(appointment.visitor_count || appointment.visitors?.length || 1)],
+        ].map(([l, v]) => (
+          <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
+        ))}
+      </div>
+      {appointment.purpose_of_visit && (
+        <div>
+          <div className="text-xs text-gray-400 mb-1">Purpose of Visit</div>
+          <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">{appointment.purpose_of_visit}</div>
         </div>
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              ["Visitor", appointment.full_name],
-              ["Category", (appointment.visitor_category || "external").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())],
-              ["Email", appointment.email],
-              ["Phone", appointment.phone],
-              ["Office", officeName],
-              ["Person to Meet", appointment.person_to_meet || "—"],
-              ["Date", new Date(appointment.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
-              ["Time", `${formatTimeSlot(appointment.time_slot)} (${appointment.duration} min)`],
-              ["Number of Visitors", String(appointment.visitor_count || appointment.visitors?.length || 1)],
-            ].map(([l, v]) => (
-              <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
+      )}
+      <div>
+        <div className="text-xs text-gray-400 mb-1.5">Valid ID to Present</div>
+        <div className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-lg p-3">{appointment.valid_id || "—"}</div>
+      </div>
+      {appointment.visitors && appointment.visitors.length > 1 && (
+        <div>
+          <div className="text-xs text-gray-400 mb-1.5">Visitors entering together</div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+            {appointment.visitors.map((visitor) => (
+              <div key={visitor.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium text-gray-900">{visitor.full_name}{visitor.is_booker ? " (booker)" : ""}</span>
+                <span className="text-gray-600 text-right">{visitor.valid_id}</span>
+              </div>
+            ))}
+            <p className="text-xs text-amber-700 pt-1">All visitors must enter together using the booking person&apos;s reference number.</p>
+          </div>
+        </div>
+      )}
+      {appointment.vehicles && appointment.vehicles.length > 0 && (
+        <div>
+          <div className="text-xs text-gray-400 mb-1.5">Registered Vehicles</div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+            {appointment.vehicles.map((vehicle) => (
+              <div key={vehicle.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-mono font-medium text-gray-900">{vehicle.plate_number}</span>
+                <span className="text-gray-600 text-right">{vehicle.make_model || "—"}</span>
+              </div>
             ))}
           </div>
-          {appointment.purpose_of_visit && (
-            <div>
-              <div className="text-xs text-gray-400 mb-1">Purpose of Visit</div>
-              <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3">{appointment.purpose_of_visit}</div>
-            </div>
-          )}
-          <div>
-            <div className="text-xs text-gray-400 mb-1.5">Valid ID to Present</div>
-            <div className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-lg p-3">{appointment.valid_id || "—"}</div>
-          </div>
-          {appointment.visitors && appointment.visitors.length > 1 && (
-            <div>
-              <div className="text-xs text-gray-400 mb-1.5">Visitors entering together</div>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-                {appointment.visitors.map((visitor) => (
-                  <div key={visitor.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium text-gray-900">{visitor.full_name}{visitor.is_booker ? " (booker)" : ""}</span>
-                    <span className="text-gray-600 text-right">{visitor.valid_id}</span>
-                  </div>
-                ))}
-                <p className="text-xs text-amber-700 pt-1">All visitors must enter together using the booking person&apos;s reference number.</p>
-              </div>
-            </div>
-          )}
-          {appointment.vehicles && appointment.vehicles.length > 0 && (
-            <div>
-              <div className="text-xs text-gray-400 mb-1.5">Registered Vehicles</div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
-                {appointment.vehicles.map((vehicle) => (
-                  <div key={vehicle.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-mono font-medium text-gray-900">{vehicle.plate_number}</span>
-                    <span className="text-gray-600 text-right">{vehicle.make_model || "—"}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Status:</span>
-            <span className={getStatusBadge(appointment.status)}>{appointment.status}</span>
-          </div>
-          {appointment.scanned_at && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
-              <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <div>
-                <div className="text-xs font-medium text-green-700">Gate Entry Recorded</div>
-                <div className="text-sm text-green-600">{new Date(appointment.scanned_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
-              </div>
-            </div>
-          )}
-          {appointment.decline_reason && (
-            <div className={appointment.status === "postponed" ? "bg-orange-50 border border-orange-200 rounded-lg p-3" : "bg-red-50 border border-red-200 rounded-lg p-3"}>
-              <div className={`text-xs font-medium mb-0.5 ${appointment.status === "postponed" ? "text-orange-700" : "text-red-700"}`}>
-                {appointment.status === "postponed" ? "Postponement Note" : "Decline Reason"}
-              </div>
-              <div className={`text-sm ${appointment.status === "postponed" ? "text-orange-600" : "text-red-600"}`}>{appointment.decline_reason}</div>
-            </div>
-          )}
-          {appointment.status === "postponed" && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-700">
-              This appointment was postponed to the schedule shown above. Approve it to issue the reference number, or decline it to cancel.
-            </div>
-          )}
-          {appointment.status === "completed" && (
-            <div className="pt-3 border-t border-gray-100">
-              <button onClick={() => onResetQR(appointment)} disabled={isBusy} className="btn-secondary w-full btn-sm disabled:opacity-50 flex items-center justify-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                {isProcessing && processing.action === "reset" ? "Re-issuing..." : "Re-issue Reference & Re-send Email"}
-              </button>
-            </div>
-          )}
-          {(appointment.status === "pending" || appointment.status === "postponed") && (
-            <div className="pt-3 border-t border-gray-100">
-              {showPostpone ? (
-                <div className="space-y-3">
-                  <div className="text-sm font-medium text-gray-900">Postpone to a new schedule</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label htmlFor="postpone-date" className="label">New Date</label>
-                      <input id="postpone-date" type="date" className="input" value={postponeDate} min={getManilaToday()}
-                        onChange={(e) => { setPostponeDate(e.target.value); setPostponeError(null); }} />
-                    </div>
-                    <div>
-                      <label htmlFor="postpone-time" className="label">New Time</label>
-                      <select id="postpone-time" className="input" value={postponeTime}
-                        onChange={(e) => { setPostponeTime(e.target.value); setPostponeError(null); }}>
-                        <option value="">Select...</option>
-                        {postponeSlots.map((slot) => <option key={slot} value={slot}>{formatTimeSlot(slot)}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <textarea value={postponeReason} onChange={(e) => setPostponeReason(e.target.value)} placeholder="Reason for postponement (optional — included in the visitor's email)" className="input" rows={2} />
-                  {postponeError && <p className="error-text">{postponeError}</p>}
-                  <div className="flex gap-2">
-                    <button onClick={submitPostpone} disabled={isBusy} className="btn-primary flex-1 btn-sm disabled:opacity-50">
-                      {isProcessing && processing.action === "postpone" ? "Processing..." : "Confirm Postpone"}
-                    </button>
-                    <button onClick={() => { setShowPostpone(false); setPostponeError(null); }} className="btn-secondary flex-1 btn-sm">Cancel</button>
-                  </div>
-                </div>
-              ) : showDeclineReason ? (
-                <div className="space-y-3">
-                  <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Reason for decline (optional)" className="input" rows={2} />
-                  <div className="flex gap-2">
-                    <button onClick={() => { onDecline(appointment, declineReason); setShowDeclineReason(false); setDeclineReason(""); }} disabled={isBusy} className="btn-danger flex-1 btn-sm disabled:opacity-50">
-                      {isProcessing && processing.action === "decline" ? "Processing..." : "Confirm Decline"}
-                    </button>
-                    <button onClick={() => { setShowDeclineReason(false); setDeclineReason(""); }} className="btn-secondary flex-1 btn-sm">Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <button onClick={() => onApprove(appointment)} disabled={isBusy} className="btn-primary flex-1 btn-sm disabled:opacity-50">
-                      {isProcessing && processing.action === "approve" ? "Processing..." : "Approve"}
-                    </button>
-                    <button onClick={() => setShowDeclineReason(true)} disabled={isBusy} className="btn-danger flex-1 btn-sm disabled:opacity-50">
-                      {isProcessing && processing.action === "decline" ? "Processing..." : "Decline"}
-                    </button>
-                  </div>
-                  <button onClick={() => setShowPostpone(true)} disabled={isBusy} className="btn-secondary w-full btn-sm disabled:opacity-50 flex items-center justify-center gap-1.5">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    {isProcessing && processing.action === "postpone" ? "Processing..." : "Postpone to New Schedule"}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
         </div>
+      )}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-400">Status:</span>
+        <span className={getStatusBadge(appointment.status)}>{appointment.status}</span>
       </div>
-    </div>
+      {appointment.scanned_at && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+          <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <div>
+            <div className="text-xs font-medium text-green-700">Gate Entry Recorded</div>
+            <div className="text-sm text-green-600">{new Date(appointment.scanned_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
+          </div>
+        </div>
+      )}
+      {appointment.decline_reason && (
+        <div className={appointment.status === "postponed" ? "bg-orange-50 border border-orange-200 rounded-lg p-3" : "bg-red-50 border border-red-200 rounded-lg p-3"}>
+          <div className={`text-xs font-medium mb-0.5 ${appointment.status === "postponed" ? "text-orange-700" : "text-red-700"}`}>
+            {appointment.status === "postponed" ? "Postponement Note" : "Decline Reason"}
+          </div>
+          <div className={`text-sm ${appointment.status === "postponed" ? "text-orange-600" : "text-red-600"}`}>{appointment.decline_reason}</div>
+        </div>
+      )}
+      {appointment.status === "postponed" && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-700">
+          This appointment was postponed to the schedule shown above. Approve it to issue the reference number, or decline it to cancel.
+        </div>
+      )}
+    </ModalShell>
   );
 }

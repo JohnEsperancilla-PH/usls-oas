@@ -18,6 +18,9 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   archive_sync: "Synchronized archive",
   login: "Signed in",
   create_invitation: "Created invitation",
+  create_contact: "Created office contact",
+  update_contact: "Updated office contact",
+  delete_contact: "Removed office contact",
 };
 
 export function getAuditActionLabel(action: string): string {
@@ -81,6 +84,12 @@ export function getAuditSummary(log: AuditLog): string {
     case "block_time":
     case "unblock_time":
       return [date, timeSlot, reason].filter(Boolean).join(" - ") || "Appointment time changed";
+    case "create_contact":
+    case "update_contact":
+    case "delete_contact": {
+      const contact = value(details, "contact_name");
+      return [contact, log.target_email, office].filter(Boolean).join(" - ") || "Office contact changed";
+    }
     case "login":
       return role ? `Role: ${role}` : "Admin session started";
     default:

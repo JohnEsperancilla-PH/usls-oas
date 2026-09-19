@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import type { Office } from "@/types/database";
+import { OfficeContactsModal } from "@/components/admin/OfficeContactsModal";
+import { ModalShell } from "@/components/admin/ModalShell";
 
 export default function OfficesPage() {
   const { admin } = useAdmin();
@@ -14,6 +16,7 @@ export default function OfficesPage() {
   const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "" });
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
+  const [contactsOffice, setContactsOffice] = useState<Office | null>(null);
 
   const fetchOffices = useCallback(async () => {
     setLoading(true);
@@ -148,8 +151,9 @@ export default function OfficesPage() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+              <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
                 <button onClick={() => openEdit(o)} className="flex-1 text-center text-xs font-medium text-gray-600 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">Edit</button>
+                <button onClick={() => setContactsOffice(o)} className="flex-1 text-center text-xs font-medium text-cyan-700 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 transition-colors">Contacts</button>
                 <button onClick={() => handleToggle(o)} className={`flex-1 text-center text-xs font-medium py-1.5 rounded-lg transition-colors ${o.active ? "text-gray-500 bg-gray-50 hover:bg-gray-100" : "text-green-600 bg-green-50 hover:bg-green-100"}`}>
                   {o.active ? "Deactivate" : "Activate"}
                 </button>
@@ -161,35 +165,36 @@ export default function OfficesPage() {
 
       {/* Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto animate-fade-in">
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-              <h3 className="font-semibold text-gray-900">{editingOffice ? "Edit Office" : "Add Office"}</h3>
-              <button onClick={() => setModalOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <ModalShell open={true} title={editingOffice ? "Edit Office" : "Add Office"} subtitle={editingOffice ? `Editing ${editingOffice.name}` : "Configure a new campus office"} onClose={() => setModalOpen(false)} maxWidthClass="max-w-2xl"
+          footer={
+            <>
+              <button type="submit" form="office-form" disabled={saving} className="btn-primary flex-1 btn-sm disabled:opacity-50">
+                {saving ? "Saving..." : editingOffice ? "Update Office" : "Create Office"}
               </button>
+              <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary btn-sm">Cancel</button>
+            </>
+          }>
+          <form id="office-form" onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2"><label className="label">Office Name</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Registrar" /></div>
+              <div className="sm:col-span-2"><label className="label">Category</label><input className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Vice Chancellor for Academic Affairs" /><p className="text-[11px] text-gray-400 mt-1">Groups this office under a section on the booking form and encounters list.</p></div>
+              <div><label className="label">Email</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@email.com" /></div>
+              <div><label className="label">Capacity per Slot</label><input type="number" min={1} className="input" value={form.capacity_per_slot} onChange={(e) => setForm({ ...form, capacity_per_slot: parseInt(e.target.value) || 1 })} /></div>
+              <div><label className="label">Contact Email</label><input type="email" className="input" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} placeholder="Shown to visitors for follow-ups" /></div>
+              <div><label className="label">Contact Phone</label><input type="tel" className="input" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} placeholder="e.g. (034) 433-7777 loc 123" /></div>
+              <div className="sm:col-span-2"><label className="label">Operating Hours</label><input className="input" value={form.operating_hours} onChange={(e) => setForm({ ...form, operating_hours: e.target.value })} required placeholder="8:00 AM - 5:00 PM" /><p className="text-[11px] text-gray-400 mt-1">All offices run 8:00 AM - 5:00 PM with a 12:00 PM - 1:30 PM lunch break. Shown to visitors for reference.</p></div>
+              <div className="sm:col-span-2"><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of the office..." /></div>
             </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2"><label className="label">Office Name</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Registrar" /></div>
-                <div className="sm:col-span-2"><label className="label">Category</label><input className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Vice Chancellor for Academic Affairs" /><p className="text-[11px] text-gray-400 mt-1">Groups this office under a section on the booking form and encounters list.</p></div>
-                <div><label className="label">Email</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@email.com" /></div>
-                <div><label className="label">Capacity per Slot</label><input type="number" min={1} className="input" value={form.capacity_per_slot} onChange={(e) => setForm({ ...form, capacity_per_slot: parseInt(e.target.value) || 1 })} /></div>
-                <div><label className="label">Contact Email</label><input type="email" className="input" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} placeholder="Shown to visitors for follow-ups" /></div>
-                <div><label className="label">Contact Phone</label><input type="tel" className="input" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} placeholder="e.g. (034) 433-7777 loc 123" /></div>
-                <div className="sm:col-span-2"><label className="label">Operating Hours</label><input className="input" value={form.operating_hours} onChange={(e) => setForm({ ...form, operating_hours: e.target.value })} required placeholder="8:00 AM - 5:00 PM" /><p className="text-[11px] text-gray-400 mt-1">All offices run 8:00 AM - 5:00 PM with a 12:00 PM - 1:30 PM lunch break. Shown to visitors for reference.</p></div>
-                <div className="sm:col-span-2"><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of the office..." /></div>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="btn-primary flex-1 btn-sm disabled:opacity-50">
-                  {saving ? "Saving..." : editingOffice ? "Update Office" : "Create Office"}
-                </button>
-                <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary btn-sm">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
+          </form>
+        </ModalShell>
       )}
+
+      <OfficeContactsModal
+        open={Boolean(contactsOffice)}
+        officeId={contactsOffice?.id || ""}
+        officeName={contactsOffice?.name || "Office"}
+        onClose={() => setContactsOffice(null)}
+      />
     </div>
   );
 }

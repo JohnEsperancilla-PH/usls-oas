@@ -416,3 +416,27 @@ export async function generateInvitationEmail(
   `);
   return { html: result.html, attachments: result.attachments };
 }
+
+export async function generateContactNotificationEmail(
+  contactName: string,
+  office: string,
+  date: string,
+  time: string,
+  visitorName: string,
+  purpose?: string | null,
+  personToMeet?: string | null
+) {
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const result = await wrap("Appointment Scheduled", `
+    <p style="color:#555;margin:0 0 20px;">Hi <strong>${escapeHtml(contactName)}</strong>,</p>
+    <p style="color:#555;margin:0 0 6px;">A visitor scheduled at <strong>${escapeHtml(office)}</strong> has tagged you on their appointment${personToMeet ? ` to meet <strong>${escapeHtml(personToMeet)}</strong>` : ""}. Please note the schedule below.</p>
+    ${bulletList([
+      `Date: <strong>${formattedDate}</strong>`,
+      `Time: <strong>${formatTimeSlot(time)}</strong>`,
+      `Visitor: <strong>${escapeHtml(visitorName)}</strong>`,
+      ...(purpose ? [`Purpose: <strong>${escapeHtml(purpose)}</strong>`] : []),
+    ])}
+    <p style="color:#999;font-size:12px;margin:20px 0 0;">This is an automated notification from USLS OASYS. You will receive a calendar invitation for this appointment.</p>
+  `);
+  return { html: result.html, attachments: result.attachments };
+}

@@ -8,6 +8,7 @@ import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-
 import { isValidId } from "@/lib/valid-ids";
 import { getManilaToday } from "@/lib/time";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
+import { getAppointmentContacts } from "@/lib/appointment-contacts";
 import type { Database } from "@/types/database";
 
 const VISITOR_CATEGORIES = ["external", "parents", "alumni", "vendor"] as const;
@@ -70,6 +71,12 @@ export async function GET(request: Request) {
         vehicles: (await getAppointmentVehicles(supabase, appointment.id)).map((vehicle) => ({
           plateNumber: vehicle.plate_number,
           makeModel: vehicle.make_model,
+        })),
+        contacts: (await getAppointmentContacts(supabase, appointment.id)).map((contact) => ({
+          id: contact.contact_id,
+          name: contact.name,
+          email: contact.email,
+          position: contact.position,
         })),
       }))
     );
@@ -165,6 +172,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid or inactive office" }, { status: 400 });
     }
 
+    const taggedContactIds = Array.isArray(body.taggedContactIds) ? body.taggedContactIds.map((id: unknown) => String(id)).filter(Boolean) : [];
+    let taggedContacts: Database["public"]["Tables"]["office_contacts"]["Row"][] = [];
+    if (taggedContactIds.length > 0) {
+      const { data: contactRows, error: contactsError } = await supabase
+        .from("office_contacts")
+        .select("*")
+        .in("id", taggedContactIds)
+        .eq("active", true);
+      if (contactsError) {
+        return NextResponse.json({ message: "Failed to load tagged contacts" }, { status: 500 });
+      }
+      const officeContactIds = (contactRows || []).filter((contact) => contact.office_id === body.officeId);
+      if (officeContactIds.length !== taggedContactIds.length) {
+        return NextResponse.json({ message: "One or more tagged contacts are not part of this office" }, { status: 400 });
+      }
+      taggedContacts = officeContactIds;
+    }
+
     const appointmentId = crypto.randomUUID();
     const referenceNumber = await createUniqueReference(supabase);
     const nowIso = new Date().toISOString();
@@ -217,6 +242,21 @@ export async function POST(request: Request) {
       }
     }
 
+    if (taggedContacts.length > 0) {
+      const contactRows = taggedContacts.map((contact) => ({
+        appointment_id: appointmentId,
+        contact_id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        position: contact.position,
+      }));
+      const { error: contactsError } = await supabase.from("appointment_contacts").insert(contactRows);
+      if (contactsError) {
+        console.error(contactsError);
+        return NextResponse.json({ message: "Failed to save tagged contacts" }, { status: 500 });
+      }
+    }
+
     await mirrorAppointmentToCpanel(
       buildCpanelAppointment({
         id: appointmentId,
@@ -245,7 +285,8 @@ export async function POST(request: Request) {
 
     // Invitation email (with PDF ticket) and calendar run post-response.
     const vehiclesForTasks = await getAppointmentVehicles(supabase, appointmentId);
-    const appointmentForTasks: AppointmentWithOffice = { ...appointment, vehicles: vehiclesForTasks };
+    const contactsForTasks = await getAppointmentContacts(supabase, appointmentId);
+    const appointmentForTasks: AppointmentWithOffice = { ...appointment, vehicles: vehiclesForTasks, contacts: contactsForTasks };
     after(async () => {
       await runInvitationTasks(appointmentForTasks, referenceNumber, admin.id, admin.email);
     });
