@@ -7,8 +7,6 @@ import type { BookingData } from "@/app/page";
 const VISITOR_CATEGORIES = [
   { value: "external", label: "External (Companies, Organizations, Groups)" },
   { value: "parents", label: "Parents" },
-  { value: "student", label: "Student" },
-  { value: "faculty", label: "Faculty / Staff" },
   { value: "alumni", label: "Alumni" },
   { value: "vendor", label: "Vendor / Supplier" },
 ] as const;
@@ -23,7 +21,11 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
   const [visitorCategory, setVisitorCategory] = useState(data.visitorCategory || "external");
   const [validId, setValidId] = useState(data.validId || "");
   const [visitorCount, setVisitorCount] = useState(data.visitorCount || 1);
+  const [visitorsEnabled, setVisitorsEnabled] = useState(data.additionalVisitors && data.additionalVisitors.length > 0);
   const [additionalVisitors, setAdditionalVisitors] = useState(data.additionalVisitors || []);
+  const [hasVehicle, setHasVehicle] = useState(data.hasVehicle || false);
+  const [vehicleCount, setVehicleCount] = useState(data.vehicleCount || 0);
+  const [vehicles, setVehicles] = useState(data.vehicles || []);
   const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -45,6 +47,11 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
       if (!visitor.fullName.trim()) newErrors[`visitor-${index}-name`] = "Name is required";
       if (!visitor.validId) newErrors[`visitor-${index}-id`] = "Please select a valid ID";
     });
+    if (hasVehicle) {
+      vehicles.forEach((vehicle, index) => {
+        if (!vehicle.plateNumber.trim()) newErrors[`vehicle-${index}-plate`] = "Plate number is required";
+      });
+    }
     if (!consent) newErrors.consent = "You must consent to data collection to proceed";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -52,14 +59,50 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) onNext({ ...formData, visitorCategory, validId, visitorCount, additionalVisitors });
+    if (validate()) onNext({
+      ...formData,
+      visitorCategory,
+      validId,
+       visitorCount: visitorsEnabled ? visitorCount : 1,
+       additionalVisitors: visitorsEnabled ? additionalVisitors : [],
+      hasVehicle,
+      vehicleCount: hasVehicle ? vehicleCount : 0,
+      vehicles: hasVehicle ? vehicles : [],
+    });
   };
 
-  const changeVisitorCount = (nextCount: number) => {
-    const count = Math.min(10, Math.max(1, nextCount));
-    setVisitorCount(count);
-    setAdditionalVisitors((previous) => Array.from({ length: count - 1 }, (_, index) => previous[index] || { fullName: "", validId: "" }));
+  const toggleHasVehicle = (enabled: boolean) => {
+    setHasVehicle(enabled);
+    if (enabled) {
+      setVehicleCount((previous) => previous || 1);
+      setVehicles((previous) => (previous.length > 0 ? previous : [{ plateNumber: "", makeModel: "" }]));
+    }
   };
+
+  const changeVehicleCount = (nextCount: number) => {
+    const count = Math.min(5, Math.max(1, nextCount));
+    setVehicleCount(count);
+    setVehicles((previous) => Array.from({ length: count }, (_, index) => previous[index] || { plateNumber: "", makeModel: "" }));
+  };
+
+  const updateVehicle = (index: number, field: "plateNumber" | "makeModel", value: string) => {
+    setVehicles((previous) => previous.map((vehicle, vehicleIndex) => vehicleIndex === index ? { ...vehicle, [field]: value } : vehicle));
+    if (field === "plateNumber") setErrors((previous) => ({ ...previous, [`vehicle-${index}-plate`]: "" }));
+  };
+
+   const changeVisitorCount = (nextCount: number) => {
+     const count = Math.min(10, Math.max(1, nextCount));
+     setVisitorCount(count);
+     setAdditionalVisitors((previous) => Array.from({ length: count - 1 }, (_, index) => previous[index] || { fullName: "", validId: "" }));
+   };
+
+   const toggleVisitors = (enabled: boolean) => {
+     setVisitorsEnabled(enabled);
+     if (!enabled) {
+       setVisitorCount(1);
+       setAdditionalVisitors([]);
+     }
+   };
 
   const updateAdditionalVisitor = (index: number, field: "fullName" | "validId", value: string) => {
     setAdditionalVisitors((previous) => previous.map((visitor, visitorIndex) => visitorIndex === index ? { ...visitor, [field]: value } : visitor));
@@ -124,10 +167,23 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
           <label className="label" htmlFor="visitorCount">Number of Visitors</label>
           <p className="text-xs text-gray-400 mt-1">The person booking is included. Everyone must enter together using the booking person&apos;s gate entry code.</p>
           <div className="mt-2 flex items-center gap-3">
-            <button type="button" onClick={() => changeVisitorCount(visitorCount - 1)} disabled={visitorCount <= 1} aria-label="Decrease number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">-</button>
-            <input id="visitorCount" type="number" min={1} max={10} value={visitorCount} onChange={(e) => changeVisitorCount(Number(e.target.value))} className="input w-20 text-center" />
-            <button type="button" onClick={() => changeVisitorCount(visitorCount + 1)} disabled={visitorCount >= 10} aria-label="Increase number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">+</button>
+            <button type="button" onClick={() => toggleVisitors(false)}
+              className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${!visitorsEnabled ? "bg-primary/10 text-primary border-primary/30" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}>
+              1 Visitor
+            </button>
+            <button type="button" onClick={() => toggleVisitors(true)}
+              className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${visitorsEnabled ? "bg-primary/10 text-primary border-primary/30" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}>
+              Multiple Visitors
+            </button>
           </div>
+
+          {visitorsEnabled && (
+            <div className="mt-3 flex items-center gap-3">
+              <button type="button" onClick={() => changeVisitorCount(visitorCount - 1)} disabled={visitorCount <= 1} aria-label="Decrease number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">-</button>
+              <input id="visitorCount" type="number" min={1} max={10} value={visitorCount} onChange={(e) => changeVisitorCount(Number(e.target.value))} className="input w-20 text-center" />
+              <button type="button" onClick={() => changeVisitorCount(visitorCount + 1)} disabled={visitorCount >= 10} aria-label="Increase number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">+</button>
+            </div>
+          )}
         </div>
 
         {additionalVisitors.length > 0 && (

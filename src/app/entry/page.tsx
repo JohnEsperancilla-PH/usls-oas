@@ -26,6 +26,8 @@ interface ScanResult {
     validId: string;
     visitorCount: number;
     visitors: { fullName: string; validId: string; isBooker: boolean }[];
+    vehicleCount: number;
+    vehicles: { plateNumber: string; makeModel: string }[];
     referenceNumber: string;
     status: "approved" | "completed" | "entry_denied";
     scannedAt?: string | null;
@@ -43,6 +45,8 @@ interface ExpectedVisitor {
   referenceNumber: string;
   visitorCount: number;
   visitors: { fullName: string; validId: string; isBooker: boolean }[];
+  vehicleCount: number;
+  vehicles: { plateNumber: string; makeModel: string }[];
   checkedOutAt?: string | null;
 }
 
@@ -353,6 +357,18 @@ export default function EntryPage() {
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Identity requirement</span>
                     <p className="mt-1 text-sm font-semibold text-gray-900">Valid ID to Present: {scanResult.appointment.validId || "—"}</p>
                   </div>
+                  {scanResult.appointment.vehicles.length > 0 && (
+                    <div className="border-t border-gray-100 pt-2 lg:col-span-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Registered Vehicles ({scanResult.appointment.vehicleCount})</span>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {scanResult.appointment.vehicles.map((vehicle, index) => (
+                          <span key={`${vehicle.plateNumber}-${index}`} className="px-2 py-1 rounded-md bg-blue-50 border border-blue-200 text-xs font-mono font-medium text-blue-800">
+                            {vehicle.plateNumber}{vehicle.makeModel ? ` · ${vehicle.makeModel}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {scanResult.appointment.visitors.length > 1 && (
                     <div className="border-t border-gray-100 pt-2 lg:col-start-1 lg:col-span-1 lg:border-l lg:border-r lg:px-5 lg:h-full">
                       <span className="text-gray-500 text-[11px]">Visitors entering together</span>
@@ -433,6 +449,7 @@ export default function EntryPage() {
                           </div>
                         </div>
                         {visitor.visitorCount > 1 && <div className="text-xs text-primary mt-1">{visitor.visitorCount} visitors entering together</div>}
+                        {visitor.vehicleCount > 0 && <div className="text-xs text-blue-600 font-mono mt-0.5">{visitor.vehicles.map((v) => v.plateNumber).join(", ")}</div>}
                         <div className="text-[11px] font-mono text-gray-400 mt-1.5">Reference {visitor.referenceNumber}</div>
                       </button>
                     ))}

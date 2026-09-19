@@ -26,6 +26,8 @@ export default function AuditPage() {
     const badges: Record<string, string> = {
       approve: "bg-green-100 text-green-800",
       decline: "bg-red-100 text-red-800",
+      postpone: "bg-orange-100 text-orange-800",
+      create_invitation: "bg-teal-100 text-teal-800",
       create_account: "bg-blue-100 text-blue-800",
       delete_account: "bg-red-100 text-red-800",
       create_office: "bg-blue-100 text-blue-800",

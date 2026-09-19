@@ -8,6 +8,7 @@ export interface CpanelAppointment {
   valid_id: string | null;
   visitor_category: string;
   visitor_count: number;
+  vehicle_count: number;
   purpose_of_visit: string | null;
   person_to_meet: string | null;
   office_id: string;
@@ -22,6 +23,7 @@ export interface CpanelAppointment {
   checked_out_at: string | null;
   decline_reason: string | null;
   archived: boolean;
+  is_invitation: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -33,6 +35,7 @@ export function buildCpanelAppointment(fields: Partial<CpanelAppointment> & Pick
     valid_id: null,
     visitor_category: "external",
     visitor_count: 1,
+    vehicle_count: 0,
     purpose_of_visit: null,
     person_to_meet: null,
     office_name: null,
@@ -42,6 +45,7 @@ export function buildCpanelAppointment(fields: Partial<CpanelAppointment> & Pick
     checked_out_at: null,
     decline_reason: null,
     archived: false,
+    is_invitation: false,
     ...fields,
   };
 }
@@ -55,6 +59,7 @@ export function fromAppointmentRow(
     valid_id?: string | null;
     visitor_category?: string | null;
     visitor_count?: number | null;
+    vehicle_count?: number | null;
     purpose_of_visit?: string | null;
     person_to_meet?: string | null;
     office_id: string;
@@ -68,6 +73,7 @@ export function fromAppointmentRow(
     checked_out_at?: string | null;
     decline_reason?: string | null;
     archived?: boolean;
+    is_invitation?: boolean;
     created_at: string;
     updated_at?: string | null;
     offices?: { name?: string | null } | null;
@@ -82,6 +88,7 @@ export function fromAppointmentRow(
     valid_id: row.valid_id ?? null,
     visitor_category: row.visitor_category || "external",
     visitor_count: row.visitor_count || 1,
+    vehicle_count: row.vehicle_count || 0,
     purpose_of_visit: row.purpose_of_visit ?? null,
     person_to_meet: row.person_to_meet ?? null,
     office_id: row.office_id,
@@ -96,6 +103,7 @@ export function fromAppointmentRow(
     checked_out_at: row.checked_out_at ?? null,
     decline_reason: row.decline_reason ?? null,
     archived: row.archived ?? false,
+    is_invitation: row.is_invitation ?? false,
     created_at: row.created_at,
     updated_at: row.updated_at ?? new Date().toISOString(),
     ...overrides,
@@ -107,25 +115,27 @@ export async function mirrorAppointmentToCpanel(apt: CpanelAppointment): Promise
     const pool = getMySQLPool();
     await pool.execute(
       `INSERT INTO appointments
-        (id, full_name, phone, email, valid_id, visitor_category, visitor_count, purpose_of_visit,
+        (id, full_name, phone, email, valid_id, visitor_category, visitor_count, vehicle_count, purpose_of_visit,
          person_to_meet, office_id, office_name, date, time_slot, duration, status,
-         qr_token, qr_used_at, scanned_at, checked_out_at, decline_reason, archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         qr_token, qr_used_at, scanned_at, checked_out_at, decline_reason, archived, is_invitation, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          full_name=VALUES(full_name), phone=VALUES(phone), email=VALUES(email),
          valid_id=VALUES(valid_id), visitor_category=VALUES(visitor_category), visitor_count=VALUES(visitor_count),
+         vehicle_count=VALUES(vehicle_count),
          purpose_of_visit=VALUES(purpose_of_visit), person_to_meet=VALUES(person_to_meet),
          office_id=VALUES(office_id), office_name=VALUES(office_name), date=VALUES(date),
          time_slot=VALUES(time_slot), duration=VALUES(duration), status=VALUES(status),
          qr_token=VALUES(qr_token), qr_used_at=VALUES(qr_used_at),
          scanned_at=VALUES(scanned_at), checked_out_at=VALUES(checked_out_at), decline_reason=VALUES(decline_reason),
-         archived=VALUES(archived), created_at=VALUES(created_at), updated_at=VALUES(updated_at)`,
+         archived=VALUES(archived), is_invitation=VALUES(is_invitation),
+         created_at=VALUES(created_at), updated_at=VALUES(updated_at)`,
       [
         apt.id, apt.full_name, apt.phone, apt.email, apt.valid_id,
-        apt.visitor_category, apt.visitor_count, apt.purpose_of_visit, apt.person_to_meet, apt.office_id,
-        apt.office_name, apt.date, apt.time_slot, apt.duration, apt.status, apt.qr_token,
-        apt.qr_used_at, apt.scanned_at, apt.checked_out_at, apt.decline_reason, apt.archived,
-        apt.created_at, apt.updated_at,
+        apt.visitor_category, apt.visitor_count, apt.vehicle_count, apt.purpose_of_visit, apt.person_to_meet,
+        apt.office_id, apt.office_name, apt.date, apt.time_slot, apt.duration, apt.status,
+        apt.qr_token, apt.qr_used_at, apt.scanned_at, apt.checked_out_at, apt.decline_reason, apt.archived,
+        apt.is_invitation, apt.created_at, apt.updated_at,
       ]
     );
   } catch (error) {

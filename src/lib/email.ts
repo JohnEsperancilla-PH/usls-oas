@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/server";
-import { ENTRY_TIMING_NOTE, formatTimeSlot } from "@/lib/time";
+import { formatTimeSlot } from "@/lib/time";
 
 export function escapeHtml(str: string): string {
   return str
@@ -61,7 +61,7 @@ async function getLogoAttachment() {
 interface SendMailAttachments {
   filename: string;
   content: Buffer | string;
-  cid: string;
+  cid?: string;
   contentType?: string;
 }
 
@@ -160,8 +160,19 @@ function visitorDetails(visitors: EmailVisitor[] = []) {
   </div>`;
 }
 
-function entryTimingDetails() {
-  return `<div style="margin:0 0 20px;padding:16px;background:#fff7ed;border-radius:8px;border:1px solid #fed7aa;font-size:13px;color:#555;line-height:1.8;"><strong style="color:#9a3412;">Gate 2 timing requirements</strong><br/>${ENTRY_TIMING_NOTE}</div>`;
+function bulletList(items: string[]) {
+  return `<ul style="margin:0 0 24px;padding-left:18px;color:#555;font-size:14px;line-height:1.8;">
+    ${items.map((item) => `<li style="margin-bottom:4px;">${item}</li>`).join("")}
+  </ul>`;
+}
+
+function gateNotes(validId: string) {
+  return bulletList([
+    `Present this ticket or your reference number at <strong>USLS Gate 2</strong> on your appointment date.`,
+    `Bring the <strong>${escapeHtml(validId)}</strong> you listed &mdash; the Guard will issue your visitor&apos;s pass.`,
+    `Please arrive at Gate 2 by <strong>20 minutes</strong> before your scheduled time.`,
+    `Entry is allowed only from 30 minutes before the scheduled time; arriving <strong>15 minutes</strong> after voids the gate entry code.`,
+  ]);
 }
 
 export async function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string, validId: string, contactEmail?: string | null, contactPhone?: string | null, visitors?: EmailVisitor[]) {
@@ -174,7 +185,8 @@ export async function generateBookingConfirmationEmail(name: string, date: strin
     : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
   const result = await wrap("Appointment Submitted", `
     <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
-    <p style="color:#555;margin:0 0 24px;">Your appointment request has been received and is pending review. You will be notified once it has been reviewed.</p>
+    <p style="color:#555;margin:0 0 24px;">Your appointment has been received and is pending review.</p>
+    ${gateNotes(validId)}
     <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
@@ -183,11 +195,6 @@ export async function generateBookingConfirmationEmail(name: string, date: strin
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Pending", "#b45309")}</td></tr>
     </table>
     ${visitorDetails(visitors)}
-    ${entryTimingDetails()}
-    <div style="margin-bottom:20px;padding:16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">
-      <strong style="color:#006633;">Gate Entry Instructions</strong><br/>
-      On the day of your appointment, entry is accepted only at <strong>USLS Gate 2</strong>. Please present the <strong>${escapeHtml(validId)}</strong> you selected at the Guard to receive your visitor&apos;s pass.
-    </div>
     ${contactBlock}
   `);
   return { html: result.html, attachments: result.attachments };
@@ -227,7 +234,7 @@ export async function generateAdminAlertEmail(
     </div>`;
 
   const result = await wrap("New Appointment Request", `
-    <p style="color:#555;margin:0 0 20px;">A new appointment has been submitted and requires your review. You can approve or deny it right here, or open the admin panel.</p>
+    <p style="color:#555;margin:0 0 20px;">A new appointment has been submitted and is waiting for your review.</p>
     <table style="width:100%;margin:0 0 0;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Visitor Information</td></tr>
       ${detailRow("Name", name)}
@@ -263,7 +270,13 @@ export async function generateApprovalEmail(
     : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
   const result = await wrap("Appointment Approved", `
     <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
-    <p style="color:#555;margin:0 0 24px;">Great news! Your appointment has been approved. Please present your reference number below at the gate for entry.</p>
+    <p style="color:#555;margin:0 0 6px;">Great news! Your appointment has been approved. Please present your reference number below at the gate for entry.</p>
+    ${gateNotes(validId)}
+    <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
+      <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
+      <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
+    </div>
+    <p style="color:#999;font-size:12px;margin:0 0 20px;text-align:center;">This reference number is single-use and will be disabled after entry.</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
@@ -273,16 +286,6 @@ export async function generateApprovalEmail(
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Approved", "#006633")}</td></tr>
     </table>
     ${visitorDetails(visitors)}
-    ${entryTimingDetails()}
-    <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
-      <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
-      <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
-    </div>
-    <p style="color:#999;font-size:12px;margin:0;text-align:center;">This reference number is single-use and will be disabled after entry.</p>
-    <div style="margin-top:20px;padding:16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">
-      <strong style="color:#006633;">Gate Entry Instructions</strong><br/>
-      Entry is accepted only at <strong>USLS Gate 2</strong>. Present the <strong>${escapeHtml(validId)}</strong> you selected at the Guard to receive your visitor&apos;s pass.
-    </div>
     ${contactBlock}
   `);
   return { html: result.html, attachments: result.attachments };
@@ -308,20 +311,107 @@ export async function generateDeclineEmail(name: string, date: string, time: str
   const result = await wrap("Appointment Declined", `
     <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
     <p style="color:#555;margin:0 0 24px;">We regret to inform you that your appointment has been declined.</p>
+    ${bulletList([
+      reason ? `Reason: <strong>${escapeHtml(reason)}</strong>` : `A reason was not provided — please contact ${officeContact} if you believe this is an error.`,
+      `<a href="${bookingUrl}" style="color:#006633;font-weight:600;text-decoration:underline;">Submit a new appointment</a> anytime, or contact ${officeContact}.`,
+    ])}
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#fef2f2;border-radius:8px;overflow:hidden;">
       <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
       ${detailRow("Time", formatTimeSlot(time))}
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Declined", "#dc2626")}</td></tr>
-      ${reason ? detailRow("Reason", reason) : ""}
     </table>
     ${visitorDetails(visitors)}
-    ${entryTimingDetails()}
-    <p style="color:#555;margin:0 0 4px;text-align:center;">Submit a new appointment or contact <strong>${officeContact}</strong>.</p>
-    <p style="text-align:center;margin:16px 0 0;">
-      <a href="${bookingUrl}" style="display:inline-block;background:#006633;color:#ffffff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Submit a New Appointment</a>
-    </p>
+    ${contactBlock}
+  `);
+  return { html: result.html, attachments: result.attachments };
+}
+
+export async function generatePostponementEmail(
+  name: string,
+  originalDate: string,
+  originalTime: string,
+  newDate: string,
+  newTime: string,
+  office: string,
+  reason?: string,
+  contactEmail?: string | null,
+  contactPhone?: string | null,
+  visitors?: EmailVisitor[]
+) {
+  const formattedOriginal = new Date(originalDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const formattedNew = new Date(newDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const contactLines: string[] = [];
+  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
+  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const contactBlock = contactLines.length > 0
+    ? `<div style="margin-top:16px;padding:12px 16px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;font-size:13px;color:#555;line-height:1.8;">If you have questions about the new schedule, contact the office:<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:14px 0 0;">If you have questions about the new schedule, please contact the office directly.</p>`;
+  const result = await wrap("Appointment Postponed", `
+    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
+    <p style="color:#555;margin:0 0 6px;">The office has postponed your appointment. Your new schedule is below.</p>
+    ${bulletList([
+      `New schedule: <strong>${formattedNew}</strong> at <strong>${formatTimeSlot(newTime)}</strong>${reason ? ` &mdash; ${escapeHtml(reason)}` : ""}`,
+      `Your reference number for the new schedule will be sent once the office confirms the appointment.`,
+    ])}
+    <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#fff7ed;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#b45309;text-transform:uppercase;letter-spacing:0.5px;">Original Schedule</td></tr>
+      ${detailRow("Office", office)}
+      ${detailRow("Date", formattedOriginal)}
+      ${detailRow("Time", formatTimeSlot(originalTime))}
+    </table>
+    <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">New Schedule</td></tr>
+      ${detailRow("Office", office)}
+      ${detailRow("Date", formattedNew)}
+      ${detailRow("Time", formatTimeSlot(newTime))}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Postponed", "#b45309")}</td></tr>
+    </table>
+    ${visitorDetails(visitors)}
+    ${contactBlock}
+  `);
+  return { html: result.html, attachments: result.attachments };
+}
+
+export async function generateInvitationEmail(
+  name: string,
+  date: string,
+  time: string,
+  office: string,
+  referenceNumber: string,
+  validId?: string | null,
+  personToMeet?: string | null,
+  purpose?: string | null,
+  contactEmail?: string | null,
+  contactPhone?: string | null
+) {
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const contactLines: string[] = [];
+  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
+  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const contactBlock = contactLines.length > 0
+    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">If you have questions about your appointment, contact the office:<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
+  const result = await wrap("Appointment Invitation", `
+    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
+    <p style="color:#555;margin:0 0 6px;">You have an appointment scheduled with <strong>${escapeHtml(office)}</strong>. Please present your reference number below at the gate for entry. Your ticket is attached to this email as a PDF.</p>
+    ${gateNotes(validId || "a government-issued ID")}
+    <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
+      <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
+      <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
+    </div>
+    <p style="color:#999;font-size:12px;margin:0 0 20px;text-align:center;">This reference number is single-use and will be disabled after entry.</p>
+    <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
+      ${detailRow("Office", office)}
+      ${detailRow("Date", formattedDate)}
+      ${detailRow("Time", formatTimeSlot(time))}
+      ${personToMeet ? detailRow("Person to Meet", personToMeet) : ""}
+      ${purpose ? detailRow("Purpose of Visit", purpose) : ""}
+      ${validId ? detailRow("Valid ID to Present", validId) : ""}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Confirmed", "#006633")}</td></tr>
+    </table>
     ${contactBlock}
   `);
   return { html: result.html, attachments: result.attachments };

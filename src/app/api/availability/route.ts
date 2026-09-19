@@ -85,7 +85,7 @@ export async function GET(request: Request) {
         .eq("office_id", officeId)
         .gte("date", startDate)
         .lte("date", endDate)
-        .in("status", ["pending", "approved"]);
+        .in("status", ["pending", "approved", "postponed"]);
 
       const { data: blocked } = await supabase
         .from("blocked_times")
@@ -149,7 +149,7 @@ export async function GET(request: Request) {
         .select("time_slot, duration, status")
         .eq("office_id", officeId)
         .eq("date", date)
-        .in("status", ["pending", "approved"]);
+        .in("status", ["pending", "approved", "postponed"]);
 
       const { data: blocked } = await supabase
         .from("blocked_times")

@@ -22,6 +22,9 @@ export interface BookingData {
   purposeOfVisit: string;
   visitorCount: number;
   additionalVisitors: { fullName: string; validId: string }[];
+  hasVehicle: boolean;
+  vehicleCount: number;
+  vehicles: { plateNumber: string; makeModel: string }[];
 }
 
 const initialData: BookingData = {
@@ -38,6 +41,9 @@ const initialData: BookingData = {
   purposeOfVisit: "",
   visitorCount: 1,
   additionalVisitors: [],
+  hasVehicle: false,
+  vehicleCount: 0,
+  vehicles: [],
 };
 
 export default function BookPage() {
@@ -88,6 +94,9 @@ export default function BookPage() {
           purposeOfVisit: finalData.purposeOfVisit,
           visitorCount: finalData.visitorCount,
           additionalVisitors: finalData.additionalVisitors,
+          hasVehicle: finalData.hasVehicle,
+          vehicleCount: finalData.hasVehicle ? finalData.vehicleCount : 0,
+          vehicles: finalData.hasVehicle ? finalData.vehicles : [],
         }),
       });
       if (!response.ok) {
@@ -120,6 +129,12 @@ export default function BookPage() {
       { label: "Duration", value: `${formData.duration} minutes` },
       { label: "Visitor", value: formData.fullName },
       { label: "Number of Visitors", value: String(formData.visitorCount) },
+      ...(formData.hasVehicle
+        ? [
+            { label: "Number of Vehicles", value: String(formData.vehicleCount) },
+            { label: "Vehicle(s)", value: formData.vehicles.map((v) => v.plateNumber).join(", ") },
+          ]
+        : []),
     ];
     const officeEmail = office?.contact_email || office?.email;
 

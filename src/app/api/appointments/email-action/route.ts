@@ -125,7 +125,7 @@ async function executeAction(action: string | null, token: string | null, baseUr
     return renderPage({ stage: "error", message: auth.message, baseUrl });
   }
 
-  if (appointment.status !== "pending") {
+  if (appointment.status !== "pending" && appointment.status !== "postponed") {
     return renderPage({ stage: "already", action, appointment, baseUrl });
   }
 
@@ -146,7 +146,7 @@ async function executeAction(action: string | null, token: string | null, baseUr
         updated_at: updatedAt,
       })
       .eq("id", appointment.id)
-      .eq("status", "pending")
+      .in("status", ["pending", "postponed"])
       .select("id")
       .maybeSingle();
 
@@ -182,7 +182,7 @@ async function executeAction(action: string | null, token: string | null, baseUr
         updated_at: updatedAt,
       })
       .eq("id", appointment.id)
-      .eq("status", "pending")
+      .in("status", ["pending", "postponed"])
       .select("id")
       .maybeSingle();
 

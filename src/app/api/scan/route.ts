@@ -7,6 +7,7 @@ import { getAuthAdmin, requireEntryUser, logAudit } from "@/lib/rbac";
 import { getEntryTimingStatus, getManilaToday } from "@/lib/time";
 import type { Appointment } from "@/types/database";
 import { getAppointmentVisitors } from "@/lib/appointment-visitors";
+import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
 
 type ScanReason = "preview" | "not_found" | "pending" | "cancelled" | "expired" | "wrong_date" | "already_used" | "duplicate_scan" | "invalid_id" | "checked_out" | "entry_denied" | "too_early" | "too_late";
 
@@ -14,7 +15,11 @@ function scanFailure(message: string, reason: ScanReason, appointment?: Record<s
   return NextResponse.json({ success: false, reason, message, ...(appointment ? { appointment } : {}) }, { status });
 }
 
-function appointmentSummary(appointment: Appointment & { offices?: { name?: string | null } | null }, visitors: Awaited<ReturnType<typeof getAppointmentVisitors>> = []) {
+function appointmentSummary(
+  appointment: Appointment & { offices?: { name?: string | null } | null },
+  visitors: Awaited<ReturnType<typeof getAppointmentVisitors>> = [],
+  vehicles: Awaited<ReturnType<typeof getAppointmentVehicles>> = []
+) {
   return {
     id: appointment.id,
     fullName: appointment.full_name,
@@ -30,6 +35,8 @@ function appointmentSummary(appointment: Appointment & { offices?: { name?: stri
     validId: appointment.valid_id || "",
     visitorCount: appointment.visitor_count || 1,
     visitors: visitors.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker })),
+    vehicleCount: appointment.vehicle_count || vehicles.length,
+    vehicles: vehicles.map((vehicle) => ({ plateNumber: vehicle.plate_number, makeModel: vehicle.make_model || "" })),
     referenceNumber: appointment.qr_token || "",
     status: appointment.status,
     scannedAt: appointment.scanned_at,
@@ -60,7 +67,11 @@ export async function GET(request: Request) {
   return NextResponse.json({
     date: today,
     visitors: await Promise.all((data || []).map(async (appointment) => ({
-      ...appointmentSummary(appointment, await getAppointmentVisitors(supabase, appointment.id)),
+      ...appointmentSummary(
+        appointment,
+        await getAppointmentVisitors(supabase, appointment.id),
+        await getAppointmentVehicles(supabase, appointment.id)
+      ),
       status: appointment.status,
     }))),
   });
@@ -101,7 +112,11 @@ export async function POST(request: Request) {
       return scanFailure("Reference number not found", "not_found", undefined, 404);
     }
 
-    const summary = appointmentSummary(appointment, await getAppointmentVisitors(supabase, appointment.id));
+    const summary = appointmentSummary(
+      appointment,
+      await getAppointmentVisitors(supabase, appointment.id),
+      await getAppointmentVehicles(supabase, appointment.id)
+    );
 
     if (action === "deny_entry") {
       if (appointment.status !== "approved") return scanFailure("Only an approved appointment can be denied at the gate", "already_used", summary, 409);
@@ -159,9 +174,11 @@ export async function POST(request: Request) {
         message = "Appointment has been declined";
       } else if (appointment.status === "pending") {
         message = "Appointment is still pending approval";
+      } else if (appointment.status === "postponed") {
+        message = "Appointment has been postponed and is awaiting confirmation";
       }
       
-      const reason: ScanReason = appointment.status === "declined" ? "cancelled" : appointment.status === "expired" ? "expired" : appointment.status === "pending" ? "pending" : "already_used";
+      const reason: ScanReason = appointment.status === "declined" ? "cancelled" : appointment.status === "expired" ? "expired" : appointment.status === "pending" || appointment.status === "postponed" ? "pending" : "already_used";
       return scanFailure(message, reason, summary, 409);
     }
 
@@ -276,6 +293,8 @@ export async function POST(request: Request) {
         validId: appointment.valid_id || "",
         visitorCount: appointment.visitor_count || 1,
         visitors: summary.visitors,
+        vehicleCount: summary.vehicleCount,
+        vehicles: summary.vehicles,
         referenceNumber: reference,
         status: "completed",
         scannedAt: scanTime,

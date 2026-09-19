@@ -3,6 +3,7 @@ import type { AuditAction, AuditLog } from "@/types/database";
 const ACTION_LABELS: Record<AuditAction, string> = {
   approve: "Approved appointment",
   decline: "Declined appointment",
+  postpone: "Postponed appointment",
   entry: "Checked in visitor",
   checkout: "Checked out visitor",
   entry_denied: "Denied entry",
@@ -16,6 +17,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   reset_qr: "Reset visitor reference",
   archive_sync: "Synchronized archive",
   login: "Signed in",
+  create_invitation: "Created invitation",
 };
 
 export function getAuditActionLabel(action: string): string {
@@ -54,6 +56,17 @@ export function getAuditSummary(log: AuditLog): string {
         .join(" - ") || "Appointment approved";
     case "decline":
       return [visitor, reason ? `Reason: ${reason}` : null].filter(Boolean).join(" - ") || "Appointment declined";
+    case "postpone": {
+      const newDate = value(details, "new_date");
+      const newTime = value(details, "new_time");
+      return [visitor, newDate && newTime ? `moved to ${newDate} at ${newTime}` : null, reason ? `Reason: ${reason}` : null]
+        .filter(Boolean)
+        .join(" - ") || "Appointment postponed";
+    }
+    case "create_invitation":
+      return [visitor, office, date && timeSlot ? `${date} at ${timeSlot}` : null, emailSent === "true" ? "invitation emailed" : "ticket not emailed"]
+        .filter(Boolean)
+        .join(" - ") || "Invitation created";
     case "entry":
       return [visitor, office, date && timeSlot ? `${date} at ${timeSlot}` : null].filter(Boolean).join(" - ") || "Visitor checked in";
     case "entry_denied":

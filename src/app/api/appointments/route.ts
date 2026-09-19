@@ -60,6 +60,22 @@ export async function POST(request: Request) {
       }
     }
 
+    const hasVehicle = body.hasVehicle === true;
+    const vehicleCount = hasVehicle ? Number(body.vehicleCount || 0) : 0;
+    const vehicles = hasVehicle && Array.isArray(body.vehicles) ? body.vehicles : [];
+    if (!Number.isInteger(vehicleCount) || vehicleCount < 0 || vehicleCount > 5 || vehicles.length !== vehicleCount) {
+      return NextResponse.json({ message: "Vehicle count and vehicle details are invalid" }, { status: 400 });
+    }
+    const plateRegex = /^[A-Z0-9\s-]{3,15}$/;
+    for (const vehicle of vehicles) {
+      if (!vehicle || typeof vehicle.plateNumber !== "string" || !plateRegex.test(vehicle.plateNumber.trim().toUpperCase())) {
+        return NextResponse.json({ message: "Each vehicle must have a valid plate number" }, { status: 400 });
+      }
+      if (vehicle.makeModel !== undefined && vehicle.makeModel !== null && (typeof vehicle.makeModel !== "string" || vehicle.makeModel.length > 100)) {
+        return NextResponse.json({ message: "Vehicle make/model is too long (max 100 characters)" }, { status: 400 });
+      }
+    }
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(body.email)) {
@@ -176,7 +192,7 @@ export async function POST(request: Request) {
       .eq("office_id", body.officeId)
       .eq("date", body.date)
       .in("time_slot", Array.from(slotsToQuery))
-      .in("status", ["pending", "approved"]);
+      .in("status", ["pending", "approved", "postponed"]);
 
     if (conflictError) {
       console.error(conflictError);
@@ -227,6 +243,8 @@ export async function POST(request: Request) {
       time_slot: body.timeSlot,
       duration: body.duration,
       visitor_count: visitorCount,
+      vehicle_count: vehicleCount,
+      is_invitation: false,
       status: "pending",
       qr_token: null,
       qr_used_at: null,
@@ -253,6 +271,7 @@ export async function POST(request: Request) {
           time_slot: body.timeSlot,
           duration: body.duration,
           visitor_count: visitorCount,
+          vehicle_count: vehicleCount,
           status: "pending",
           archived: false,
           created_at: nowIso,
@@ -285,6 +304,20 @@ export async function POST(request: Request) {
     if (visitorsError) {
       console.error(visitorsError);
       return NextResponse.json({ message: "Failed to save visitor details" }, { status: 500 });
+    }
+
+    if (vehicles.length > 0) {
+      const vehicleRows = vehicles.map((vehicle: { plateNumber: string; makeModel?: string | null }, index: number) => ({
+        appointment_id: appointment.id,
+        vehicle_number: index + 1,
+        plate_number: vehicle.plateNumber.trim().toUpperCase(),
+        make_model: typeof vehicle.makeModel === "string" && vehicle.makeModel.trim() ? vehicle.makeModel.trim() : null,
+      }));
+      const { error: vehiclesError } = await supabase.from("appointment_vehicles").insert(vehicleRows);
+      if (vehiclesError) {
+        console.error(vehiclesError);
+        return NextResponse.json({ message: "Failed to save vehicle details" }, { status: 500 });
+      }
     }
 
     // Send confirmation email to visitor

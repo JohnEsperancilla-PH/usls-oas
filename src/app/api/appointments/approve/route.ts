@@ -33,8 +33,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "You can only approve appointments for your office" }, { status: 403 });
     }
 
-    if (appointment.status !== "pending") {
-      return NextResponse.json({ message: "Appointment is not in pending status" }, { status: 400 });
+    if (appointment.status !== "pending" && appointment.status !== "postponed") {
+      return NextResponse.json({ message: "Appointment is not in pending or postponed status" }, { status: 400 });
     }
 
     const referenceNumber = await createUniqueReference(supabase);
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
         updated_at: updatedAt,
       })
       .eq("id", appointment.id)
-      .eq("status", "pending")
+      .in("status", ["pending", "postponed"])
       .select("id")
       .maybeSingle();
 

@@ -14,6 +14,8 @@ interface SystemSettings {
   notify_approval: string;
   notify_decline: string;
   notify_qr_resend: string;
+  notify_postponement: string;
+  notify_invitation: string;
 }
 
 export default function SettingsPage() {
@@ -65,7 +67,7 @@ export default function SettingsPage() {
   };
 
   const toggleNotification = (key: keyof SystemSettings) => {
-    setSettings((prev) => prev ? { ...prev, [key]: prev[key] === "true" ? "false" : "true" } : prev);
+    setSettings((prev) => prev ? { ...prev, [key]: prev[key] !== "false" ? "false" : "true" } : prev);
   };
 
   const saveSettings = async () => {
@@ -162,6 +164,8 @@ export default function SettingsPage() {
             { key: "notify_admin_alert" as const, label: "Admin Alert", desc: "Sent to office admin when new appointment is pending" },
             { key: "notify_approval" as const, label: "Approval Email", desc: "Sent to visitor when appointment is approved (includes reference number)" },
             { key: "notify_decline" as const, label: "Decline Email", desc: "Sent to visitor when appointment is declined" },
+            { key: "notify_postponement" as const, label: "Postponement Email", desc: "Sent to visitor when appointment is postponed to a new schedule" },
+            { key: "notify_invitation" as const, label: "Invitation Email", desc: "Sent to visitor when the office creates a manual invitation (includes ticket PDF)" },
             { key: "notify_qr_resend" as const, label: "Reference Re-send", desc: "Sent to visitor when the reference number is reset and re-issued" },
           ].map((item) => (
             <div key={item.key} className="px-5 py-3.5 flex items-center justify-between">

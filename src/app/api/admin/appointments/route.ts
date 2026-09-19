@@ -3,6 +3,7 @@ import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 import { attachAppointmentVisitors } from "@/lib/appointment-visitors";
+import { attachAppointmentVehicles } from "@/lib/appointment-vehicles";
 
 export async function GET(request: Request) {
   try {
@@ -36,7 +37,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Failed to fetch appointments" }, { status: 500 });
     }
 
-    return NextResponse.json(await attachAppointmentVisitors(supabase, data || []));
+    const withVisitors = await attachAppointmentVisitors(supabase, data || []);
+    return NextResponse.json(await attachAppointmentVehicles(supabase, withVisitors));
   } catch (error) {
     return handleRouteError(error);
   }

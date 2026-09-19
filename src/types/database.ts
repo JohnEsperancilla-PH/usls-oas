@@ -1,7 +1,7 @@
-export type AppointmentStatus = "pending" | "approved" | "declined" | "entry_denied" | "completed" | "expired";
+export type AppointmentStatus = "pending" | "approved" | "declined" | "postponed" | "entry_denied" | "completed" | "expired";
 export type AdminRole = "super_admin" | "office_admin" | "gate_user";
-export type VisitorCategory = "external" | "parents" | "student" | "faculty" | "alumni" | "vendor";
-export type AuditAction = "approve" | "decline" | "entry" | "checkout" | "entry_denied" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login";
+export type VisitorCategory = "external" | "parents" | "alumni" | "vendor";
+export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "delete_account" | "create_office" | "update_office" | "delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation";
 
 export interface Office {
   id: string;
@@ -40,10 +40,13 @@ export interface Appointment {
   decline_reason: string | null;
   archived: boolean;
   visitor_count: number;
+  vehicle_count: number;
+  is_invitation: boolean;
   created_at: string;
   updated_at: string;
   office?: Office;
   visitors?: AppointmentVisitor[];
+  vehicles?: AppointmentVehicle[];
 }
 
 export interface AppointmentVisitor {
@@ -53,6 +56,15 @@ export interface AppointmentVisitor {
   full_name: string;
   valid_id: string;
   is_booker: boolean;
+  created_at: string;
+}
+
+export interface AppointmentVehicle {
+  id: string;
+  appointment_id: string;
+  vehicle_number: number;
+  plate_number: string;
+  make_model: string | null;
   created_at: string;
 }
 
@@ -69,7 +81,7 @@ export interface Admin {
 export interface EmailLog {
   id: string;
   appointment_id: string;
-  type: "confirmation" | "admin_alert" | "approval" | "decline";
+  type: "confirmation" | "admin_alert" | "approval" | "decline" | "postponement" | "invitation";
   status: "pending" | "sent" | "failed";
   sent_at: string | null;
   error_message: string | null;
@@ -123,6 +135,11 @@ export interface Database {
         Row: AppointmentVisitor;
         Insert: Omit<AppointmentVisitor, "id" | "created_at">;
         Update: Partial<Omit<AppointmentVisitor, "id" | "created_at" | "appointment_id">>;
+      };
+      appointment_vehicles: {
+        Row: AppointmentVehicle;
+        Insert: Omit<AppointmentVehicle, "id" | "created_at">;
+        Update: Partial<Omit<AppointmentVehicle, "id" | "created_at" | "appointment_id">>;
       };
       admins: {
         Row: Admin;
