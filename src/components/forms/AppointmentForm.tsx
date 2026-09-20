@@ -479,9 +479,15 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
           <div className="animate-fade-in">
             <label className="label flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">3</span>
-              Pick a Time
+              Preferred Time
               {selectedOffice && <span className="text-xs text-gray-400 font-normal ml-1">· {selectedOffice.capacity_per_slot} spot{selectedOffice.capacity_per_slot !== 1 ? "s" : ""} per slot</span>}
             </label>
+            <p className="text-xs text-gray-500 mt-1.5">
+              This is your <strong className="text-gray-600">preferred time</strong> only — there is <strong className="text-gray-600">no guarantee that the office or person you intend to meet will be available</strong> at this time. Your request is <strong className="text-gray-600">pending their confirmation</strong>, and this appointment slot is only provisional until they respond.
+            </p>
+            <p className="text-xs text-gray-500 mt-2 border-l-2 border-primary/30 pl-3">
+              ⏳ Please <strong className="text-gray-700">wait for confirmation</strong> before going to the office. Do not treat your preferred time as assured. We'll email you once your request is <strong className="text-gray-700">confirmed, postponed, or declined</strong>.
+            </p>
             <div className="mt-2">
               <div className="text-xs text-gray-500 mb-2">
                 {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
