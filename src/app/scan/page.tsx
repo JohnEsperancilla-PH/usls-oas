@@ -122,10 +122,11 @@ export default function ScanPage() {
     setScanResult(null);
     processingRef.current = false;
     const codeReader = new BrowserQRCodeReader();
-    try {
+
+    const attemptDecode = async (constraints: MediaStreamConstraints) => {
       const controls = await codeReader.decodeFromConstraints(
-        { audio: false, video: { facingMode: "environment" } },
-        videoRef.current,
+        constraints,
+        videoRef.current!,
         (result) => {
           if (!result || processingRef.current) return;
           processingRef.current = true;
@@ -139,8 +140,22 @@ export default function ScanPage() {
       );
       controlsRef.current = controls;
       setScanning(true);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+    };
+
+    try {
+      await attemptDecode({
+        audio: false,
+        video: { facingMode: { ideal: "environment" } },
+      });
+    } catch (firstError) {
+      const code = (firstError as { name?: string })?.name;
+      if (code === "NotFoundError" || code === "OverconstrainedError" || code === "NotReadableError") {
+        try {
+          await attemptDecode({ audio: false, video: true });
+          return;
+        } catch {}
+      }
+      const msg = firstError instanceof Error ? firstError.message : String(firstError);
       setError(`Camera unavailable: ${msg}. Use manual entry below.`);
       setScanning(false);
     }
@@ -394,8 +409,8 @@ export default function ScanPage() {
             <p className="text-xs text-gray-500 mt-1">Logged in as <span className="font-medium text-gray-700">{officerName || employeeId}</span> · {currentDateLabel} · {currentTimeLabel}</p>
           </div>
           {scanResult && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-black/40 p-2 sm:p-4 sm:items-center">
-            <div className={`relative w-full max-w-[min(28rem,calc(100vw-1rem))] lg:max-w-6xl max-h-[calc(100vh-0.5rem)] sm:max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl p-3 sm:p-4 text-center animate-modal-in border ${scanResult.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+            <div className="lg:fixed lg:inset-0 lg:z-50 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/40">
+            <div className={`relative w-full max-w-[min(28rem,calc(100vw-1rem))] lg:max-w-6xl min-h-[calc(100vh-0.5rem)] sm:min-h-0 lg:min-h-0 max-h-none lg:max-h-[calc(100vh-2rem)] rounded-none sm:rounded-xl lg:overflow-y-auto p-3 sm:p-4 text-center animate-modal-in border ${scanResult.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
               <button type="button" onClick={reset} aria-label="Close confirmation" className="absolute top-3 right-3 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-white/70 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
