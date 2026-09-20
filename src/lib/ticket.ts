@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { formatTimeSlot } from "@/lib/time";
+import { generateQrPng } from "@/lib/qr";
 
 export interface TicketVehicle {
   plateNumber: string;
@@ -67,6 +68,11 @@ function drawCentered(page: PDFPage, text: string, font: PDFFont, size: number, 
   page.drawText(text, { x: (PAGE_WIDTH - width) / 2, y, size, font, color });
 }
 
+function drawCenteredAt(page: PDFPage, x: number, text: string, font: PDFFont, size: number, y: number, color: ReturnType<typeof rgb>) {
+  const width = font.widthOfTextAtSize(text, size);
+  page.drawText(text, { x: x - width / 2, y, size, font, color });
+}
+
 function formatDate(date: string): string {
   return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
     weekday: "long",
@@ -107,21 +113,38 @@ export async function generateTicketPdf(data: TicketData): Promise<Uint8Array> {
   const titleY = PAGE_HEIGHT - headerHeight - 40;
   drawCentered(page, "VISITOR APPOINTMENT TICKET", bold, 24, titleY, DARK);
 
-  // 4 + 5. Solid green box: small "REFERENCE NUMBER" label on top, bigger number below.
+  // 4 + 5. Solid green box: small "REFERENCE NUMBER" label on top, bigger number below,
+  // with the QR code for the reference number beside it.
   const numberSize = 27;
   const numberWidth = bold.widthOfTextAtSize(data.referenceNumber, numberSize);
-  const refBoxWidth = Math.max(300, numberWidth + 60);
-  const refBoxHeight = 58;
+  const refBoxWidth = Math.max(280, numberWidth + 40);
+  const refBoxHeight = 64;
   const refBoxTop = titleY - 20;
+  const qrSize = 64;
+  const gap = 18;
+  const groupWidth = refBoxWidth + gap + qrSize;
+  const groupLeft = (PAGE_WIDTH - groupWidth) / 2;
+  const refBoxLeft = groupLeft;
+  const refCenter = refBoxLeft + refBoxWidth / 2;
+
+  const qrPng = await generateQrPng(data.referenceNumber, 384);
+  const qrImage = await pdfDoc.embedPng(qrPng);
+
   page.drawRectangle({
-    x: (PAGE_WIDTH - refBoxWidth) / 2,
+    x: refBoxLeft,
     y: refBoxTop - refBoxHeight,
     width: refBoxWidth,
     height: refBoxHeight,
     color: GREEN,
   });
-  drawCentered(page, "REFERENCE NUMBER", regular, 9, refBoxTop - 18, WHITE);
-  drawCentered(page, data.referenceNumber, bold, numberSize, refBoxTop - 40, WHITE);
+  page.drawImage(qrImage, {
+    x: refBoxLeft + refBoxWidth + gap,
+    y: refBoxTop - qrSize,
+    width: qrSize,
+    height: qrSize,
+  });
+  drawCenteredAt(page, refCenter, "REFERENCE NUMBER", regular, 9, refBoxTop - 18, WHITE);
+  drawCenteredAt(page, refCenter, data.referenceNumber, bold, numberSize, refBoxTop - 40, WHITE);
 
   // 6. Notes with the long text wrapped so it continues on the line below.
   const notes = [

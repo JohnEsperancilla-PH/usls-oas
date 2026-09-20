@@ -4,6 +4,7 @@ import { join } from "path";
 import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/server";
 import { formatTimeSlot } from "@/lib/time";
+import { generateQrPng } from "@/lib/qr";
 
 export function escapeHtml(str: string): string {
   return str
@@ -54,6 +55,15 @@ async function getLogoAttachment() {
     filename: "oas-logo.png",
     content: logoPngCache,
     cid: "logo",
+    contentType: "image/png",
+  };
+}
+
+async function getQrAttachment(text: string): Promise<SendMailAttachments> {
+  return {
+    filename: "qrcode.png",
+    content: await generateQrPng(text),
+    cid: "qrcode",
     contentType: "image/png",
   };
 }
@@ -275,6 +285,7 @@ export async function generateApprovalEmail(
     <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
       <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
       <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
+      <img src="cid:qrcode" alt="QR Code" style="width:200px;height:200px;margin-top:16px;border:2px solid #006633;border-radius:8px;padding:6px;background:#fff;" />
     </div>
     <p style="color:#999;font-size:12px;margin:0 0 20px;text-align:center;">This reference number is single-use and will be disabled after entry.</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
@@ -287,7 +298,7 @@ export async function generateApprovalEmail(
     </table>
     ${visitorDetails(visitors)}
     ${contactBlock}
-  `);
+  `, [await getQrAttachment(referenceNumber)]);
   return { html: result.html, attachments: result.attachments };
 }
 
@@ -400,6 +411,7 @@ export async function generateInvitationEmail(
     <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
       <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
       <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
+      <img src="cid:qrcode" alt="QR Code" style="width:200px;height:200px;margin-top:16px;border:2px solid #006633;border-radius:8px;padding:6px;background:#fff;" />
     </div>
     <p style="color:#999;font-size:12px;margin:0 0 20px;text-align:center;">This reference number is single-use and will be disabled after entry.</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
@@ -413,7 +425,7 @@ export async function generateInvitationEmail(
       <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Confirmed", "#006633")}</td></tr>
     </table>
     ${contactBlock}
-  `);
+  `, [await getQrAttachment(referenceNumber)]);
   return { html: result.html, attachments: result.attachments };
 }
 
