@@ -112,6 +112,13 @@ export default function ScanPage() {
     try {
       controls?.stop();
     } catch {}
+    const video = videoRef.current;
+    if (video?.srcObject) {
+      try {
+        (video.srcObject as MediaStream).getTracks().forEach((track) => track.stop());
+      } catch {}
+      video.srcObject = null;
+    }
     setScanning(false);
   };
 
@@ -390,13 +397,12 @@ export default function ScanPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-100 py-3 px-4 flex-shrink-0 overflow-hidden">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-          <img src="/usls-oas.png" alt="USLS OASYS" className="h-14 sm:h-16 w-auto" />
+          <img src="/usls-oas.png" alt="USLS OASYS" className="h-10 sm:h-16 w-auto" />
           <div className="flex items-center gap-4 sm:gap-6">
             <div className="hidden sm:block text-right">
-              <p className="text-sm font-semibold text-gray-800">Gate Officer Dashboard</p>
               <p className="text-xs text-gray-500">Logged in as <span className="font-medium text-gray-700">{officerName || employeeId}</span> · {currentDateLabel} · {currentTimeLabel}</p>
             </div>
-            <Link href="/entry" className="text-sm text-primary hover:underline whitespace-nowrap">Reference Entry</Link>
+            <Link href="/entry" className="hidden md:inline-block text-sm text-primary hover:underline whitespace-nowrap">Reference Entry</Link>
             <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign Out</button>
           </div>
         </div>
@@ -405,8 +411,7 @@ export default function ScanPage() {
       <main className="flex items-start justify-center p-4 pt-6 sm:pt-8 flex-1">
         <div className="max-w-6xl w-full space-y-4">
           <div className="sm:hidden">
-            <p className="text-lg font-bold text-gray-900">Gate Officer Dashboard</p>
-            <p className="text-xs text-gray-500 mt-1">Logged in as <span className="font-medium text-gray-700">{officerName || employeeId}</span> · {currentDateLabel} · {currentTimeLabel}</p>
+            <p className="text-xs font-semibold text-gray-800">{officerName || employeeId} · {currentDateLabel} · {currentTimeLabel}</p>
           </div>
           {scanResult && (
             <div className="lg:fixed lg:inset-0 lg:z-50 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/40">
