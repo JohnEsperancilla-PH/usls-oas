@@ -96,13 +96,13 @@ export default function AdminDashboardPage() {
 
   const getOfficeName = (officeId: string) => offices.find((o) => o.id === officeId)?.name || "Unknown";
 
-  const handleApprove = async (appointment: Appointment) => {
+  const handleApprove = async (appointment: Appointment, personToMeetEmail?: string) => {
     setProcessing({ id: appointment.id, action: "approve" }); setMessage(null);
     try {
       const res = await fetch("/api/appointments/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId: appointment.id }),
+        body: JSON.stringify({ appointmentId: appointment.id, personToMeetEmail }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
@@ -802,7 +802,7 @@ function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onU
 
 function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, onResetQR, onClose, processing, getStatusBadge }: {
   appointment: Appointment; offices: Office[];
-  onApprove: (a: Appointment) => void; onDecline: (a: Appointment, reason?: string) => void;
+  onApprove: (a: Appointment, personToMeetEmail?: string) => void; onDecline: (a: Appointment, reason?: string) => void;
   onPostpone: (a: Appointment, reason: string, newDate: string, newTimeSlot: string) => void;
   onResetQR: (a: Appointment) => void;
   onClose: () => void; processing: { id: string; action: "approve" | "decline" | "postpone" | "reset" } | null; getStatusBadge: (s: string) => string;
@@ -818,6 +818,11 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
   const isProcessing = processing?.id === appointment.id;
   const isBusy = processing !== null;
   const postponeSlots = buildPostponeSlots(offices.find((o) => o.id === appointment.office_id));
+
+  const officeContacts = offices.find((o) => o.id === appointment.office_id)?.contacts || [];
+  const personContact = officeContacts.find((c) => c.name.toLowerCase() === (appointment.person_to_meet || "").toLowerCase());
+  const isOtherPerson = Boolean(appointment.person_to_meet) && !personContact;
+  const [personToMeetEmail, setPersonToMeetEmail] = useState("");
 
   const submitPostpone = () => {
     if (!postponeDate) { setPostponeError("Please select a new date"); return; }
@@ -877,10 +882,43 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
                 </div>
               </>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => onApprove(appointment)} disabled={isBusy} className="btn-primary flex-1 btn-sm disabled:opacity-50">
-                  {isProcessing && processing.action === "approve" ? "Processing..." : "Approve"}
-                </button>
+              <>
+                {isOtherPerson && (
+                  <div className="mb-3">
+                    <label htmlFor="personToMeetEmail" className="label">
+                      Email for {appointment.person_to_meet} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="personToMeetEmail"
+                      type="email"
+                      className="input mt-1"
+                      value={personToMeetEmail}
+                      onChange={(e) => setPersonToMeetEmail(e.target.value)}
+                      placeholder="person@email.com"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">This email will be notified on approval and saved as an office contact.</p>
+                  </div>
+                )}
+                {personContact && (
+                  <p className="text-sm text-gray-600 mb-3">
+                    <strong>{personContact.name}</strong> ({personContact.email}) will be notified on approval.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      if (isOtherPerson && !personToMeetEmail.trim()) {
+                        alert("Please enter an email for the person to meet.");
+                        return;
+                      }
+                      onApprove(appointment, isOtherPerson ? personToMeetEmail : undefined);
+                    }}
+                    disabled={isBusy}
+                    className="btn-primary flex-1 btn-sm disabled:opacity-50"
+                  >
+                    {isProcessing && processing.action === "approve" ? "Processing..." : "Approve"}
+                  </button>
                 <button onClick={() => setShowDeclineReason(true)} disabled={isBusy} className="btn-danger flex-1 btn-sm disabled:opacity-50">
                   {isProcessing && processing.action === "decline" ? "Processing..." : "Decline"}
                 </button>
@@ -889,6 +927,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
                   {isProcessing && processing.action === "postpone" ? "Processing..." : "Postpone"}
                 </button>
               </div>
+              </>
             )}
           </div>
         ) : (

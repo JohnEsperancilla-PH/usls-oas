@@ -1,32 +1,54 @@
 # USLS OASYS — Backup Procedures (Power Outage Manual Operation)
 
-> **Purpose:** This document defines what the gate team and admins do when an unplanned **power outage** (blackout/brownout) takes the gate scanning stations offline, and how records are reconciled once power is restored.
+> **Purpose:** This document defines the hierarchy of gate verification methods and what to do when systems fail.
 >
-> **Scope:** These procedures apply **only during a power outage** that prevents electronic gate verification. When the system is online, the normal gate scanning process in the User's Manual must be followed.
+> **Scope:** These procedures apply to all gate entry operations.
+>
+> **Note:** The primary scanning interface is now **mobile devices** (smartphones/tablets). The dedicated `/entry` route is deprecated and will be removed in a future release. All gate scanning should be performed via mobile-optimized interfaces.
 
 ---
 
-## 1. Why this is needed
+## 1. Verification Method Hierarchy
 
-The gate entry system verifies a visitor's appointment using the online reference number. If the gate station loses power (or internet), it cannot scan references. To keep campus entry working, the gate falls back to **manual recording**:
+The gate entry system uses a tiered approach to verify visitor appointments:
 
-- Visitors still need a valid appointment and a reference number.
-- The gate officer **writes down** the reference number and visitor details on a paper gate log.
-- No electronic scan is performed until power returns.
+### **Primary: QR Code Scanning**
+- **Mobile devices** (smartphones/tablets) — main scanning method
+- **Desktop/PC stations** — secondary scanning devices
+- Make use of Webcams for the Desktop Camera
+- Visitors present QR codes from approval emails or tickets
+- Gate officers scan using device cameras
+- System automatically verifies appointment status and logs entry
+
+### **Secondary: Reference Code Entry**
+- If QR scanning fails (camera issues, damaged QR code)
+- Gate officer manually enters the reference code into the system
+- Available on both mobile and desktop interfaces
+- System verifies appointment status same as QR scan
+- Use this before resorting to manual logging
+
+### **Tertiary: Manual Paper Logging (Last Resort Only)**
+- **Only when:** No internet connection AND no mobile data available
+- Visitors still need a valid appointment and reference number
+- Gate officer writes down reference number and visitor details on paper gate log
+- No electronic verification possible until connectivity returns
+- Must be reconciled once systems are back online
 
 ---
 
 ## 2. Roles and responsibilities
 
-| Role | Responsibility during outage |
+| Role | Responsibility |
 |---|---|
-| **Gate officer / security** | Manual recording of arriving visitors; physical verification of valid ID; boots of the paper log. |
-| **Office admin / super admin** | Post-recovery reconciliation and approve-override of manually recorded entries. |
-| **Super admin** | Owns the gate log files at the end of each day; final verification of the manual record. |
+| **Gate officer / security** | Primary: QR scanning via mobile devices. Secondary: Reference code entry. Last resort: Manual paper logging when no connectivity. Physical verification of valid ID. |
+| **Office admin / super admin** | Post-recovery reconciliation of manually logged entries (only when manual logging was used). |
+| **Super admin** | Owns the gate log files at the end of each day; final verification of manual records. |
 
 ---
 
-## 3. Outage gate log — how to record manually
+## 3. Manual Paper Logging — Last Resort Only
+
+> **⚠️ IMPORTANT:** Manual paper logging is ONLY used when there is **no internet connection and no mobile data**. Always try QR scanning first, then reference code entry. Only use manual logging as a last resort.
 
 Use the standard **GATE MANUAL LOG** form (paper/sheet) kept at every gate station. Create one entry per arriving visitor group.
 
@@ -48,8 +70,14 @@ Use the standard **GATE MANUAL LOG** form (paper/sheet) kept at every gate stati
 |------|------|-----------|------|-----------|--------|----------|---------|
 | 2026-09-20 | 09:05 | MT7K4PR2 | Juan dela Cruz | 2 | Registrar | Driver's License | R. Tan |
 
-### 3.3 During the outage — steps for the gate officer
+### 3.3 When to use manual logging
 
+**Use manual logging ONLY when:**
+- No internet connection available
+- No mobile data available
+- Both QR scanning and reference code entry are impossible
+
+**Steps for manual logging:**
 1. Ask for the visitor's **reference number** (and ticket if available).
 2. **Confirm the reference number aloud** and make sure the visitor agrees it is theirs.
 3. Copy the reference number exactly into the log.
@@ -59,15 +87,17 @@ Use the standard **GATE MANUAL LOG** form (paper/sheet) kept at every gate stati
    - Only admit visitors who can produce a reference number.
    - If a visitor has **no reference number** and was never approved, do **not** admit them; refer them to the visiting office.
    - Denial remarks must be recorded in the log.
-7. Keep the log inside the gate station; do not leave it unattended.
+7. Keep the log inside the gate station; do not leave it unattended. Ensure mobile scanning devices are charged and secured.
 
 > **Important:** Do NOT manually mark entries as "approved" or "completed" in the live system during the outage — the system may be partially offline, and the official reconciliation happens later (Section 4).
 
 ---
 
-## 4. When power returns — reconciliation
+## 4. When connectivity returns — reconciliation of manual logs
 
-Once the gate system is back online, the manual entries are reconciled so the live records match what actually happened at the gate.
+Once internet/mobile data is restored, any manually logged entries must be reconciled so the live records match what actually happened at the gate.
+
+> **Note:** QR scans and reference code entries are automatically logged in the system. Only manual paper logs require reconciliation.
 
 ### 4.1 Step 1 — Upload is not automatic
 
@@ -112,11 +142,16 @@ Entries admitted during the outage that were still `pending` (or otherwise not y
 
 ## 6. Best practices and reminders
 
-- Keep the **printed outage checklist** and blank gate logs at each gate station at all times (check monthly).
-- The gate officer should have **offline copies** (`printed`) of the evacuation/fire and emergency contact lists — the system is not available during an outage.
-- Reconcile **on the same day** the outage ends; late reconciliation risks duplicate entries or forgotten visitors.
-- Never delete manual log entries; corrections are made with a strikethrough + initials, never white-out.
-- If the outage lasts more than one day, start a new log page each day.
+- **Always try QR scanning first** — this is the primary and fastest method
+- **Use reference code entry second** — when QR scanning fails, manually enter the reference code
+- **Manual logging is last resort only** — use paper logs ONLY when there is no internet and no mobile data
+- Keep the **printed outage checklist** and blank gate logs at each gate station at all times (check monthly)
+- Ensure **mobile scanning devices** (smartphones/tablets) are charged, updated, and have offline QR code backup capabilities
+- The gate officer should have **offline copies** (`printed`) of the evacuation/fire and emergency contact lists
+- Reconcile manual logs **on the same day** connectivity returns; late reconciliation risks duplicate entries or forgotten visitors
+- Never delete manual log entries; corrections are made with a strikethrough + initials, never white-out
+- If manual logging extends beyond one day, start a new log page each day
+- **Mobile-first scanning:** All routine gate scanning should be performed via mobile devices. The `/entry` route is deprecated and will be removed in a future release
 
 ---
 
@@ -125,5 +160,8 @@ Entries admitted during the outage that were still `pending` (or otherwise not y
 | Issue | Escalate to |
 |---|---|
 | Reference mismatch / duplicate | Office admin → Super admin |
-| System still offline after expected restoration | IT / Vercel / Supabase (see Deployment Instructions) |
+| QR scanning fails on all devices | Try reference code entry → If that fails, use manual logging → IT support |
+| No internet/mobile data for extended period | IT / Vercel / Supabase (see Deployment Instructions) |
 | Missing gate log sheets | Super admin (records) |
+| Mobile device hardware failure | IT support for device replacement |
+| Manual log reconciliation issues | Super admin |

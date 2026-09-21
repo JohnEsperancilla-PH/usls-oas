@@ -17,6 +17,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Appointment ID is required" }, { status: 400 });
     }
 
+    const personToMeetEmail = body.personToMeetEmail as string | undefined;
+
     const supabase = createServiceClient();
 
     const { data: appointment, error: fetchError } = await supabase
@@ -75,7 +77,7 @@ export async function POST(request: Request) {
 
     // Email and calendar run post-response; failures don't block the approval.
     after(async () => {
-      await runPostApprovalTasks(appointment, referenceNumber, admin.id, admin.email);
+      await runPostApprovalTasks(appointment, referenceNumber, admin.id, admin.email, personToMeetEmail);
     });
 
     return NextResponse.json({

@@ -48,6 +48,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [changingOffice, setChangingOffice] = useState(false);
   const [personToMeet, setPersonToMeet] = useState(data.personToMeet || "");
+  const [showPersonToMeetOther, setShowPersonToMeetOther] = useState(false);
   const [selectedDate, setSelectedDate] = useState(data.date);
   const [selectedTime, setSelectedTime] = useState(data.timeSlot);
   const [duration, setDuration] = useState<30 | 60>(data.duration);
@@ -134,6 +135,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
     setChangingOffice(false);
     setOfficeQuery("");
     setPersonToMeet("");
+    setShowPersonToMeetOther(false);
     setSelectedDate("");
     setSelectedTime("");
     setDaySlots([]);
@@ -390,15 +392,54 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
             <label htmlFor="personToMeet" className="label flex items-center gap-2">
               Person to Meet <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              id="personToMeet"
-              value={personToMeet}
-              onChange={(e) => { setPersonToMeet(e.target.value); if (errors.personToMeet) setErrors((p) => ({ ...p, personToMeet: "" })); }}
-              className={`input mt-2 ${errors.personToMeet ? "input-error" : ""}`}
-              placeholder={`Enter the person you intend to meet at ${selectedOffice.name}`}
-              maxLength={120}
-            />
+            {selectedOffice.contacts && selectedOffice.contacts.length > 0 ? (
+              <>
+                <select
+                  id="personToMeet"
+                  value={showPersonToMeetOther ? "__other__" : personToMeet}
+                  onChange={(e) => {
+                    if (e.target.value === "__other__") {
+                      setShowPersonToMeetOther(true);
+                      setPersonToMeet("");
+                    } else {
+                      setShowPersonToMeetOther(false);
+                      setPersonToMeet(e.target.value);
+                    }
+                    if (errors.personToMeet) setErrors((p) => ({ ...p, personToMeet: "" }));
+                  }}
+                  className={`input mt-2 ${errors.personToMeet ? "input-error" : ""}`}
+                >
+                  <option value="">Select a person to meet…</option>
+                  {selectedOffice.contacts.map((contact) => (
+                    <option key={contact.id} value={contact.name}>
+                      {contact.name}{contact.position ? ` — ${contact.position}` : ""}
+                    </option>
+                  ))}
+                  <option value="__other__">Others… (type a name)</option>
+                </select>
+                {showPersonToMeetOther && (
+                  <input
+                    type="text"
+                    id="personToMeetOther"
+                    value={personToMeet}
+                    onChange={(e) => { setPersonToMeet(e.target.value); if (errors.personToMeet) setErrors((p) => ({ ...p, personToMeet: "" })); }}
+                    className={`input mt-2 ${errors.personToMeet ? "input-error" : ""}`}
+                    placeholder={`Enter the person you intend to meet at ${selectedOffice.name}`}
+                    maxLength={120}
+                  />
+                )}
+              </>
+            ) : (
+              <input
+                type="text"
+                id="personToMeet"
+                value={personToMeet}
+                onChange={(e) => { setPersonToMeet(e.target.value); if (errors.personToMeet) setErrors((p) => ({ ...p, personToMeet: "" })); }}
+                className={`input mt-2 ${errors.personToMeet ? "input-error" : ""}`}
+                placeholder={`Enter the person you intend to meet at ${selectedOffice.name}`}
+                maxLength={120}
+              />
+            )}
             {errors.personToMeet && <p className="error-text mt-1">{errors.personToMeet}</p>}
           </div>
         )}

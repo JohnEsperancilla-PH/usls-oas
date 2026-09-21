@@ -452,3 +452,36 @@ export async function generateContactNotificationEmail(
   `);
   return { html: result.html, attachments: result.attachments };
 }
+
+export async function generatePersonToMeetApprovalEmail(
+  personName: string,
+  office: string,
+  date: string,
+  time: string,
+  visitorName: string,
+  referenceNumber: string,
+  purpose?: string | null,
+  contactEmail?: string | null,
+  contactPhone?: string | null
+) {
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const contactLines: string[] = [];
+  if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
+  if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const result = await wrap("Appointment Approved - Person to Meet", `
+    <p style="color:#555;margin:0 0 20px;">Hi <strong>${escapeHtml(personName)}</strong>,</p>
+    <p style="color:#555;margin:0 0 6px;">Your appointment with a visitor at <strong>${escapeHtml(office)}</strong> has been approved. Please note the details below.</p>
+    ${bulletList([
+      `Reference No.: <strong>${escapeHtml(referenceNumber)}</strong>`,
+      `Date: <strong>${formattedDate}</strong>`,
+      `Time: <strong>${formatTimeSlot(time)}</strong>`,
+      `Visitor: <strong>${escapeHtml(visitorName)}</strong>`,
+      ...(purpose ? [`Purpose: <strong>${escapeHtml(purpose)}</strong>`] : []),
+    ])}
+    ${contactLines.length > 0
+      ? `<div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">For questions, contact the office:<br/>${contactLines.join("<br/>")}</div>`
+      : ""}
+    <p style="color:#999;font-size:12px;margin:20px 0 0;">This is an automated notification from USLS OASYS.</p>
+  `);
+  return { html: result.html, attachments: result.attachments };
+}

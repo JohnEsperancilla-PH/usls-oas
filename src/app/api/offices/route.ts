@@ -20,7 +20,28 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(data);
+    if (!data || data.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    const officeIds = data.map((office: { id: string }) => office.id);
+    const { data: contacts, error: contactsError } = await supabase
+      .from("office_contacts")
+      .select("*")
+      .eq("active", true)
+      .in("office_id", officeIds)
+      .order("name");
+
+    if (contactsError) {
+      console.error(contactsError);
+    }
+
+    const officesWithContacts = data.map((office: { id: string }) => ({
+      ...office,
+      contacts: (contacts || []).filter((contact: { office_id: string }) => contact.office_id === office.id),
+    }));
+
+    return NextResponse.json(officesWithContacts);
   } catch (error) {
     return handleRouteError(error);
   }

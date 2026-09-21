@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendMail, generateApprovalEmail, generateDeclineEmail, generatePostponementEmail, generateInvitationEmail, generateContactNotificationEmail, isNotificationEnabled } from "@/lib/email";
+import { sendMail, generateApprovalEmail, generateDeclineEmail, generatePostponementEmail, generateInvitationEmail, generatePersonToMeetApprovalEmail, isNotificationEnabled } from "@/lib/email";
 import { createCalendarEvent } from "@/lib/calendar";
 import { logAudit } from "@/lib/rbac";
 import type { Appointment, AppointmentContact, Office } from "@/types/database";
@@ -53,7 +53,8 @@ export async function runPostApprovalTasks(
   appointment: AppointmentWithOffice,
   referenceNumber: string,
   adminId: string | null,
-  adminEmail: string
+  adminEmail: string,
+  personToMeetEmail?: string | null
 ) {
   const visitors = appointment.visitors || await getAppointmentVisitors(createServiceClient(), appointment.id);
   const vehicles = appointment.vehicles || await getAppointmentVehicles(createServiceClient(), appointment.id);
@@ -61,6 +62,7 @@ export async function runPostApprovalTasks(
   const startedAt = Date.now();
   let mailResult: { success: boolean; error?: string | null } = { success: false, error: "Notifications disabled" };
   let calendarResult: { id?: string; htmlLink?: string | null; error?: string; skipped: boolean } = { skipped: true };
+  let personMeetMailResult: { success: boolean; error?: string | null } = { success: false, error: "No person to meet" };
 
   try {
     const emailResult = await generateApprovalEmail(
@@ -118,6 +120,55 @@ export async function runPostApprovalTasks(
 
   const supabase = createServiceClient();
 
+  if (appointment.person_to_meet) {
+    try {
+      const { data: existingContact } = await supabase
+        .from("office_contacts")
+        .select("*")
+        .eq("office_id", appointment.office_id)
+        .ilike("name", appointment.person_to_meet)
+        .eq("active", true)
+        .maybeSingle();
+
+      let personEmail: string | null = existingContact?.email || null;
+
+      if (!personEmail && personToMeetEmail) {
+        personEmail = personToMeetEmail;
+        await supabase.from("office_contacts").upsert({
+          office_id: appointment.office_id,
+          name: appointment.person_to_meet,
+          email: personToMeetEmail,
+          position: null,
+          active: true,
+        }, { onConflict: "office_id,name" });
+      }
+
+      if (personEmail && await isNotificationEnabled("approval")) {
+        const personMeetEmailContent = await generatePersonToMeetApprovalEmail(
+          appointment.person_to_meet,
+          appointment.offices?.name || "Unknown Office",
+          appointment.date,
+          appointment.time_slot,
+          appointment.full_name,
+          referenceNumber,
+          appointment.purpose_of_visit,
+          appointment.offices?.contact_email || appointment.offices?.email,
+          appointment.offices?.contact_phone
+        );
+        personMeetMailResult = await sendMail({
+          to: personEmail,
+          subject: `Appointment Approved - You are meeting ${appointment.full_name} at ${appointment.offices?.name || "Unknown Office"} - USLS OASYS`,
+          html: personMeetEmailContent.html,
+          attachments: personMeetEmailContent.attachments,
+        });
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("person-to-meet approval email", msg);
+      personMeetMailResult = { success: false, error: msg };
+    }
+  }
+
   await supabase.from("email_logs").insert({
     appointment_id: appointment.id,
     type: "approval",
@@ -132,6 +183,7 @@ export async function runPostApprovalTasks(
       visitor_name: appointment.full_name,
       visitor_email: appointment.email,
       email_sent: mailResult.success,
+      person_to_meet_email_sent: personMeetMailResult.success,
       calendar_event_created: calendarResult.skipped ? null : !calendarResult.error,
       calendar_event_id: calendarResult.id,
       calendar_duration_ms: Date.now() - startedAt,
@@ -260,9 +312,7 @@ export async function runInvitationTasks(
 ) {
   const officeName = appointment.offices?.name || "Unknown Office";
   const hasEmail = Boolean(appointment.email);
-  const taggedContacts = appointment.contacts || [];
   let mailResult: { success: boolean; error?: string | null } = { success: false, error: hasEmail ? "Notifications disabled" : "No email address provided" };
-  let contactsMailResult: { success: boolean; error?: string | null } = { success: false, error: "No tagged office contacts" };
 
   try {
     if (hasEmail) {
@@ -311,26 +361,6 @@ export async function runInvitationTasks(
         });
       }
     }
-
-    // Notify tagged office contacts (plain notification, no ticket PDF).
-    const contactEmails = taggedContacts.map((contact) => contact.email).filter(Boolean);
-    if (contactEmails.length > 0 && await isNotificationEnabled("invitation")) {
-      const contactsEmail = await generateContactNotificationEmail(
-        taggedContacts[0].name,
-        officeName,
-        appointment.date,
-        appointment.time_slot,
-        appointment.full_name,
-        appointment.purpose_of_visit,
-        appointment.person_to_meet
-      );
-      contactsMailResult = await sendMail({
-        to: contactEmails.join(", "),
-        subject: `Appointment scheduled with ${officeName} - ${appointment.full_name} - USLS OASYS`,
-        html: contactsEmail.html,
-        attachments: contactsEmail.attachments,
-      });
-    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("invitation email", msg);
@@ -342,9 +372,6 @@ export async function runInvitationTasks(
     const start = new Date(`${appointment.date}T${appointment.time_slot}:00+08:00`);
     const end = new Date(start.getTime() + (appointment.duration || 30) * 60 * 1000);
     const attendees = appointment.email ? [appointment.email] : [];
-    for (const contact of taggedContacts) {
-      if (contact.email && !attendees.includes(contact.email)) attendees.push(contact.email);
-    }
     if (appointment.offices?.email) attendees.push(appointment.offices.email);
     const event = await createCalendarEvent({
       title: `Appointment - ${appointment.full_name} (${officeName})`,
@@ -380,8 +407,6 @@ export async function runInvitationTasks(
       visitor_email: appointment.email || null,
       reference_number: referenceNumber,
       email_sent: mailResult.success,
-      contacts_notified: contactsMailResult.success,
-      tagged_contacts: taggedContacts.map((contact) => `${contact.name} <${contact.email}>`),
       calendar_event_created: calendarResult.skipped ? null : !calendarResult.error,
       calendar_event_id: calendarResult.id,
     },

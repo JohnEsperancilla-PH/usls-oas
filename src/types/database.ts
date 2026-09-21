@@ -14,6 +14,7 @@ export interface Office {
   active: boolean;
   contact_email: string | null;
   contact_phone: string | null;
+  contacts?: OfficeContact[];
   created_at: string;
 }
 
