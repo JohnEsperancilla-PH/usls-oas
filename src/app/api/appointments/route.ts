@@ -44,8 +44,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    // Validate required fields
-    const requiredFields = ["fullName", "phone", "email", "validId", "officeId", "personToMeet", "date", "timeSlot", "duration"];
+    // Validate required fields (timeSlot is optional if office has hide_time_slots enabled)
+    const requiredFields = ["fullName", "phone", "email", "validId", "officeId", "personToMeet", "date", "duration"];
     for (const field of requiredFields) {
       if (!body[field] || (typeof body[field] === "string" && !body[field].trim())) {
         return NextResponse.json(
@@ -53,6 +53,29 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+    }
+
+    // Check if office has hide_time_slots enabled
+    const supabase = createServiceClient();
+    const { data: office, error: officeError } = await supabase
+      .from("offices")
+      .select("hide_time_slots")
+      .eq("id", body.officeId)
+      .single();
+
+    if (officeError || !office) {
+      return NextResponse.json(
+        { message: "Invalid office" },
+        { status: 400 }
+      );
+    }
+
+    // timeSlot is required unless office has hide_time_slots enabled
+    if (!office.hide_time_slots && (!body.timeSlot || (typeof body.timeSlot === "string" && !body.timeSlot.trim()))) {
+      return NextResponse.json(
+        { message: "Missing required field: timeSlot" },
+        { status: 400 }
+      );
     }
 
     if (!body.purposeOfVisit || !body.purposeOfVisit.trim()) {
@@ -155,89 +178,90 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Appointments cannot be booked on weekends" }, { status: 400 });
     }
 
-    const supabase = createServiceClient();
-
-    // Check if the office exists and is active
-    const { data: office, error: officeError } = await supabase
+    // Check if the office is active (reuse office from earlier check)
+    const { data: officeFull, error: officeFullError } = await supabase
       .from("offices")
       .select("*")
       .eq("id", body.officeId)
       .eq("active", true)
       .single();
 
-    if (officeError || !office) {
+    if (officeFullError || !officeFull) {
       return NextResponse.json(
         { message: "Invalid or inactive office" },
         { status: 400 }
       );
     }
 
-    // Check if this time slot (and next for 60-min) is blocked by admin
-    const blockedSlots = [body.timeSlot];
-    if (body.duration === 60) {
-      const next = getNextSlot(body.timeSlot);
-      if (next) blockedSlots.push(next);
-    }
-
-    const { data: blockedSlotsData } = await supabase
-      .from("blocked_times")
-      .select("id, time_slot")
-      .eq("office_id", body.officeId)
-      .eq("date", body.date)
-      .in("time_slot", blockedSlots);
-
-    if (blockedSlotsData && blockedSlotsData.length > 0) {
-      return NextResponse.json(
-        { message: "This time slot is currently unavailable. Please select another time." },
-        { status: 409 }
-      );
-    }
-
-    // Check for conflicting appointments (same office, date, time slot)
-    // Query the requested slot + prev + next so we can detect overlapping 60-min bookings
-    const slotsToQuery = new Set<string>([body.timeSlot]);
-    const prev = getPrevSlot(body.timeSlot);
-    if (prev) slotsToQuery.add(prev);
-    const next = getNextSlot(body.timeSlot);
-    if (next) slotsToQuery.add(next);
-
-    const { data: conflictingAppointments, error: conflictError } = await supabase
-      .from("appointments")
-      .select("id, time_slot, duration, visitor_count")
-      .eq("office_id", body.officeId)
-      .eq("date", body.date)
-      .in("time_slot", Array.from(slotsToQuery))
-      .in("status", ["pending", "approved", "postponed"]);
-
-    if (conflictError) {
-      console.error(conflictError);
-      return NextResponse.json(
-        { message: "Failed to check appointment availability" },
-        { status: 500 }
-      );
-    }
-
-    // Compute slot-level counts considering duration of existing bookings
-    const slotCounts: Record<string, number> = {};
-    for (const a of conflictingAppointments || []) {
-      slotCounts[a.time_slot] = (slotCounts[a.time_slot] || 0) + 1;
-      if (a.duration === 60) {
-        const nextOfExisting = getNextSlot(a.time_slot);
-        if (nextOfExisting) slotCounts[nextOfExisting] = (slotCounts[nextOfExisting] || 0) + 1;
+    // Skip slot validation if office has hide_time_slots enabled
+    if (!officeFull.hide_time_slots && body.timeSlot) {
+      // Check if this time slot (and next for 60-min) is blocked by admin
+      const blockedSlots = [body.timeSlot];
+      if (body.duration === 60) {
+        const next = getNextSlot(body.timeSlot);
+        if (next) blockedSlots.push(next);
       }
-    }
 
-    // Check capacity only for slots the NEW booking actually occupies
-    const slotsToCheck = [body.timeSlot];
-    if (body.duration === 60 && next) slotsToCheck.push(next);
+      const { data: blockedSlotsData } = await supabase
+        .from("blocked_times")
+        .select("id, time_slot")
+        .eq("office_id", body.officeId)
+        .eq("date", body.date)
+        .in("time_slot", blockedSlots);
 
-    for (const slot of slotsToCheck) {
-      const booked = slotCounts[slot] || 0;
-      if (booked + 1 > office.capacity_per_slot) {
+      if (blockedSlotsData && blockedSlotsData.length > 0) {
         return NextResponse.json(
-          { message: "This time slot is fully booked. Please select another time." },
+          { message: "This time slot is currently unavailable. Please select another time." },
           { status: 409 }
         );
+      }
+
+      // Check for conflicting appointments (same office, date, time slot)
+      // Query the requested slot + prev + next so we can detect overlapping 60-min bookings
+      const slotsToQuery = new Set<string>([body.timeSlot]);
+      const prev = getPrevSlot(body.timeSlot);
+      if (prev) slotsToQuery.add(prev);
+      const next = getNextSlot(body.timeSlot);
+      if (next) slotsToQuery.add(next);
+
+      const { data: conflictingAppointments, error: conflictError } = await supabase
+        .from("appointments")
+        .select("id, time_slot, duration, visitor_count")
+        .eq("office_id", body.officeId)
+        .eq("date", body.date)
+        .in("time_slot", Array.from(slotsToQuery))
+        .in("status", ["pending", "approved", "postponed"]);
+
+      if (conflictError) {
+        console.error(conflictError);
+        return NextResponse.json(
+          { message: "Failed to check appointment availability" },
+          { status: 500 }
+        );
+      }
+
+      // Compute slot-level counts considering duration of existing bookings
+      const slotCounts: Record<string, number> = {};
+      for (const a of conflictingAppointments || []) {
+        slotCounts[a.time_slot] = (slotCounts[a.time_slot] || 0) + 1;
+        if (a.duration === 60) {
+          const nextOfExisting = getNextSlot(a.time_slot);
+          if (nextOfExisting) slotCounts[nextOfExisting] = (slotCounts[nextOfExisting] || 0) + 1;
+        }
+      }
+
+      // Check capacity only for slots the NEW booking actually occupies
+      const slotsToCheck = [body.timeSlot];
+      if (body.duration === 60 && next) slotsToCheck.push(next);
+
+      for (const slot of slotsToCheck) {
+        const booked = slotCounts[slot] || 0;
+        if (booked + 1 > officeFull.capacity_per_slot) {
+          return NextResponse.json(
+            { message: "This time slot is fully booked. Please select another time." },
+            { status: 409 }
+          );
+        }
       }
     }
 
@@ -255,7 +279,7 @@ export async function POST(request: Request) {
       person_to_meet: body.personToMeet,
       office_id: body.officeId,
       date: body.date,
-      time_slot: body.timeSlot,
+      time_slot: body.timeSlot || null,
       duration: body.duration,
       visitor_count: visitorCount,
       vehicle_count: vehicleCount,
@@ -281,7 +305,7 @@ export async function POST(request: Request) {
           purpose_of_visit: body.purposeOfVisit,
           person_to_meet: body.personToMeet,
           office_id: body.officeId,
-          office_name: office.name,
+          office_name: officeFull.name,
           date: body.date,
           time_slot: body.timeSlot,
           duration: body.duration,
@@ -342,16 +366,16 @@ export async function POST(request: Request) {
         body.fullName,
         body.date,
         body.timeSlot,
-        office.name,
+        officeFull.name,
         body.validId,
-        office.contact_email || office.email,
-        office.contact_phone,
+        officeFull.contact_email || officeFull.email,
+        officeFull.contact_phone,
         visitorRows.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
       );
 
       confirmationResult = await sendMail({
         to: body.email,
-        subject: `Appointment Confirmation - ${body.fullName} - ${office.name} - USLS OASYS`,
+        subject: `Appointment Confirmation - ${body.fullName} - ${officeFull.name} - USLS OASYS`,
         html: confirmationEmail.html,
         attachments: confirmationEmail.attachments,
       });
@@ -390,7 +414,7 @@ export async function POST(request: Request) {
             body.fullName,
             body.date,
             body.timeSlot,
-            office.name,
+            officeFull.name,
             appointment.id,
             origin,
             {
@@ -402,7 +426,7 @@ export async function POST(request: Request) {
 
           const adminResult = await sendMail({
             to: admin.email,
-            subject: `New Appointment Request - ${body.fullName} - ${office.name} - USLS OASYS`,
+            subject: `New Appointment Request - ${body.fullName} - ${officeFull.name} - USLS OASYS`,
             html: adminEmail.html,
             attachments: adminEmail.attachments,
           });
@@ -417,23 +441,23 @@ export async function POST(request: Request) {
         }
       }
 
-      if (office.email) {
+      if (officeFull.email) {
         const officeEmail = await generateAdminAlertEmail(
           body.fullName,
           body.date,
           body.timeSlot,
-          office.name,
+          officeFull.name,
           appointment.id,
           origin,
           {
-            approveUrl: makeActionUrl(office.email, "approve"),
-            declineUrl: makeActionUrl(office.email, "decline"),
+            approveUrl: makeActionUrl(officeFull.email, "approve"),
+            declineUrl: makeActionUrl(officeFull.email, "decline"),
           },
           visitorRows.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
         );
         await sendMail({
-          to: office.email,
-          subject: `New Appointment - ${body.fullName} - ${office.name} - ${body.date}`,
+          to: officeFull.email,
+          subject: `New Appointment - ${body.fullName} - ${officeFull.name} - ${body.date}`,
           html: officeEmail.html,
           attachments: officeEmail.attachments,
         });

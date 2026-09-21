@@ -14,7 +14,7 @@ export interface CpanelAppointment {
   office_id: string;
   office_name: string | null;
   date: string;
-  time_slot: string;
+  time_slot: string | null;
   duration: number;
   status: string;
   qr_token: string | null;
@@ -28,7 +28,7 @@ export interface CpanelAppointment {
   updated_at: string;
 }
 
-export function buildCpanelAppointment(fields: Partial<CpanelAppointment> & Pick<CpanelAppointment, "id" | "full_name" | "office_id" | "date" | "time_slot" | "duration" | "status" | "created_at" | "updated_at">): CpanelAppointment {
+export function buildCpanelAppointment(fields: Partial<CpanelAppointment> & Pick<CpanelAppointment, "id" | "full_name" | "office_id" | "date" | "duration" | "status" | "created_at" | "updated_at">): CpanelAppointment {
   return {
     phone: "",
     email: "",
@@ -39,6 +39,7 @@ export function buildCpanelAppointment(fields: Partial<CpanelAppointment> & Pick
     purpose_of_visit: null,
     person_to_meet: null,
     office_name: null,
+    time_slot: null,
     qr_token: null,
     qr_used_at: null,
     scanned_at: null,
@@ -64,7 +65,7 @@ export function fromAppointmentRow(
     person_to_meet?: string | null;
     office_id: string;
     date: string;
-    time_slot: string;
+    time_slot?: string | null;
     duration: number;
     status: string;
     qr_token?: string | null;
@@ -94,7 +95,7 @@ export function fromAppointmentRow(
     office_id: row.office_id,
     office_name: row.offices?.name ?? null,
     date: row.date,
-    time_slot: row.time_slot,
+    time_slot: row.time_slot ?? null,
     duration: row.duration,
     status: row.status,
     qr_token: row.qr_token ?? null,

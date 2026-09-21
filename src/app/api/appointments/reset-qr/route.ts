@@ -104,7 +104,7 @@ async function runPostResetTasks(
     const emailResult = await generateApprovalEmail(
       appointment.full_name,
       appointment.date,
-      appointment.time_slot,
+      appointment.time_slot || "TBD",
       appointment.offices?.name || "Unknown Office",
       appointment.valid_id || "",
       referenceNumber,

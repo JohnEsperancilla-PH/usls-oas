@@ -214,7 +214,8 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
       else if (d > max) e.date = "Cannot book more than 30 days ahead";
       else if (d.getDay() === 0 || d.getDay() === 6) e.date = "Weekends are not available";
     }
-    if (!selectedTime) e.timeSlot = "Please select a time";
+    // Only require time slot if the office doesn't hide time slots
+    if (!selectedOffice?.hide_time_slots && !selectedTime) e.timeSlot = "Please select a time";
     if (!purposeOfVisit.trim()) e.purposeOfVisit = "Please describe your purpose of visit";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -515,8 +516,8 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
           </div>
         )}
 
-        {/* Step 3: Time Slots */}
-        {selectedDate && (
+        {/* Step 3: Time Slots - Only show if office doesn't hide time slots */}
+        {selectedDate && selectedOffice && !selectedOffice.hide_time_slots && (
           <div className="animate-fade-in">
             <label className="label flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">3</span>
@@ -570,11 +571,31 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
           </div>
         )}
 
-        {/* Duration */}
-        {selectedTime && (
+        {/* Message when office hides time slots */}
+        {selectedDate && selectedOffice?.hide_time_slots && (
+          <div className="animate-fade-in bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-blue-900 mb-1">Time Slot Selection Disabled</h3>
+                <p className="text-sm text-blue-800">
+                  This office has disabled time slot selection. After submitting your appointment request, 
+                  <strong> {selectedOffice.name}</strong> will contact you to schedule a specific time.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Duration - Show if time is selected OR if office hides time slots */}
+        {(selectedTime || selectedOffice?.hide_time_slots) && selectedDate && (
           <div className="animate-fade-in">
             <label className="label flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">4</span>
+              <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                {selectedOffice?.hide_time_slots ? "3" : "4"}
+              </span>
               Visit Duration
             </label>
             <div className="grid grid-cols-2 gap-3 mt-2">
@@ -594,11 +615,13 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
           </div>
         )}
 
-        {/* Purpose of Visit */}
-        {selectedTime && (
+        {/* Purpose of Visit - Show if time is selected OR if office hides time slots */}
+        {(selectedTime || selectedOffice?.hide_time_slots) && selectedDate && (
           <div className="animate-fade-in">
             <label className="label flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">5</span>
+              <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                {selectedOffice?.hide_time_slots ? "4" : "5"}
+              </span>
               Purpose of Visit
               <span className="text-red-500">*</span>
             </label>
@@ -611,7 +634,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
         )}
 
         {/* Summary */}
-        {selectedOffice && selectedDate && selectedTime && (
+        {selectedOffice && selectedDate && (selectedTime || selectedOffice.hide_time_slots) && (
           <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 animate-fade-in">
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -623,7 +646,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
               <div><span className="text-gray-500">Office</span><p className="font-medium">{selectedOffice.name}</p></div>
               <div><span className="text-gray-500">Person to Meet</span><p className="font-medium">{personToMeet}</p></div>
               <div><span className="text-gray-500">Date</span><p className="font-medium">{new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</p></div>
-              <div><span className="text-gray-500">Time</span><p className="font-medium">{daySlots.find((s) => s.time === selectedTime)?.label}</p></div>
+              <div><span className="text-gray-500">Time</span><p className="font-medium">{selectedOffice.hide_time_slots ? "To be scheduled by office" : daySlots.find((s) => s.time === selectedTime)?.label}</p></div>
               <div><span className="text-gray-500">Duration</span><p className="font-medium">{duration} min</p></div>
             </div>
           </div>
@@ -637,7 +660,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
             </svg>
             Back
           </button>
-          <button type="submit" disabled={isSubmitting || !selectedTime} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+          <button type="submit" disabled={isSubmitting || (!selectedTime && !selectedOffice?.hide_time_slots)} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
             {isSubmitting ? (
               <span className="flex items-center gap-2">
                 <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>

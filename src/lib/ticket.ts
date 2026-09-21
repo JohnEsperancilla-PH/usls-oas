@@ -119,7 +119,7 @@ export async function generateTicketPdf(data: TicketData): Promise<Uint8Array> {
   const numberWidth = bold.widthOfTextAtSize(data.referenceNumber, numberSize);
   const refBoxWidth = Math.max(280, numberWidth + 40);
   const refBoxHeight = 64;
-  const refBoxTop = titleY - 20;
+  const refBoxTop = titleY - 40;
   const qrSize = 64;
   const gap = 18;
   const groupWidth = refBoxWidth + gap + qrSize;

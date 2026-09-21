@@ -13,7 +13,7 @@ export default function OfficesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOffice, setEditingOffice] = useState<Office | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "" });
+  const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false });
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
   const [contactsOffice, setContactsOffice] = useState<Office | null>(null);
@@ -31,8 +31,8 @@ export default function OfficesPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchOffices(); }, []);
 
-  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "" }); setModalOpen(true); };
-  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "" }); setModalOpen(true); };
+  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false }); setModalOpen(true); };
+  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "", hide_time_slots: o.hide_time_slots || false }); setModalOpen(true); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setMessage(null);
@@ -144,6 +144,12 @@ export default function OfficesPage() {
                   <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   {o.capacity_per_slot} visitor{o.capacity_per_slot !== 1 ? "s" : ""} per slot
                 </div>
+                {o.hide_time_slots && (
+                  <div className="flex items-center gap-1.5 text-blue-600">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                    <span className="font-medium">Time slots hidden</span>
+                  </div>
+                )}
                 {(o.contact_email || o.contact_phone) && (
                   <div className="flex flex-col gap-1 pt-1 border-t border-gray-100">
                     {o.contact_email && <div className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>{o.contact_email}</div>}
@@ -183,6 +189,20 @@ export default function OfficesPage() {
               <div><label className="label">Contact Email</label><input type="email" className="input" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} placeholder="Shown to visitors for follow-ups" /></div>
               <div><label className="label">Contact Phone</label><input type="tel" className="input" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} placeholder="e.g. (034) 433-7777 loc 123" /></div>
               <div className="sm:col-span-2"><label className="label">Operating Hours</label><input className="input" value={form.operating_hours} onChange={(e) => setForm({ ...form, operating_hours: e.target.value })} required placeholder="8:00 AM - 5:00 PM" /><p className="text-[11px] text-gray-400 mt-1">All offices run 8:00 AM - 5:00 PM with a 12:00 PM - 1:30 PM lunch break. Shown to visitors for reference.</p></div>
+              <div className="sm:col-span-2">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={form.hide_time_slots} 
+                    onChange={(e) => setForm({ ...form, hide_time_slots: e.target.checked })} 
+                    className="mt-0.5 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">Hide Time Slots from Visitors</span>
+                    <p className="text-[11px] text-gray-500 mt-0.5">When enabled, visitors can only select a date during booking. The office will contact them to schedule a specific time. Useful for high-security offices.</p>
+                  </div>
+                </label>
+              </div>
               <div className="sm:col-span-2"><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of the office..." /></div>
             </div>
           </form>

@@ -14,6 +14,7 @@ export interface Office {
   active: boolean;
   contact_email: string | null;
   contact_phone: string | null;
+  hide_time_slots: boolean;
   contacts?: OfficeContact[];
   created_at: string;
 }
@@ -51,7 +52,7 @@ export interface Appointment {
   person_to_meet: string | null;
   office_id: string;
   date: string;
-  time_slot: string;
+  time_slot: string | null;
   duration: 30 | 60;
   status: AppointmentStatus;
   // Stores the visitor's reference number (single-use gate entry code).

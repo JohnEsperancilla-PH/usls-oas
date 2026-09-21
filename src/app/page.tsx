@@ -77,9 +77,19 @@ export default function BookPage() {
     try {
       const finalData = { ...formData, ...data };
       setFormData(finalData);
+
+      const csrfRes = await fetch("/api/csrf-token");
+      if (!csrfRes.ok) {
+        throw new Error("Unable to obtain security token. Please try again.");
+      }
+      const { csrfToken } = await csrfRes.json();
+
       const response = await fetch("/api/appointments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
+        },
         body: JSON.stringify({
           fullName: finalData.fullName,
           phone: finalData.phone,

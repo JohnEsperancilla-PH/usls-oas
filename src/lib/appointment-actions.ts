@@ -68,7 +68,7 @@ export async function runPostApprovalTasks(
     const emailResult = await generateApprovalEmail(
       appointment.full_name,
       appointment.date,
-      appointment.time_slot,
+      appointment.time_slot || "TBD",
       appointment.offices?.name || "Unknown Office",
       appointment.valid_id || "",
       referenceNumber,
@@ -98,20 +98,25 @@ export async function runPostApprovalTasks(
   try {
     // date/time_slot are local (Asia/Manila) wall-clock times; build the UTC instant
     // explicitly so Vercel and Google Calendar show the intended appointment time.
-    const start = new Date(`${appointment.date}T${appointment.time_slot}:00+08:00`);
-    const end = new Date(start.getTime() + (appointment.duration || 30) * 60 * 1000);
-    const officeName = appointment.offices?.name || "Unknown Office";
-    const attendees = [appointment.email];
-    if (appointment.offices?.email) attendees.push(appointment.offices.email);
-    const event = await createCalendarEvent({
-      title: `Appointment - ${appointmentWithVisitors.full_name} (${officeName})`,
-      description: buildCalendarDescription(appointmentWithVisitors, referenceNumber),
-      location: "University of St. La Salle - Gate 2",
-      start,
-      end,
-      attendees,
-    });
-    calendarResult = { id: event.id, htmlLink: event.htmlLink, skipped: false };
+    // If time_slot is null (hide_time_slots enabled), skip calendar event creation
+    if (!appointment.time_slot) {
+      calendarResult = { skipped: true };
+    } else {
+      const start = new Date(`${appointment.date}T${appointment.time_slot}:00+08:00`);
+      const end = new Date(start.getTime() + (appointment.duration || 30) * 60 * 1000);
+      const officeName = appointment.offices?.name || "Unknown Office";
+      const attendees = [appointment.email];
+      if (appointment.offices?.email) attendees.push(appointment.offices.email);
+      const event = await createCalendarEvent({
+        title: `Appointment - ${appointmentWithVisitors.full_name} (${officeName})`,
+        description: buildCalendarDescription(appointmentWithVisitors, referenceNumber),
+        location: "University of St. La Salle - Gate 2",
+        start,
+        end,
+        attendees,
+      });
+      calendarResult = { id: event.id, htmlLink: event.htmlLink, skipped: false };
+    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("google calendar event", msg);
@@ -148,7 +153,7 @@ export async function runPostApprovalTasks(
           appointment.person_to_meet,
           appointment.offices?.name || "Unknown Office",
           appointment.date,
-          appointment.time_slot,
+          appointment.time_slot || "TBD",
           appointment.full_name,
           referenceNumber,
           appointment.purpose_of_visit,
@@ -205,7 +210,7 @@ export async function runPostDeclineTasks(
     const emailContent = await generateDeclineEmail(
       appointment.full_name,
       appointment.date,
-      appointment.time_slot,
+      appointment.time_slot || "TBD",
       appointment.offices?.name || "Unknown Office",
       reason,
       appointment.offices?.contact_email || appointment.offices?.email,
@@ -256,7 +261,7 @@ export async function runPostponementTasks(
     const emailContent = await generatePostponementEmail(
       appointment.full_name,
       appointment.date,
-      appointment.time_slot,
+      appointment.time_slot || "TBD",
       newDate,
       newTimeSlot,
       appointment.offices?.name || "Unknown Office",
@@ -295,7 +300,7 @@ export async function runPostponementTasks(
     meta: {
       visitor_name: appointment.full_name,
       original_date: appointment.date,
-      original_time: appointment.time_slot,
+      original_time: appointment.time_slot || "TBD",
       new_date: newDate,
       new_time: newTimeSlot,
       reason,
@@ -319,7 +324,7 @@ export async function runInvitationTasks(
       const emailContent = await generateInvitationEmail(
         appointment.full_name,
         appointment.date,
-        appointment.time_slot,
+        appointment.time_slot || "TBD",
         officeName,
         referenceNumber,
         appointment.valid_id,
@@ -336,7 +341,7 @@ export async function runInvitationTasks(
           visitorName: appointment.full_name,
           officeName,
           date: appointment.date,
-          timeSlot: appointment.time_slot,
+          timeSlot: appointment.time_slot || "TBD",
           duration: appointment.duration || 30,
           validId: appointment.valid_id,
           personToMeet: appointment.person_to_meet,
