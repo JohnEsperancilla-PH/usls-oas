@@ -45,8 +45,11 @@ export async function POST(request: Request) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(postpone.date)) {
         return NextResponse.json({ message: "Invalid date format" }, { status: 400 });
       }
-      if (!/^\d{2}:(00|30)$/.test(postpone.timeSlot)) {
-        return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
+      // Skip time slot format validation if office has hide_time_slots enabled
+      if (!appointment.offices.hide_time_slots) {
+        if (!/^\d{2}:(00|30)$/.test(postpone.timeSlot)) {
+          return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
+        }
       }
       if (postpone.date < getManilaToday()) {
         return NextResponse.json({ message: "Cannot postpone to a past date" }, { status: 400 });

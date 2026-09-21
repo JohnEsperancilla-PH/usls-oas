@@ -156,11 +156,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid date format" }, { status: 400 });
     }
 
-    // Validate time slot format (HH:MM 24h, aligned to :00 or :30)
-    if (!/^\d{2}:(00|30)$/.test(body.timeSlot)) {
-      return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
-    }
-
     // Validate date is not in the past
     const todayStr = getManilaToday();
     if (body.date < todayStr) {
@@ -191,6 +186,13 @@ export async function POST(request: Request) {
         { message: "Invalid or inactive office" },
         { status: 400 }
       );
+    }
+
+    // Validate time slot format only if office does not hide time slots
+    if (!officeFull.hide_time_slots && body.timeSlot) {
+      if (!/^\d{2}:(00|30)$/.test(body.timeSlot)) {
+        return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
+      }
     }
 
     // Skip slot validation if office has hide_time_slots enabled

@@ -131,10 +131,15 @@ export async function POST(request: Request) {
     }
 
     if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
-      return NextResponse.json({ message: "Invalid date format" }, { status: 400 });
+        return NextResponse.json({ message: "Invalid date format" }, { status: 400 });
     }
-    if (!body.timeSlot || !/^\d{2}:(00|30)$/.test(body.timeSlot)) {
-      return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
+    // Check if office has hide_time_slots enabled
+    const supabaseInv = createServiceClient();
+    const { data: officeInv } = await supabaseInv.from("offices").select("hide_time_slots").eq("id", body.officeId).single();
+    if (!officeInv?.hide_time_slots) {
+        if (!body.timeSlot || !/^\d{2}:(00|30)$/.test(body.timeSlot)) {
+            return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
+        }
     }
     if (body.date < getManilaToday()) {
       return NextResponse.json({ message: "Cannot create invitations in the past" }, { status: 400 });
