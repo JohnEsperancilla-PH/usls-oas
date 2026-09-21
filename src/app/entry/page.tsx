@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { BrowserQRCodeReader } from "@zxing/browser";
+import type { IScannerControls } from "@zxing/browser";
 import { formatTimeSlot } from "@/lib/time";
 import { createClient } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
@@ -51,7 +52,7 @@ interface ExpectedVisitor {
   checkedOutAt?: string | null;
 }
 
-export default function EntryPage() {
+export default function ScanPage() {
   const supabase = createClient();
   const [authenticated, setAuthenticated] = useState(false);
   const [officerName, setOfficerName] = useState("");
@@ -68,6 +69,11 @@ export default function EntryPage() {
   const [expectedVisitors, setExpectedVisitors] = useState<ExpectedVisitor[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
+  const [scanning, setScanning] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
+  const processingRef = useRef(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1_000);
@@ -97,6 +103,83 @@ export default function EntryPage() {
       .catch(() => setAuthenticated(false))
       .finally(() => setAuthLoading(false));
   }, []);
+
+  const stopScanner = async () => {
+    const controls = controlsRef.current;
+    controlsRef.current = null;
+    processingRef.current = false;
+    try {
+      controls?.stop();
+    } catch {}
+    const video = videoRef.current;
+    if (video?.srcObject) {
+      try {
+        (video.srcObject as MediaStream).getTracks().forEach((track) => track.stop());
+      } catch {}
+      video.srcObject = null;
+    }
+    setScanning(false);
+  };
+
+  const startScanner = async () => {
+    if (!videoRef.current) return;
+    await stopScanner();
+    setError(null);
+    setScanResult(null);
+    processingRef.current = false;
+    const codeReader = new BrowserQRCodeReader();
+
+    const attemptDecode = async (constraints: MediaStreamConstraints) => {
+      const controls = await codeReader.decodeFromConstraints(
+        constraints,
+        videoRef.current!,
+        (result) => {
+          if (!result || processingRef.current) return;
+          processingRef.current = true;
+          try {
+            controlsRef.current?.stop();
+          } catch {}
+          controlsRef.current = null;
+          setScanning(false);
+          void verifyReference(result.getText());
+        }
+      );
+      controlsRef.current = controls;
+      setScanning(true);
+    };
+
+    try {
+      await attemptDecode({
+        audio: false,
+        video: { facingMode: { ideal: "environment" } },
+      });
+    } catch (firstError) {
+      const code = (firstError as { name?: string })?.name;
+      if (code === "NotFoundError" || code === "OverconstrainedError" || code === "NotReadableError") {
+        try {
+          await attemptDecode({ audio: false, video: true });
+          return;
+        } catch {}
+      }
+      const msg = firstError instanceof Error ? firstError.message : String(firstError);
+      setError(`Camera unavailable: ${msg}. Use manual entry below.`);
+      setScanning(false);
+    }
+  };
+
+  const scannerApiRef = useRef<{ start: () => Promise<void>; stop: () => Promise<void> }>({
+    start: async () => {},
+    stop: async () => {},
+  });
+  scannerApiRef.current = { start: startScanner, stop: stopScanner };
+
+  useEffect(() => {
+    if (!authenticated) return;
+    void scannerApiRef.current.start();
+    return () => {
+      void scannerApiRef.current.stop();
+    };
+  }, [authenticated]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +220,12 @@ export default function EntryPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setAuthenticated(false);
-    reset();
+    setScanResult(null);
+    setReference("");
+    setError(null);
+    setDenyReason("");
+    setShowDenyReason(false);
+    await stopScanner();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,6 +253,26 @@ export default function EntryPage() {
     }
   };
 
+  const verifyReference = async (token: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data: ScanResult = await response.json();
+      setScanResult(data);
+      setReference("");
+    } catch {
+      setError("Failed to verify reference number. Please try again.");
+      void startScanner();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const reset = () => {
     setScanResult(null);
     setReference("");
@@ -172,6 +280,7 @@ export default function EntryPage() {
     setDenyReason("");
     setShowDenyReason(false);
     void loadExpectedVisitors();
+    void startScanner();
   };
 
   const currentDateLabel = new Intl.DateTimeFormat("en-US", {
@@ -267,17 +376,14 @@ export default function EntryPage() {
           <h1 className="text-lg font-bold text-gray-900 text-center">Gate Entry Login</h1>
           <p className="text-sm text-gray-500 text-center mt-1 mb-5">Sign in to verify visitor appointments.</p>
           <form onSubmit={handleLogin} className="space-y-3">
-            <label htmlFor="entry-employee-id" className="label">Employee ID</label>
-            <input id="entry-employee-id" type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} className="input w-full" autoComplete="username" required />
-            <label htmlFor="entry-password" className="label">Password</label>
-            <input id="entry-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input w-full" autoComplete="current-password" required />
+            <label htmlFor="scan-employee-id" className="label">Employee ID</label>
+            <input id="scan-employee-id" type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} className="input w-full" autoComplete="username" required />
+            <label htmlFor="scan-password" className="label">Password</label>
+            <input id="scan-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input w-full" autoComplete="current-password" required />
             {authError && <p className="text-red-700 text-sm">{authError}</p>}
             <button type="submit" disabled={authLoading} className="btn-primary w-full disabled:opacity-50">Sign In</button>
           </form>
-          <p className="text-center text-xs text-gray-400 mt-4">
-            Have a QR?{" "}
-            <Link href="/scan" className="text-primary hover:underline">Use the QR scanner</Link>
-          </p>
+
         </div>
       </div>
     );
@@ -287,13 +393,12 @@ export default function EntryPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-100 py-3 px-4 flex-shrink-0 overflow-hidden">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-          <img src="/usls-oas.png" alt="USLS OASYS" className="h-14 sm:h-16 w-auto" />
+          <img src="/usls-oas.png" alt="USLS OASYS" className="h-10 sm:h-16 w-auto" />
           <div className="flex items-center gap-4 sm:gap-6">
             <div className="hidden sm:block text-right">
               <p className="text-sm font-semibold text-gray-800">Gate Officer Dashboard</p>
               <p className="text-xs text-gray-500">Logged in as <span className="font-medium text-gray-700">{officerName || employeeId}</span> · {currentDateLabel} · {currentTimeLabel}</p>
             </div>
-            <Link href="/scan" className="text-sm text-primary hover:underline whitespace-nowrap">QR Scanner</Link>
             <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign Out</button>
           </div>
         </div>
@@ -302,12 +407,11 @@ export default function EntryPage() {
       <main className="flex items-start justify-center p-4 pt-6 sm:pt-8 flex-1">
         <div className="max-w-6xl w-full space-y-4">
           <div className="sm:hidden">
-            <p className="text-lg font-bold text-gray-900">Gate Officer Dashboard</p>
-            <p className="text-xs text-gray-500 mt-1">Logged in as <span className="font-medium text-gray-700">{officerName || employeeId}</span> · {currentDateLabel} · {currentTimeLabel}</p>
+            <p className="text-xs font-semibold text-gray-800">{officerName || employeeId} · {currentDateLabel} · {currentTimeLabel}</p>
           </div>
           {scanResult && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-black/40 p-4 sm:items-center">
-            <div className={`relative w-full max-w-lg lg:max-w-6xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl p-4 text-center animate-modal-in border ${scanResult.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+            <div className="lg:fixed lg:inset-0 lg:z-50 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/40">
+            <div className={`relative w-full max-w-[min(28rem,calc(100vw-1rem))] lg:max-w-6xl min-h-[calc(100vh-0.5rem)] sm:min-h-0 lg:min-h-0 max-h-none lg:max-h-[calc(100vh-2rem)] rounded-none sm:rounded-xl lg:overflow-y-auto p-3 sm:p-4 text-center animate-modal-in border ${scanResult.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
               <button type="button" onClick={reset} aria-label="Close confirmation" className="absolute top-3 right-3 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-white/70 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -423,15 +527,16 @@ export default function EntryPage() {
               )}
 
               <button onClick={reset} className="w-full mt-4 py-2.5 rounded-lg font-medium bg-primary text-white hover:bg-primary-light transition-all duration-200">
-                Verify Another
+                Scan Another
               </button>
             </div>
             </div>
           )}
 
           {!scanResult && (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] items-stretch animate-fade-in lg:min-h-[calc(100vh-12rem)]">
-              <section className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-sm flex min-h-[420px] flex-col">
+            <div className="grid gap-4 lg:min-h-[calc(100vh-12rem)] lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] items-stretch animate-fade-in">
+              <section className="hidden lg:flex bg-white rounded-xl p-5 sm:p-6 border border-gray-200 shadow-sm flex-col min-h-[420px] lg:h-[calc(100vh-12rem)]">
+
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Browse</p>
@@ -466,35 +571,49 @@ export default function EntryPage() {
               </section>
 
               <section className="bg-white rounded-xl p-5 sm:p-6 border border-primary/20 shadow-md flex min-h-[420px] flex-col">
-              <div className="mb-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Action</p>
-                <h1 className="text-xl font-bold text-gray-900 mt-1">Gate Entry</h1>
-                <p className="text-sm text-gray-500 mt-1">Verify a visitor&apos;s reference number to begin entry.</p>
-              </div>
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <input
-                  type="text"
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value.toUpperCase())}
-                  placeholder="Enter reference number"
-                  autoFocus
-                  maxLength={12}
-                  disabled={loading}
-                  className="input w-full text-center text-xl font-medium tracking-normal"
-                />
-                <button type="submit" disabled={loading || !reference.trim()}
-                  className="btn-primary w-full bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed">
-                  {loading ? "Verifying..." : "Verify Reference Number"}
-                </button>
-              </form>
-              {error && (
-                <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-                  <p className="text-red-700 text-sm">{error}</p>
+                <div className="mb-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Action</p>
+                  <h1 className="text-xl font-bold text-gray-900 mt-1">Gate Entry</h1>
+                  <p className="text-sm text-gray-500 mt-1">Scan QR code or enter reference number to verify entry.</p>
                 </div>
-              )}
-              <div className="mt-auto pt-8 border-t border-gray-100">
-                <p className="text-xs text-gray-400 leading-relaxed">Use the visitor&apos;s reference number from their approval email. Select a visitor from the list to fill it automatically.</p>
-              </div>
+                <div className="relative rounded-xl overflow-hidden bg-gray-950">
+                  <video ref={videoRef} playsInline autoPlay muted className="w-full h-72 object-cover" />
+                  {!scanning && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 text-white text-sm">
+                      <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      <span>Starting camera...</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between mt-3">
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${scanning ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-100 text-gray-500 border border-gray-200"}`}>
+                    {scanning ? "Camera active" : "Camera off"}
+                  </span>
+                  <button type="button" onClick={() => void startScanner()} className="text-xs text-primary hover:underline">Restart Camera</button>
+                </div>
+                {error && (
+                  <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                    <p className="text-red-700 text-sm">{error}</p>
+                  </div>
+                )}
+                <div className="mt-auto pt-6 border-t border-gray-100">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400 mb-2">Manual fallback</p>
+                  <form onSubmit={handleSubmit} className="space-y-3">
+                    <input
+                      type="text"
+                      value={reference}
+                      onChange={(e) => setReference(e.target.value.toUpperCase())}
+                      placeholder="Enter reference number"
+                      maxLength={12}
+                      disabled={loading}
+                      className="input w-full text-center text-xl font-medium tracking-normal"
+                    />
+                    <button type="submit" disabled={loading || !reference.trim()}
+                      className="btn-primary w-full bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed">
+                      {loading ? "Verifying..." : "Verify Reference Number"}
+                    </button>
+                  </form>
+                </div>
               </section>
             </div>
           )}
