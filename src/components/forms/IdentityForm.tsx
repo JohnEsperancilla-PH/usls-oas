@@ -18,7 +18,7 @@ interface IdentityFormProps {
 
 export function IdentityForm({ data, onNext }: IdentityFormProps) {
   const [formData, setFormData] = useState({ fullName: data.fullName, phone: data.phone, email: data.email });
-  const [visitorCategory, setVisitorCategory] = useState(data.visitorCategory || "external");
+  const [visitorCategory, setVisitorCategory] = useState(data.visitorCategory || "");
   const [validId, setValidId] = useState(data.validId || "");
   const [visitorCount, setVisitorCount] = useState(data.visitorCount || 1);
   const [visitorsEnabled, setVisitorsEnabled] = useState(data.additionalVisitors && data.additionalVisitors.length > 0);
@@ -43,6 +43,7 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
     if (!formData.email.trim()) newErrors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Enter a valid email";
     if (!validId) newErrors.validId = "Please select the valid ID you will present at the gate";
+    if (!visitorCategory) newErrors.visitorCategory = "Please select a visitor category";
     additionalVisitors.forEach((visitor, index) => {
       if (!visitor.fullName.trim()) newErrors[`visitor-${index}-name`] = "Name is required";
       if (!visitor.validId) newErrors[`visitor-${index}-id`] = "Please select a valid ID";
@@ -140,12 +141,14 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
 
         <div>
           <label htmlFor="visitorCategory" className="label">Visitor Category</label>
-          <select id="visitorCategory" value={visitorCategory} onChange={(e) => setVisitorCategory(e.target.value)}
-            className="input">
+          <select id="visitorCategory" value={visitorCategory} onChange={(e) => { setVisitorCategory(e.target.value); if (errors.visitorCategory) setErrors((p) => ({ ...p, visitorCategory: "" })); }}
+            className={`input ${errors.visitorCategory ? "input-error" : ""}`}>
+            <option value="">Select a visitor category...</option>
             {VISITOR_CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
+          {errors.visitorCategory && <p className="error-text mt-1">{errors.visitorCategory}</p>}
         </div>
 
         <div>
