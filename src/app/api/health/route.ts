@@ -1,13 +1,25 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { timingSafeEqual } from "crypto";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") || request.headers.get("x-cron-secret");
 
   const expected = process.env.CRON_HEALTH_TOKEN;
-  if (expected && token !== expected) {
-    return NextResponse.json({ status: "unauthorized" }, { status: 401 });
+  if (expected) {
+    if (!token) {
+      return NextResponse.json({ status: "unauthorized" }, { status: 401 });
+    }
+    
+    const isValid = token.length === expected.length && timingSafeEqual(
+      Buffer.from(token),
+      Buffer.from(expected)
+    );
+    
+    if (!isValid) {
+      return NextResponse.json({ status: "unauthorized" }, { status: 401 });
+    }
   }
 
   const supabase = createServiceClient();
@@ -27,14 +39,13 @@ export async function GET(request: Request) {
     });
 
     if (error) {
-      console.error(error);
-      return NextResponse.json({ status: "db_error", error: error.message }, { status: 500 });
+      console.error("Health check database error");
+      return NextResponse.json({ status: "error" }, { status: 500 });
     }
 
     return NextResponse.json({ status: "ok", time: now });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error(error);
-    return NextResponse.json({ status: "error", error: msg }, { status: 500 });
+    console.error("Health check error");
+    return NextResponse.json({ status: "error" }, { status: 500 });
   }
 }

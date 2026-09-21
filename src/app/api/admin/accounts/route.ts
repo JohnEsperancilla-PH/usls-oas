@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
+import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
 export async function GET(request: Request) {
   try {
@@ -29,6 +30,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
@@ -126,6 +130,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });

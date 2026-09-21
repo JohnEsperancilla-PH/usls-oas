@@ -2,18 +2,24 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { sanitizeName, sanitizeEmail } from "@/lib/sanitize";
+import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import type { Database } from "@/types/database";
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUUID(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
 
 function contactBody(body: Partial<Database["public"]["Tables"]["office_contacts"]["Insert"]>) {
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const email = typeof body.email === "string" ? body.email.trim() : "";
-  const position = typeof body.position === "string" ? body.position.trim() : "";
+  const name = sanitizeName(typeof body.name === "string" ? body.name : undefined, 255);
+  const email = sanitizeEmail(typeof body.email === "string" ? body.email : undefined);
+  const position = sanitizeName(typeof body.position === "string" ? body.position : undefined, 255);
+  
   if (!name) return "Contact name is required";
-  if (name.length > 255) return "Contact name is too long (max 255 characters)";
-  if (!emailRegex.test(email) || email.length > 254) return "Invalid contact email";
-  if (position.length > 255) return "Position is too long (max 255 characters)";
+  if (!email) return "Invalid contact email";
+  if (position && position.length > 255) return "Position is too long (max 255 characters)";
   return null;
 }
 
@@ -56,6 +62,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
@@ -67,6 +76,11 @@ export async function POST(request: Request) {
     if (!officeId) {
       return NextResponse.json({ message: "Office is required" }, { status: 400 });
     }
+    
+    if (!isValidUUID(officeId)) {
+      return NextResponse.json({ message: "Invalid office ID format" }, { status: 400 });
+    }
+    
     if (admin.role === "office_admin" && admin.office_id !== officeId) {
       return NextResponse.json({ message: "You can only add contacts to your office" }, { status: 403 });
     }

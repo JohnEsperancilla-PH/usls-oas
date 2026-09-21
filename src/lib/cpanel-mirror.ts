@@ -139,6 +139,6 @@ export async function mirrorAppointmentToCpanel(apt: CpanelAppointment): Promise
       ]
     );
   } catch (error) {
-    console.error(`Mirror write to cPanel failed for appointment ${apt.id}:`, error);
+    console.error("Mirror write to cPanel failed");
   }
 }

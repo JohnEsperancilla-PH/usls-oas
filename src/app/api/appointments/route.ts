@@ -7,7 +7,14 @@ import { generateActionToken } from "@/lib/action-token";
 import { isValidId } from "@/lib/valid-ids";
 import { getManilaToday } from "@/lib/time";
 import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-mirror";
+import { validateCsrfToken, csrfErrorResponse, isSafeMethod } from "@/lib/csrf";
 import type { Database } from "@/types/database";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUUID(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
 
 function getPrevSlot(timeSlot: string): string | null {
   const [h, m] = timeSlot.split(":").map(Number);
@@ -27,6 +34,9 @@ function getNextSlot(timeSlot: string): string | null {
 }
 
 export async function POST(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
   const { allowed } = checkRateLimit(`booking:${ip}`, 5, 15 * 60 * 1000);
   if (!allowed) return rateLimitResponse();
@@ -132,6 +142,11 @@ export async function POST(request: Request) {
     const todayStr = getManilaToday();
     if (body.date < todayStr) {
       return NextResponse.json({ message: "Cannot book appointments in the past" }, { status: 400 });
+    }
+
+    // Validate office ID format
+    if (!isValidUUID(body.officeId)) {
+      return NextResponse.json({ message: "Invalid office ID format" }, { status: 400 });
     }
 
     // Validate not a weekend
