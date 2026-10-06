@@ -31,28 +31,6 @@ function OnlineNotice() {
 }
 
 export default async function MaintenancePage() {
-  if (true) {
-    const endsAt = new Date(Date.now() + 3 * 3600 * 1000 + 25 * 60 * 1000).toISOString();
-    return (
-      <MaintenanceNotice
-        state={{
-          active: true,
-          reason: "manual",
-          enabled: true,
-          scheduled: false,
-          headline: "We are currently under maintenance",
-          message: "The Online Appointment System is temporarily unavailable while we perform scheduled maintenance. Please check back later. Existing appointments remain valid and are not affected by this downtime.",
-          contactEmail: "appointment@usls.edu.ph",
-          startAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-          endAt: endsAt,
-          updatedAt: new Date().toISOString(),
-          windowState: "running",
-          remainingMs: 3 * 3600 * 1000 + 25 * 60 * 1000,
-        }}
-      />
-    );
-  }
-
   const state = await getMaintenanceState();
 
   if (!state.active) {
