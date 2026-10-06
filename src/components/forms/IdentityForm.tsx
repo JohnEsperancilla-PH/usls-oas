@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { VALID_IDS } from "@/lib/valid-ids";
-import type { BookingData } from "@/app/page";
+import type { BookingData } from "@/components/landing/BookingLanding";
 
 const VISITOR_CATEGORIES = [
   { value: "external", label: "External (Companies, Organizations, Groups)" },

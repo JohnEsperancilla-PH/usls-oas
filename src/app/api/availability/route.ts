@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
+import { isMaintenanceActive } from "@/lib/maintenance-server";
 
 // All offices run a fixed 8:00 AM - 5:00 PM day, enforced at slot-generation
 // time so it applies to every office automatically, including offices created
@@ -55,6 +56,13 @@ export async function GET(request: Request) {
 
     if (!officeId) {
       return NextResponse.json({ message: "officeId is required" }, { status: 400 });
+    }
+
+    if (await isMaintenanceActive()) {
+      return NextResponse.json(
+        { message: "Time slots are temporarily unavailable while the system is under maintenance." },
+        { status: 503 }
+      );
     }
 
     const supabase = createServiceClient();

@@ -21,6 +21,9 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   create_contact: "Created office contact",
   update_contact: "Updated office contact",
   delete_contact: "Removed office contact",
+  enable_maintenance: "Enabled maintenance mode",
+  disable_maintenance: "Disabled maintenance mode",
+  update_maintenance: "Updated maintenance settings",
 };
 
 export function getAuditActionLabel(action: string): string {

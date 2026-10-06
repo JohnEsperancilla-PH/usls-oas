@@ -8,6 +8,7 @@ import { isValidId } from "@/lib/valid-ids";
 import { getManilaToday } from "@/lib/time";
 import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-mirror";
 import { validateCsrfToken, csrfErrorResponse, isSafeMethod } from "@/lib/csrf";
+import { getMaintenanceState } from "@/lib/maintenance-server";
 import type { Database } from "@/types/database";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,6 +41,14 @@ export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
   const { allowed } = checkRateLimit(`booking:${ip}`, 5, 15 * 60 * 1000);
   if (!allowed) return rateLimitResponse();
+
+  const maintenance = await getMaintenanceState();
+  if (maintenance.active) {
+    return NextResponse.json(
+      { message: `${maintenance.headline}. Appointment requests are temporarily unavailable.`, maintenance: true },
+      { status: 503 }
+    );
+  }
 
   try {
     const body = await request.json();

@@ -52,7 +52,24 @@ Public, self-service appointment booking (the core workflow).
 - **Business rules (409):** blocked time slot, or slot at full capacity.
 - **Side effects (post-response):** booking confirmation email to the visitor; admin alert emails (with one-click Approve/Deny links) to the office admins and super admins; `email_logs` rows; cPanel MySQL archive mirror.
 - **Reason for existing:** the main way visitors request a campus appointment. Records stay `pending` until an admin approves them.
-- **Errors:** 400 for invalid/missing fields; 429 for rate limit; 409 for conflict rules.
+- **Errors:** 400 for invalid/missing fields; 429 for rate limit; 409 for conflict rules; **503 while maintenance mode is active** (`{ message, maintenance: true }`).
+
+### 2.4 `GET /api/maintenance`
+Current maintenance-mode status, used by the booking page to swap itself out live.
+
+- **Auth:** none
+- **Response 200:** `{ active, reason: "manual" | "scheduled" | null, headline, message, contactEmail, startAt, endAt }`
+- **Cache:** `no-store`
+- **Reason for existing:** lets an already-open booking page notice that a super admin just turned maintenance on and switch to the maintenance page without a manual reload.
+
+---
+
+## 2A. Public — maintenance landing page
+
+- **Route:** `GET /maintenance` (also `GET /`, which renders this page instead of the booking form while maintenance is active)
+- **Auth:** none
+- **Behavior:** server-rendered on every request. Shows the configured headline, message, maintenance window (Philippine Time) and live countdown, plus a note that existing appointments remain valid. When maintenance is not active, `/maintenance` shows a "system is online" card linking back to the booking form.
+- **Auto-recovery:** the page re-renders itself automatically when a scheduled window ends, and the booking form polls `GET /api/maintenance` so a newly triggered maintenance state appears within ~30 seconds.
 
 ---
 
@@ -254,6 +271,26 @@ List offices. `office_admin` only sees their own office; `super_admin` sees all.
 
 ### 11.2 `PUT /api/admin/settings`
 **Auth:** `super_admin`. Upserts the settings object (`system_name`, `support_email`, `support_phone`, `max_advance_days`, `min_notice_hours`, and the `notify_*` toggles).
+
+---
+
+## 11A. Admin — maintenance (super admin)
+
+Controls the alternative public landing page from `/admin/maintenance`.
+
+### 11A.1 `GET /api/admin/maintenance`
+**Auth:** any `admins` user. Returns the resolved maintenance state: `active`, `reason`, `enabled`, `scheduled`, `headline`, `message`, `contactEmail`, `startAt`, `endAt`, `updatedAt`, `windowState` (`upcoming | running | ended | null`), `remainingMs`.
+
+### 11A.2 `PUT /api/admin/maintenance`
+**Auth:** `super_admin`, plus a valid CSRF token (`x-csrf-token` header matching the `__csrf_token` cookie).
+
+- **Body:** `{ enabled: boolean, scheduled: boolean, start?: "YYYY-MM-DDTHH:mm" | null, end?: "YYYY-MM-DDTHH:mm" | null, headline: string, message: string, contactEmail?: string }`
+- **Times:** `start`/`end` are interpreted as **Asia/Manila** and stored as UTC ISO strings. Omitting both is only valid when `scheduled` is `false`.
+- **Validation:** headline required (≤ 200 chars), message ≤ 2000 chars, contact email must be a valid address when present, `end` must be after `start`.
+- **Activation:** `active` is true when `enabled` is true **or** the current time falls inside a `scheduled` window. `enabled` therefore acts as a manual override that ignores the schedule.
+- **Side effect:** audit log `enable_maintenance` / `disable_maintenance` / `update_maintenance`.
+- **Response 200:** `{ message, state }`
+- **Fails open:** if `system_settings` cannot be read, the system is treated as *not* in maintenance so a database hiccup cannot lock visitors out.
 
 ---
 

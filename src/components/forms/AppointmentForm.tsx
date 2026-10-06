@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { BookingData } from "@/app/page";
+import type { BookingData } from "@/components/landing/BookingLanding";
 import type { Office } from "@/types/database";
 
 interface AppointmentFormProps {
