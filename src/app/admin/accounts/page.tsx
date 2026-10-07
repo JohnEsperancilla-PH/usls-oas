@@ -39,9 +39,13 @@ export default function AccountsPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setMessage(null);
     try {
+      const csrfRes = await fetch("/api/csrf-token");
+      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
+      const { csrfToken } = await csrfRes.json();
+
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify(form),
       });
       const data = await res.json();
@@ -63,9 +67,13 @@ export default function AccountsPage() {
     if (!deletingAccount || !deletePassword) return;
     setDeleteLoading(true); setDeleteError(null);
     try {
+      const csrfRes = await fetch("/api/csrf-token");
+      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
+      const { csrfToken } = await csrfRes.json();
+
       const res = await fetch("/api/admin/accounts", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({ id: deletingAccount.id, password: deletePassword }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }

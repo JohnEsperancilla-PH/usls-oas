@@ -40,9 +40,16 @@ function ContactFormModal({ open, officeId, contact, onClose, onSaved }: {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) throw new Error("Invalid contact email");
       const method = contact ? "PUT" : "POST";
       const url = contact ? `/api/admin/office-contacts/${contact.id}` : "/api/admin/office-contacts";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (method === "POST") {
+        const csrfRes = await fetch("/api/csrf-token");
+        if (!csrfRes.ok) throw new Error("Unable to obtain security token");
+        const { csrfToken } = await csrfRes.json();
+        headers["x-csrf-token"] = csrfToken;
+      }
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ ...(contact ? {} : { officeId }), name: form.name, email: form.email, position: form.position || null }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.message || "Failed to save contact"); }
