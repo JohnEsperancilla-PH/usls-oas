@@ -1018,6 +1018,15 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
           </div>
         </div>
       )}
+      {appointment.checked_out_at && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
+          <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          <div>
+            <div className="text-xs font-medium text-blue-700">Gate Checkout Recorded</div>
+            <div className="text-sm text-blue-600">{new Date(appointment.checked_out_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
+          </div>
+        </div>
+      )}
       {appointment.decline_reason && (
         <div className={appointment.status === "postponed" ? "bg-orange-50 border border-orange-200 rounded-lg p-3" : "bg-red-50 border border-red-200 rounded-lg p-3"}>
           <div className={`text-xs font-medium mb-0.5 ${appointment.status === "postponed" ? "text-orange-700" : "text-red-700"}`}>
