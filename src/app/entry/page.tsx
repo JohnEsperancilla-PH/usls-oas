@@ -148,6 +148,12 @@ export default function ScanPage() {
       setScanning(true);
     };
 
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setError("Camera requires a secure (HTTPS) connection. Use manual entry below.");
+      setScanning(false);
+      return;
+    }
+
     try {
       await attemptDecode({
         audio: false,
@@ -160,6 +166,16 @@ export default function ScanPage() {
           await attemptDecode({ audio: false, video: true });
           return;
         } catch {}
+      }
+      if (code === "NotAllowedError" || code === "SecurityError") {
+        let stateText = "";
+        try {
+          const status = await navigator.permissions.query({ name: "camera" as PermissionName });
+          stateText = ` (Chrome reports camera permission: ${status.state})`;
+        } catch {}
+        setError(`Camera access is blocked for this site${stateText}. In Chrome, tap the lock/tune icon next to the address → Permissions → Camera → Allow, then tap "Restart Camera". If that fails, clear this site's data and reload. Use manual entry below.`);
+        setScanning(false);
+        return;
       }
       const msg = firstError instanceof Error ? firstError.message : String(firstError);
       setError(`Camera unavailable: ${msg}. Use manual entry below.`);
