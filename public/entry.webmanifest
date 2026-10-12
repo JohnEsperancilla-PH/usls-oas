@@ -1,0 +1,18 @@
+{
+  "id": "/entry",
+  "name": "USLS OASYS — Gate Entry",
+  "short_name": "Gate Entry",
+  "description": "Scan visitor QR codes and record campus gate entry and exit.",
+  "start_url": "/entry",
+  "scope": "/entry",
+  "display": "standalone",
+  "background_color": "#006633",
+  "theme_color": "#006633",
+  "icons": [
+    {
+      "src": "/apple-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

@@ -39,6 +39,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Appointment is not in pending or postponed status" }, { status: 400 });
     }
 
+    const requestedTimeSlot = typeof body.timeSlot === "string" && body.timeSlot.trim() ? body.timeSlot.trim() : undefined;
+    if (requestedTimeSlot && !/^\d{2}:(00|30)$/.test(requestedTimeSlot)) {
+      return NextResponse.json({ message: "Invalid time slot format" }, { status: 400 });
+    }
+
+    const effectiveTimeSlot = requestedTimeSlot || appointment.time_slot || null;
+    if (!effectiveTimeSlot) {
+      return NextResponse.json({ message: "Please select a time before approving this appointment." }, { status: 400 });
+    }
+
     const referenceNumber = await createUniqueReference(supabase);
     const updatedAt = new Date().toISOString();
 
@@ -46,6 +56,7 @@ export async function POST(request: Request) {
       .from("appointments")
       .update({
         status: "approved",
+        time_slot: effectiveTimeSlot,
         qr_token: referenceNumber,
         qr_used_at: null,
         scanned_at: null,
@@ -68,6 +79,7 @@ export async function POST(request: Request) {
     await mirrorAppointmentToCpanel(
       fromAppointmentRow(appointment, {
         status: "approved",
+        time_slot: effectiveTimeSlot,
         qr_token: referenceNumber,
         qr_used_at: null,
         scanned_at: null,
@@ -77,7 +89,7 @@ export async function POST(request: Request) {
 
     // Email and calendar run post-response; failures don't block the approval.
     after(async () => {
-      await runPostApprovalTasks(appointment, referenceNumber, admin.id, admin.email, personToMeetEmail);
+      await runPostApprovalTasks(appointment, referenceNumber, admin.id, admin.email, personToMeetEmail, effectiveTimeSlot);
     });
 
     return NextResponse.json({

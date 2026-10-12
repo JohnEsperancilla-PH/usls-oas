@@ -54,11 +54,13 @@ export async function runPostApprovalTasks(
   referenceNumber: string,
   adminId: string | null,
   adminEmail: string,
-  personToMeetEmail?: string | null
+  personToMeetEmail?: string | null,
+  timeSlot?: string | null
 ) {
+  const effectiveTimeSlot = timeSlot ?? appointment.time_slot;
   const visitors = appointment.visitors || await getAppointmentVisitors(createServiceClient(), appointment.id);
   const vehicles = appointment.vehicles || await getAppointmentVehicles(createServiceClient(), appointment.id);
-  const appointmentWithVisitors = { ...appointment, visitors, vehicles };
+  const appointmentWithVisitors = { ...appointment, visitors, vehicles, time_slot: effectiveTimeSlot };
   const startedAt = Date.now();
   let mailResult: { success: boolean; error?: string | null } = { success: false, error: "Notifications disabled" };
   let calendarResult: { id?: string; htmlLink?: string | null; error?: string; skipped: boolean } = { skipped: true };
@@ -68,7 +70,7 @@ export async function runPostApprovalTasks(
     const emailResult = await generateApprovalEmail(
       appointment.full_name,
       appointment.date,
-      appointment.time_slot || "TBD",
+      effectiveTimeSlot || "TBD",
       appointment.offices?.name || "Unknown Office",
       appointment.valid_id || "",
       referenceNumber,
@@ -99,10 +101,10 @@ export async function runPostApprovalTasks(
     // date/time_slot are local (Asia/Manila) wall-clock times; build the UTC instant
     // explicitly so Vercel and Google Calendar show the intended appointment time.
     // If time_slot is null (hide_time_slots enabled), skip calendar event creation
-    if (!appointment.time_slot) {
+    if (!effectiveTimeSlot) {
       calendarResult = { skipped: true };
     } else {
-      const start = new Date(`${appointment.date}T${appointment.time_slot}:00+08:00`);
+      const start = new Date(`${appointment.date}T${effectiveTimeSlot}:00+08:00`);
       const end = new Date(start.getTime() + (appointment.duration || 30) * 60 * 1000);
       const officeName = appointment.offices?.name || "Unknown Office";
       const attendees = [appointment.email];
@@ -153,7 +155,7 @@ export async function runPostApprovalTasks(
           appointment.person_to_meet,
           appointment.offices?.name || "Unknown Office",
           appointment.date,
-          appointment.time_slot || "TBD",
+          effectiveTimeSlot || "TBD",
           appointment.full_name,
           referenceNumber,
           appointment.purpose_of_visit,

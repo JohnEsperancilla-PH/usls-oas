@@ -96,13 +96,13 @@ export default function AdminDashboardPage() {
 
   const getOfficeName = (officeId: string) => offices.find((o) => o.id === officeId)?.name || "Unknown";
 
-  const handleApprove = async (appointment: Appointment, personToMeetEmail?: string) => {
+  const handleApprove = async (appointment: Appointment, personToMeetEmail?: string, timeSlot?: string) => {
     setProcessing({ id: appointment.id, action: "approve" }); setMessage(null);
     try {
       const res = await fetch("/api/appointments/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId: appointment.id, personToMeetEmail }),
+        body: JSON.stringify({ appointmentId: appointment.id, personToMeetEmail, timeSlot }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
@@ -339,7 +339,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
   getOfficeName: (id: string) => string; selectedAppointment: Appointment | null;
   setSelectedAppointment: (a: Appointment | null) => void;
   processing: { id: string; action: "approve" | "decline" | "postpone" | "reset" } | null;
-  onApprove: (a: Appointment) => void; onDecline: (a: Appointment, reason?: string) => void;
+  onApprove: (a: Appointment, personToMeetEmail?: string, timeSlot?: string) => void; onDecline: (a: Appointment, reason?: string) => void;
   onPostpone: (a: Appointment, reason: string, newDate: string, newTimeSlot: string) => void;
   onResetQR: (a: Appointment) => void;
   getStatusBadge: (s: string) => string;
@@ -802,13 +802,14 @@ function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onU
 
 function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, onResetQR, onClose, processing, getStatusBadge }: {
   appointment: Appointment; offices: Office[];
-  onApprove: (a: Appointment, personToMeetEmail?: string) => void; onDecline: (a: Appointment, reason?: string) => void;
+  onApprove: (a: Appointment, personToMeetEmail?: string, timeSlot?: string) => void; onDecline: (a: Appointment, reason?: string) => void;
   onPostpone: (a: Appointment, reason: string, newDate: string, newTimeSlot: string) => void;
   onResetQR: (a: Appointment) => void;
   onClose: () => void; processing: { id: string; action: "approve" | "decline" | "postpone" | "reset" } | null; getStatusBadge: (s: string) => string;
 }) {
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineReason, setShowDeclineReason] = useState(false);
+  const [approveTime, setApproveTime] = useState("");
   const [showPostpone, setShowPostpone] = useState(false);
   const [postponeDate, setPostponeDate] = useState("");
   const [postponeTime, setPostponeTime] = useState("");
@@ -818,6 +819,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
   const isProcessing = processing?.id === appointment.id;
   const isBusy = processing !== null;
   const postponeSlots = buildPostponeSlots(offices.find((o) => o.id === appointment.office_id));
+  const needsTime = !appointment.time_slot;
 
   const officeContacts = offices.find((o) => o.id === appointment.office_id)?.contacts || [];
   const personContact = officeContacts.find((c) => c.name.toLowerCase() === (appointment.person_to_meet || "").toLowerCase());
@@ -883,6 +885,19 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
               </>
             ) : (
               <>
+                {needsTime && (
+                  <div className="mb-3">
+                    <label htmlFor="approve-time" className="label">
+                      Appointment Time <span className="text-red-500">*</span>
+                    </label>
+                    <select id="approve-time" className="input mt-1" value={approveTime}
+                      onChange={(e) => setApproveTime(e.target.value)}>
+                      <option value="">Select a time...</option>
+                      {postponeSlots.map((slot) => <option key={slot} value={slot}>{formatTimeSlot(slot)}</option>)}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">This office has time selection disabled, so set the time before approving. It will appear in the approval email, the entry QR, and the calendar invite.</p>
+                  </div>
+                )}
                 {isOtherPerson && (
                   <div className="mb-3">
                     <label htmlFor="personToMeetEmail" className="label">
@@ -912,7 +927,11 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
                         alert("Please enter an email for the person to meet.");
                         return;
                       }
-                      onApprove(appointment, isOtherPerson ? personToMeetEmail : undefined);
+                      if (needsTime && !approveTime) {
+                        alert("Please select an appointment time before approving.");
+                        return;
+                      }
+                      onApprove(appointment, isOtherPerson ? personToMeetEmail : undefined, needsTime ? approveTime : undefined);
                     }}
                     disabled={isBusy}
                     className="btn-primary flex-1 btn-sm disabled:opacity-50"
