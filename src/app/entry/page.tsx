@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import type { IScannerControls } from "@zxing/browser";
 import { formatTimeSlot } from "@/lib/time";
+import { ModalShell } from "@/components/admin/ModalShell";
 import { createClient } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 
@@ -70,6 +71,8 @@ export default function ScanPage() {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [scanning, setScanning] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -118,6 +121,7 @@ export default function ScanPage() {
       } catch {}
       video.srcObject = null;
     }
+    setStarting(false);
     setScanning(false);
   };
 
@@ -127,6 +131,7 @@ export default function ScanPage() {
     setError(null);
     setScanResult(null);
     processingRef.current = false;
+    setStarting(true);
     const codeReader = new BrowserQRCodeReader();
 
     const attemptDecode = async (constraints: MediaStreamConstraints) => {
@@ -145,11 +150,13 @@ export default function ScanPage() {
         }
       );
       controlsRef.current = controls;
+      setStarting(false);
       setScanning(true);
     };
 
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setError("Camera requires a secure (HTTPS) connection. Use manual entry below.");
+      setStarting(false);
       setScanning(false);
       return;
     }
@@ -173,29 +180,25 @@ export default function ScanPage() {
           const status = await navigator.permissions.query({ name: "camera" as PermissionName });
           stateText = ` (Chrome reports camera permission: ${status.state})`;
         } catch {}
-        setError(`Camera access is blocked for this site${stateText}. In Chrome, tap the lock/tune icon next to the address → Permissions → Camera → Allow, then tap "Restart Camera". If that fails, clear this site's data and reload. Use manual entry below.`);
+        setError(`Camera access is blocked for this site${stateText}. In Chrome, tap the lock/tune icon next to the address → Permissions → Camera → Allow. If that fails, clear this site's data and reload. Use manual entry instead.`);
+        setStarting(false);
         setScanning(false);
         return;
       }
       const msg = firstError instanceof Error ? firstError.message : String(firstError);
-      setError(`Camera unavailable: ${msg}. Use manual entry below.`);
+      setError(`Camera unavailable: ${msg}. Use manual entry instead.`);
+      setStarting(false);
       setScanning(false);
     }
+    setStarting(false);
   };
 
-  const scannerApiRef = useRef<{ start: () => Promise<void>; stop: () => Promise<void> }>({
-    start: async () => {},
-    stop: async () => {},
-  });
-  scannerApiRef.current = { start: startScanner, stop: stopScanner };
-
   useEffect(() => {
-    if (!authenticated) return;
-    void scannerApiRef.current.start();
     return () => {
-      void scannerApiRef.current.stop();
+      void stopScanner();
     };
-  }, [authenticated]);
+    // stopScanner only touches refs and stable state setters, so the initial closure is safe.
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -262,6 +265,7 @@ export default function ScanPage() {
       });
       const data: ScanResult = await response.json();
       setScanResult(data);
+      setShowManual(false);
     } catch {
       setError("Failed to verify reference number. Please try again.");
     } finally {
@@ -283,7 +287,6 @@ export default function ScanPage() {
       setReference("");
     } catch {
       setError("Failed to verify reference number. Please try again.");
-      void startScanner();
     } finally {
       setLoading(false);
     }
@@ -295,8 +298,8 @@ export default function ScanPage() {
     setError(null);
     setDenyReason("");
     setShowDenyReason(false);
+    setShowManual(false);
     void loadExpectedVisitors();
-    void startScanner();
   };
 
   const currentDateLabel = new Intl.DateTimeFormat("en-US", {
@@ -564,7 +567,7 @@ export default function ScanPage() {
                   <div className="relative flex-1 min-h-0">
                   <div className="h-full space-y-1.5 overflow-y-auto pr-1 pb-8">
                     {expectedVisitors.map((visitor) => (
-                      <button type="button" key={visitor.id} onClick={() => setReference(visitor.referenceNumber)} className="w-full text-left border-b border-gray-100 px-2 py-3.5 hover:bg-gray-50 transition-colors">
+                      <button type="button" key={visitor.id} onClick={() => void verifyReference(visitor.referenceNumber)} className="w-full text-left border-b border-gray-100 px-2 py-3.5 hover:bg-gray-50 transition-colors">
                         <div className="flex items-center gap-3">
                           <span className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold flex-shrink-0">{getInitials(visitor.fullName)}</span>
                           <div className="min-w-0 flex-1">
@@ -590,51 +593,73 @@ export default function ScanPage() {
                 <div className="mb-6">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Action</p>
                   <h1 className="text-xl font-bold text-gray-900 mt-1">Gate Entry</h1>
-                  <p className="text-sm text-gray-500 mt-1">Scan QR code or enter reference number to verify entry.</p>
                 </div>
                 <div className="relative rounded-xl overflow-hidden bg-gray-950">
                   <video ref={videoRef} playsInline autoPlay muted className="w-full h-72 object-cover" />
                   {!scanning && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 text-white text-sm">
-                      <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                      <span>Starting camera...</span>
+                      {starting ? (
+                        <>
+                          <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                          <span>Starting camera...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                          <span>Camera off</span>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
-                <div className="flex items-center justify-between mt-3">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${scanning ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-100 text-gray-500 border border-gray-200"}`}>
-                    {scanning ? "Camera active" : "Camera off"}
-                  </span>
-                  <button type="button" onClick={() => void startScanner()} className="text-xs text-primary hover:underline">Restart Camera</button>
-                </div>
-                {error && (
+                {error && !showManual && (
                   <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
                     <p className="text-red-700 text-sm">{error}</p>
                   </div>
                 )}
-                <div className="mt-auto pt-6 border-t border-gray-100">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400 mb-2">Manual fallback</p>
-                  <form onSubmit={handleSubmit} className="space-y-3">
-                    <input
-                      type="text"
-                      value={reference}
-                      onChange={(e) => setReference(e.target.value.toUpperCase())}
-                      placeholder="Enter reference number"
-                      maxLength={12}
-                      disabled={loading}
-                      className="input w-full text-center text-xl font-medium tracking-normal"
-                    />
-                    <button type="submit" disabled={loading || !reference.trim()}
-                      className="btn-primary w-full bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed">
-                      {loading ? "Verifying..." : "Verify Reference Number"}
-                    </button>
-                  </form>
+                <div className="mt-auto pt-6 border-t border-gray-100 flex items-center gap-2">
+                  <button type="button" onClick={() => { setError(null); setShowManual(true); void stopScanner(); }} disabled={loading}
+                    aria-label="Enter reference number manually" title="Enter reference number manually"
+                    className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h.01M12 8h.01M17 8h.01M7 12h.01M12 12h.01M17 12h.01M7 16h.01M12 16h.01M17 16h.01" /></svg>
+                  </button>
+                  <button type="button" onClick={() => void startScanner()} disabled={scanning || starting || loading}
+                    className="btn-primary flex-1 bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    {starting ? "Starting..." : scanning ? "Scanning..." : "Start Camera"}
+                  </button>
                 </div>
               </section>
             </div>
           )}
         </div>
       </main>
+
+      <ModalShell
+        open={showManual}
+        title="Enter Reference Number"
+        subtitle="Verify an appointment without scanning"
+        maxWidthClass="max-w-sm"
+        onClose={() => { setShowManual(false); setError(null); }}
+      >
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input
+            type="text"
+            value={reference}
+            onChange={(e) => setReference(e.target.value.toUpperCase())}
+            placeholder="Enter reference number"
+            maxLength={12}
+            disabled={loading}
+            autoFocus
+            className="input w-full text-center text-xl font-medium tracking-normal"
+          />
+          {error && <p className="text-red-700 text-sm text-center">{error}</p>}
+          <button type="submit" disabled={loading || !reference.trim()}
+            className="btn-primary w-full bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed">
+            {loading ? "Verifying..." : "Verify Reference Number"}
+          </button>
+        </form>
+      </ModalShell>
     </div>
   );
 }
