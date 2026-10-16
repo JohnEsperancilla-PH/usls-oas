@@ -3,6 +3,25 @@ import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
 
+// Detect a missing/uncached `blocked_times` table (PostgREST PGRST205) so admins
+// get an actionable message instead of a generic 500.
+function handleBlockedTimesError(err: unknown) {
+  const e = err as { code?: string; message?: string } | null;
+  const missingTable =
+    !!e &&
+    (e.code === "PGRST205" || /could not find the table 'public\.blocked_times'/i.test(e.message || ""));
+  if (missingTable) {
+    return NextResponse.json(
+      {
+        message:
+          "Blocking is unavailable because the 'blocked_times' table is missing from the database. A super admin needs to run the blocked_times migration.",
+      },
+      { status: 503 }
+    );
+  }
+  return handleRouteError(err);
+}
+
 export async function GET(request: Request) {
   try {
     const { admin, error, status } = await getAuthAdmin(request);
@@ -34,7 +53,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(data || []);
   } catch (err) {
-    return handleRouteError(err);
+    return handleBlockedTimesError(err);
   }
 }
 
@@ -92,7 +111,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
-    return handleRouteError(err);
+    return handleBlockedTimesError(err);
   }
 }
 
@@ -135,6 +154,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: "Unblocked" });
   } catch (err) {
-    return handleRouteError(err);
+    return handleBlockedTimesError(err);
   }
 }

@@ -357,6 +357,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
    const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
   const [blockModalDate, setBlockModalDate] = useState<string | null>(null);
   const [blockingSlot, setBlockingSlot] = useState<string | null>(null);
+  const [blockError, setBlockError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -369,39 +370,60 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
       const params = new URLSearchParams({ month: m });
       if (admin.office_id) params.set("officeId", admin.office_id);
       const res = await fetch(`/api/admin/blocked-times?${params}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        setBlockError("Could not load blocked times. Please refresh and try again.");
+        return;
+      }
       const data = await res.json();
       setBlockedTimes(data || []);
-    } catch { /* */ }
-  }, [year, month, admin]);
+    } catch {
+      setBlockError("Could not load blocked times. Please check your connection.");
+    }
+  }, [year, month, admin, setBlockError]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchBlocked(); }, [fetchBlocked]);
 
   const handleBlockTime = async (date: string, timeSlot: string) => {
     setBlockingSlot(timeSlot);
+    setBlockError(null);
     try {
       const officeId = admin.office_id || offices[0]?.id;
-      if (!officeId) return;
+      if (!officeId) {
+        setBlockError("Your account is not assigned to an office. Contact a super admin to block times.");
+        return;
+      }
       const res = await fetch("/api/admin/blocked-times", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ office_id: officeId, date, time_slot: timeSlot, reason: "Blocked by admin" }),
       });
-      if (res.ok) fetchBlocked();
-    } catch { /* */ }
-    finally { setBlockingSlot(null); }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || `Could not block this slot (error ${res.status}).`);
+      }
+      await fetchBlocked();
+    } catch (err) {
+      setBlockError(err instanceof Error ? err.message : "Could not block this slot. Please try again.");
+    } finally { setBlockingSlot(null); }
   };
 
   const handleUnblockTime = async (id: string) => {
+    setBlockError(null);
     try {
-      await fetch("/api/admin/blocked-times", {
+      const res = await fetch("/api/admin/blocked-times", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      fetchBlocked();
-    } catch { /* */ }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || `Could not unblock this slot (error ${res.status}).`);
+      }
+      await fetchBlocked();
+    } catch (err) {
+      setBlockError(err instanceof Error ? err.message : "Could not unblock this slot. Please try again.");
+    }
   };
 
   const cells: (number | null)[] = [];
@@ -471,7 +493,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
                 <div className="flex items-center justify-between mb-1">
                   <span className={`text-xs font-medium ${isToday ? "text-primary font-bold" : "text-gray-600"}`}>{day}</span>
                   {!isPast && officeId && (
-                    <button onClick={() => setBlockModalDate(ds)}
+                    <button onClick={() => { setBlockError(null); setBlockModalDate(ds); }}
                       className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded bg-gray-100 hover:bg-primary/10 text-gray-400 hover:text-primary flex items-center justify-center transition-all">
                       <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     </button>
@@ -517,7 +539,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
           onPrevMonth={() => setCalendarDate(new Date(year, month - 1))}
           onNextMonth={() => setCalendarDate(new Date(year, month + 1))}
           onView={(a) => setSelectedAppointment(a)}
-          onBlockDate={(ds) => { setBlockModalDate(ds); setCalendarDate(new Date(ds + "T00:00:00")); }}
+          onBlockDate={(ds) => { setBlockError(null); setBlockModalDate(ds); setCalendarDate(new Date(ds + "T00:00:00")); }}
           color={color}
         />
       )}
@@ -530,8 +552,9 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
           blockedSlots={(blockedByDate[blockModalDate] || []).filter((b) => b.office_id === officeId)}
           onBlock={handleBlockTime}
           onUnblock={handleUnblockTime}
-          onClose={() => setBlockModalDate(null)}
+          onClose={() => { setBlockError(null); setBlockModalDate(null); }}
           blockingSlot={blockingSlot}
+          error={blockError}
         />
       )}
 
@@ -730,22 +753,30 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
 
 /* ─── Block Time Modal ─── */
 
-function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onUnblock, onClose, blockingSlot }: {
+function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onUnblock, onClose, blockingSlot, error }: {
   date: string; officeId: string; officeName: string;
   blockedSlots: BlockedTime[]; onBlock: (date: string, slot: string) => void;
   onUnblock: (id: string) => void; onClose: () => void; blockingSlot: string | null;
+  error?: string | null;
 }) {
   const [allSlots, setAllSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSlots = async () => {
       try {
         const res = await fetch(`/api/availability?officeId=${officeId}&date=${date}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          setLoadError(d.message || `Could not load time slots (error ${res.status}).`);
+          return;
+        }
         const d = await res.json();
         setAllSlots((d.slots || []).map((s: { time: string }) => s.time));
-      } catch { /* */ }
+      } catch {
+        setLoadError("Could not load time slots. Check your connection and try again.");
+      }
       finally { setLoading(false); }
     };
     fetchSlots();
@@ -760,10 +791,18 @@ function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onU
         <button onClick={onClose} className="btn-secondary flex-1">Close</button>
       }>
       <p className="text-xs text-gray-500 mb-3">{officeName} · Click a slot to block or unblock it</p>
+      {error && (
+        <div className="mb-3 p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
+          <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span>{error}</span>
+        </div>
+      )}
       {loading ? (
         <div className="grid grid-cols-3 gap-2">
           {[1, 2, 3, 4, 5, 6].map((i) => <div key={i} className="skeleton h-10 rounded-lg" />)}
         </div>
+      ) : loadError ? (
+        <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm text-center">{loadError}</div>
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {allSlots.map((slot) => {
