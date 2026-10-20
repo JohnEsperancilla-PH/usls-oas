@@ -395,8 +395,8 @@ export default function ScanPage() {
           <h1 className="text-lg font-bold text-gray-900 text-center">Gate Entry Login</h1>
           <p className="text-sm text-gray-500 text-center mt-1 mb-5">Sign in to verify visitor appointments.</p>
           <form onSubmit={handleLogin} className="space-y-3">
-            <label htmlFor="scan-employee-id" className="label">Employee ID</label>
-            <input id="scan-employee-id" type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value.toUpperCase())} className="input w-full" autoComplete="username" required />
+            <label htmlFor="scan-employee-id" className="label">Employee ID or Username</label>
+            <input id="scan-employee-id" type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="e.g. 12345 or Juan Dela Cruz" className="input w-full" autoComplete="username" required />
             <label htmlFor="scan-password" className="label">Password</label>
             <input id="scan-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input w-full" autoComplete="current-password" required />
             {authError && <p className="text-red-700 text-sm">{authError}</p>}

@@ -181,7 +181,7 @@ function gateNotes(validId: string) {
     `Present this ticket or your reference number at <strong>USLS Gate 2</strong> on your appointment date.`,
     `Bring the <strong>${escapeHtml(validId)}</strong> you listed &mdash; the Guard will issue your visitor&apos;s pass.`,
     `Please arrive at Gate 2 by <strong>20 minutes</strong> before your scheduled time.`,
-    `Entry is allowed only from 30 minutes before the scheduled time; arriving <strong>15 minutes</strong> after voids the gate entry code.`,
+    `Entry is allowed only from 30 minutes before the scheduled time; arriving <strong>1 hour</strong> after voids the gate entry code.`,
   ]);
 }
 

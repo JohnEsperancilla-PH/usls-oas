@@ -151,7 +151,7 @@ export async function generateTicketPdf(data: TicketData): Promise<Uint8Array> {
     "Present this ticket or your reference number at USLS Gate 2 on your appointment date.",
     "Bring the government-issued ID listed above — the Guard will issue your visitor's pass.",
     "Please arrive at Gate 2 by 20 minutes before your scheduled time.",
-    "Entry is allowed only from 30 minutes before the scheduled time; arriving 15 minutes after voids the gate entry code.",
+    "Entry is allowed only from 30 minutes before the scheduled time; arriving 1 hour after voids the gate entry code.",
   ];
   const noteSize = 10;
   const noteLineHeight = 15;

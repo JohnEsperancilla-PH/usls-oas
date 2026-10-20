@@ -203,7 +203,7 @@ export async function POST(request: Request) {
         if (expired) {
           await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, { status: "expired", updated_at: expiredAt }));
         }
-        return scanFailure("This gate entry code is void because the visitor arrived more than 15 minutes after the scheduled time. Please reapply for a new appointment.", "too_late", { ...summary, status: "expired" }, 409);
+        return scanFailure("This gate entry code is void because the visitor arrived more than 1 hour after the scheduled time. Please reapply for a new appointment.", "too_late", { ...summary, status: "expired" }, 409);
       }
     }
 
