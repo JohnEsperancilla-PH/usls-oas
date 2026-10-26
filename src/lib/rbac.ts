@@ -8,6 +8,7 @@ export interface AuthAdmin {
   employee_id: string | null;
   role: "super_admin" | "office_admin" | "gate_user";
   office_id: string | null;
+  approval_status?: "pending" | "approved";
 }
 
 export async function getAuthAdmin(request: Request): Promise<{ admin: AuthAdmin | null; error?: string; status?: number }> {
@@ -29,7 +30,21 @@ export async function getAuthAdmin(request: Request): Promise<{ admin: AuthAdmin
     return { admin: null, error: "Not authorized", status: 403 };
   }
 
+  if (admin.approval_status === "pending") {
+    return { admin: null, error: PENDING_APPROVAL_MESSAGE, status: 403 };
+  }
+
   return { admin: admin as Admin };
+}
+
+export const PENDING_APPROVAL_MESSAGE = "Your account is waiting for a super admin to approve it.";
+
+// Admin dashboard data and actions: super admins and office admins, not gate accounts.
+export function requireDashboardAdmin(admin: AuthAdmin): { ok: boolean; error?: string; status?: number } {
+  if (admin.role === "gate_user") {
+    return { ok: false, error: "Insufficient permissions", status: 403 };
+  }
+  return { ok: true };
 }
 
 export function requireSuperAdmin(admin: AuthAdmin): { ok: boolean; error?: string; status?: number } {
@@ -58,7 +73,7 @@ export async function logAudit(
   } = {}
 ) {
   const supabase = createServiceClient();
-  await supabase.from("audit_logs").insert({
+  const { error } = await supabase.from("audit_logs").insert({
     admin_id: adminId,
     admin_email: adminEmail,
     action,
@@ -67,4 +82,9 @@ export async function logAudit(
     target_email: details.target_email || null,
     details: details.meta || null,
   });
+  // The action itself already happened, so don't fail the request, but never lose an audit entry silently.
+  // A check-constraint error here usually means a migration adding this action hasn't been applied.
+  if (error) {
+    console.error(`Failed to write audit log for "${action}" by ${adminEmail}:`, error.message);
+  }
 }

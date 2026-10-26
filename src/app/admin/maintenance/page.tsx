@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import { toManilaInputValue, formatManilaDateTime, type MaintenanceWindowState } from "@/lib/maintenance";
+import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
 
 interface MaintenancePayload {
   active: boolean;
@@ -54,14 +55,16 @@ function Toggle({
   enabled,
   onToggle,
   disabled,
+  label,
 }: {
   enabled: boolean;
   onToggle: () => void;
   disabled?: boolean;
+  label: string;
 }) {
   return (
-    <button type="button" onClick={onToggle} disabled={disabled} aria-pressed={enabled}
-      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${enabled ? "bg-primary" : "bg-gray-300"}`}>
+    <button type="button" onClick={onToggle} disabled={disabled} role="switch" aria-checked={enabled} aria-label={label}
+      className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${enabled ? "bg-primary" : "bg-gray-300"}`}>
       <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-4" : "translate-x-0.5"}`} />
     </button>
   );
@@ -72,19 +75,24 @@ export default function MaintenancePage() {
   const isSuperAdmin = admin?.role === "super_admin";
 
   const [form, setForm] = useState<FormState | null>(null);
+  const [savedForm, setSavedForm] = useState<FormState | null>(null);
   const [status, setStatus] = useState<MaintenancePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useStatusMessage();
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [confirmingOffline, setConfirmingOffline] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     if (!isSuperAdmin) return;
+    setConfirmingOffline(false);
     try {
       const res = await fetch("/api/admin/maintenance", { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error("Failed to load maintenance settings");
+      setLoadFailed(false);
       const data: MaintenancePayload = await res.json();
       setStatus(data);
-      setForm({
+      const loaded: FormState = {
         enabled: data.enabled,
         scheduled: data.scheduled,
         start: toManilaInputValue(data.startAt),
@@ -92,9 +100,11 @@ export default function MaintenancePage() {
         headline: data.headline,
         message: data.message,
         contactEmail: data.contactEmail,
-      });
+      };
+      setForm(loaded);
+      setSavedForm(loaded);
     } catch {
-      /* handled by empty form state */
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -118,6 +128,16 @@ export default function MaintenancePage() {
     );
   }
 
+  if (!loading && (loadFailed || !form)) {
+    return (
+      <div className="space-y-6 max-w-3xl">
+        <h1 className="text-2xl font-bold text-gray-900">Maintenance Mode</h1>
+        <StatusMessage message={{ type: "error", text: "Could not load the maintenance settings, so they can't be changed right now." }}
+          onRetry={() => { setLoading(true); fetchStatus(); }} />
+      </div>
+    );
+  }
+
   if (loading || !form) {
     return (
       <div className="space-y-6">
@@ -128,7 +148,16 @@ export default function MaintenancePage() {
     );
   }
 
-  const update = (patch: Partial<FormState>) => setForm((prev) => (prev ? { ...prev, ...patch } : prev));
+  const update = (patch: Partial<FormState>) => {
+    setForm((prev) => (prev ? { ...prev, ...patch } : prev));
+    setMessage(null);
+    setConfirmingOffline(false);
+  };
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(savedForm);
+  const toggleUnsaved = form.enabled !== savedForm?.enabled;
+  // Turning on manual mode or a new schedule takes public booking offline, so ask first.
+  const takesBookingOffline = (form.enabled && !savedForm?.enabled) || (form.scheduled && !savedForm?.scheduled);
 
   const applyPreset = (hours: number) => {
     const now = new Date();
@@ -143,6 +172,11 @@ export default function MaintenancePage() {
   const clearWindow = () => update({ scheduled: false, start: "", end: "" });
 
   const save = async () => {
+    if (takesBookingOffline && !confirmingOffline) {
+      setConfirmingOffline(true);
+      return;
+    }
+    setConfirmingOffline(false);
     setSaving(true);
     setMessage(null);
     try {
@@ -192,13 +226,6 @@ export default function MaintenancePage() {
         </p>
       )}
 
-      {message && (
-        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 animate-fade-in ${message.type === "success" ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
-          {message.type === "success" ? <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> : <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-          {message.text}
-        </div>
-      )}
-
       <div className={`rounded-xl border p-5 flex flex-wrap items-center justify-between gap-4 ${status?.active ? "bg-amber-50 border-amber-200" : "bg-white border-gray-200"}`}>
         <div className="flex items-center gap-3">
           <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${status?.active ? "bg-amber-100" : "bg-green-100"}`}>
@@ -224,9 +251,17 @@ export default function MaintenancePage() {
                   : "Visitors see the maintenance page on every public page refresh."
                 : "Public booking form is live and accepting requests."}
             </p>
+            {toggleUnsaved && (
+              <p className="text-xs font-medium text-amber-700 mt-1">
+                Not saved yet. Press Save Settings to turn maintenance mode {form.enabled ? "on" : "off"}.
+              </p>
+            )}
           </div>
         </div>
-        <Toggle enabled={form.enabled} onToggle={() => update({ enabled: !form.enabled })} />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500" aria-hidden="true">Manual</span>
+          <Toggle enabled={form.enabled} onToggle={() => update({ enabled: !form.enabled })} label="Turn maintenance mode on manually" />
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
@@ -238,7 +273,7 @@ export default function MaintenancePage() {
           {form.scheduled ? (
             <button type="button" onClick={clearWindow} className="btn-ghost btn-sm text-xs">Clear</button>
           ) : (
-            <Toggle enabled={form.scheduled} onToggle={() => update({ scheduled: true })} />
+            <Toggle enabled={form.scheduled} onToggle={() => update({ scheduled: true })} label="Use a scheduled window" />
           )}
         </div>
 
@@ -314,12 +349,41 @@ export default function MaintenancePage() {
         </ul>
       </div>
 
-      <div className="flex justify-end gap-3 pb-4">
-        <button type="button" onClick={fetchStatus} disabled={saving} className="btn-ghost">Discard changes</button>
-        <button type="button" onClick={save} disabled={saving}
-          className="btn-primary disabled:opacity-50 flex items-center gap-2">
-          {saving ? <><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> Saving...</> : "Save Settings"}
-        </button>
+      <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 py-3 bg-gray-50/95 backdrop-blur-sm space-y-3">
+        {confirmingOffline && (
+          <div role="alert" className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
+            <p className="font-semibold">Take public booking offline?</p>
+            <p className="text-xs text-amber-800 mt-0.5">
+              {form.enabled
+                ? "Visitors will see the maintenance page and can't book appointments until you turn this off."
+                : "Visitors will see the maintenance page and can't book appointments during the scheduled window."}
+            </p>
+          </div>
+        )}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+          {message ? (
+            <StatusMessage message={message} onDismiss={() => setMessage(null)} className="sm:mr-auto py-2" />
+          ) : dirty && !confirmingOffline ? (
+            <p className="text-xs text-amber-700 sm:mr-auto">You have unsaved changes.</p>
+          ) : null}
+          {confirmingOffline ? (
+            <>
+              <button type="button" onClick={() => setConfirmingOffline(false)} disabled={saving} className="btn-ghost">Cancel</button>
+              <button type="button" onClick={save} disabled={saving}
+                className="btn-danger disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving ? <><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> Saving...</> : "Yes, take booking offline"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => { setMessage(null); fetchStatus(); }} disabled={saving || !dirty} className="btn-ghost disabled:opacity-40">Discard changes</button>
+              <button type="button" onClick={save} disabled={saving}
+                className="btn-primary disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving ? <><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> Saving...</> : "Save Settings"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { id } = await params;
     const { admin, error, status } = await getAuthAdmin(request);
@@ -59,6 +63,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { id } = await params;
     const { admin, error, status } = await getAuthAdmin(request);

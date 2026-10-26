@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import { NewInvitationModal } from "@/components/admin/NewInvitationModal";
+import { StatusMessage } from "@/components/admin/StatusMessage";
+import { Pagination, SearchInput } from "@/components/admin/Pagination";
+
+const PAGE_SIZE = 20;
 
 interface InvitationVehicle {
   plateNumber: string;
@@ -56,14 +60,29 @@ export default function InvitationsPage() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const changeSearch = (value: string) => { setSearch(value); setPage(1); };
+
+  const searchTerm = search.trim().toLowerCase();
+  const filteredInvitations = searchTerm
+    ? invitations.filter((i) =>
+        [i.fullName, i.email, i.phone, i.officeName, i.referenceNumber, i.personToMeet]
+          .some((v) => (v || "").toLowerCase().includes(searchTerm)))
+    : invitations;
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filteredInvitations.length / PAGE_SIZE)));
+  const pagedInvitations = filteredInvitations.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const invRes = await fetch("/api/admin/invitations");
-      const invData = invRes.ok ? await invRes.json() : [];
-      setInvitations(invData || []);
-    } catch { /* keep empty */ }
+      if (!invRes.ok) throw new Error("Failed to load invitations");
+      const invData = await invRes.json();
+      setInvitations(Array.isArray(invData) ? invData : []);
+      setLoadError(false);
+    } catch { setLoadError(true); }
     finally { setLoading(false); }
   }, []);
 
@@ -91,10 +110,16 @@ export default function InvitationsPage() {
         </button>
       </div>
 
+      {invitations.length > 0 && (
+        <SearchInput value={search} onChange={changeSearch} placeholder="Search visitor, email, office, reference..." label="Search invitations" />
+      )}
+
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => <div key={i} className="bg-white rounded-xl border border-gray-200 p-5"><div className="skeleton h-5 w-48 mb-3" /><div className="skeleton h-3 w-64 mb-2" /><div className="skeleton h-3 w-32" /></div>)}
         </div>
+      ) : loadError ? (
+        <StatusMessage message={{ type: "error", text: "Could not load invitations. Check your connection and try again." }} onRetry={fetchData} />
       ) : invitations.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -103,9 +128,14 @@ export default function InvitationsPage() {
           <p className="text-sm text-gray-500 mb-3">No invitations yet</p>
           <button onClick={() => setModalOpen(true)} className="text-sm font-medium text-primary hover:text-primary-light">Create the first invitation</button>
         </div>
+      ) : filteredInvitations.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <p className="text-sm text-gray-500">No invitations match &ldquo;{search.trim()}&rdquo;</p>
+          <button onClick={() => changeSearch("")} className="text-sm font-medium text-primary hover:text-primary-light mt-2">Clear search</button>
+        </div>
       ) : (
         <div className="space-y-4">
-          {invitations.map((invitation) => (
+          {pagedInvitations.map((invitation) => (
             <div key={invitation.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow">
               <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                 <div className="flex-1 min-w-0">
@@ -121,7 +151,7 @@ export default function InvitationsPage() {
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">Email failed</span>
                     )}
                     {invitation.emailStatus === "none" && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-50 text-gray-500 border-gray-200">No email</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-50 text-gray-500 border border-gray-200">No email</span>
                     )}
                   </div>
                   <div className="text-xs text-gray-500 mt-1.5 space-y-0.5">
@@ -166,6 +196,10 @@ export default function InvitationsPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {!loading && !loadError && (
+        <Pagination page={currentPage} pageSize={PAGE_SIZE} total={filteredInvitations.length} onPageChange={setPage} itemLabel="invitations" />
       )}
 
       <NewInvitationModal

@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import type { AdminRole, Office } from "@/types/database";
 import { ModalShell } from "@/components/admin/ModalShell";
+import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
+import { adminFetch } from "@/lib/admin-fetch";
 
-interface AdminAccount { id: string; email: string; employee_id: string | null; name: string; role: string; office_id: string | null; active: boolean; }
+interface AdminAccount { id: string; email: string; employee_id: string | null; name: string; role: string; office_id: string | null; approval_status?: "pending" | "approved"; created_at?: string; }
 
 export default function AccountsPage() {
   const { admin } = useAdmin();
@@ -13,13 +15,18 @@ export default function AccountsPage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useStatusMessage();
   const [form, setForm] = useState({ email: "", employee_id: "", name: "", password: "", role: "office_admin" as "super_admin" | "office_admin" | "gate_user", office_id: "" });
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | AdminRole>("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [tab, setTab] = useState<"accounts" | "pending">("accounts");
+  const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -28,11 +35,13 @@ export default function AccountsPage() {
         fetch("/api/admin/accounts", {}),
         fetch("/api/admin/offices", {}),
       ]);
+      if (!accRes.ok) throw new Error("Failed to load accounts");
       const accData = await accRes.json();
-      const offData = await offRes.json();
-      setAccounts(accData || []);
-      setOffices(offData || []);
-    } catch { /* */ }
+      const offData = offRes.ok ? await offRes.json() : [];
+      setAccounts(Array.isArray(accData) ? accData : []);
+      setOffices(Array.isArray(offData) ? offData : []);
+      setLoadError(false);
+    } catch { setLoadError(true); }
     finally { setLoading(false); }
   }, [admin]);
 
@@ -40,7 +49,9 @@ export default function AccountsPage() {
   useEffect(() => { fetchData(); }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true); setMessage(null);
+    e.preventDefault(); setMessage(null); setFormError(null);
+    if (form.role === "office_admin" && !form.office_id) { setFormError("Select the office this admin will manage."); return; }
+    setSaving(true);
     try {
       const csrfRes = await fetch("/api/csrf-token");
       if (!csrfRes.ok) throw new Error("Unable to obtain security token");
@@ -52,13 +63,57 @@ export default function AccountsPage() {
         body: JSON.stringify(form),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setMessage({ type: "success", text: "Account created" });
+      if (!res.ok) throw new Error(data.message || "Could not create the account. Please try again.");
+      setMessage({ type: "success", text: `Account created for ${form.name}` });
       setModalOpen(false);
       setForm({ email: "", employee_id: "", name: "", password: "", role: "office_admin", office_id: "" });
       fetchData();
-    } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
+    } catch (err) { setFormError(err instanceof Error ? err.message : "Could not create the account. Please try again."); }
     finally { setSaving(false); }
+  };
+
+  const openCreate = () => {
+    setForm({ email: "", employee_id: "", name: "", password: "", role: "office_admin", office_id: "" });
+    setFormError(null);
+    setShowPassword(false);
+    setModalOpen(true);
+  };
+
+  const [editingAccount, setEditingAccount] = useState<AdminAccount | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", role: "office_admin" as AdminRole, office_id: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const openEdit = (account: AdminAccount) => {
+    setEditingAccount(account);
+    setEditForm({ name: account.name || "", role: account.role as AdminRole, office_id: account.office_id || "" });
+    setEditError(null);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAccount) return;
+    setEditError(null);
+    if (!editForm.name.trim()) { setEditError("Enter a name."); return; }
+    if (editForm.role === "office_admin" && !editForm.office_id) { setEditError("Select the office this admin will manage."); return; }
+    setEditSaving(true);
+    try {
+      const csrfRes = await fetch("/api/csrf-token");
+      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
+      const { csrfToken } = await csrfRes.json();
+
+      const res = await fetch("/api/admin/accounts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ id: editingAccount.id, ...editForm }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not update the account. Please try again.");
+      setMessage({ type: "success", text: `${editForm.name.trim()} updated` });
+      setEditingAccount(null);
+      fetchData();
+    } catch (err) { setEditError(err instanceof Error ? err.message : "Could not update the account. Please try again."); }
+    finally { setEditSaving(false); }
   };
 
   const [deletingAccount, setDeletingAccount] = useState<AdminAccount | null>(null);
@@ -150,7 +205,37 @@ export default function AccountsPage() {
     }
   };
 
-  const filteredAccounts = accounts.filter((account) => {
+  // Self-registered office admins wait here until a super admin approves or rejects them.
+  const pendingAccounts = accounts.filter((account) => account.approval_status === "pending");
+  const activeAccounts = accounts.filter((account) => account.approval_status !== "pending");
+
+  const handleApproval = async (account: AdminAccount, decision: "approve" | "reject") => {
+    setApprovalBusyId(account.id);
+    setMessage(null);
+    try {
+      const res = await adminFetch("/api/admin/accounts/approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: account.id, decision }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || `Could not ${decision} the account. Please try again.`);
+      setMessage({
+        type: "success",
+        text: decision === "approve"
+          ? `${account.name || account.email} approved. They've been emailed that they can sign in.`
+          : `${account.name || account.email} rejected and removed.`,
+      });
+      setRejectingId(null);
+      fetchData();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : `Could not ${decision} the account.` });
+    } finally {
+      setApprovalBusyId(null);
+    }
+  };
+
+  const filteredAccounts = activeAccounts.filter((account) => {
     if (roleFilter !== "all" && account.role !== roleFilter) return false;
     const query = search.trim().toLowerCase();
     if (!query) return true;
@@ -200,15 +285,40 @@ export default function AccountsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {displayedCount} admin account{displayedCount !== 1 ? "s" : ""}
-            {hasActiveFilters ? ` of ${accounts.length}` : ""}
+            {hasActiveFilters ? ` of ${activeAccounts.length}` : ""}
           </p>
         </div>
-        <button onClick={() => { setForm({ email: "", employee_id: "", name: "", password: "", role: "office_admin", office_id: "" }); setModalOpen(true); }} className="btn-primary btn-sm flex items-center gap-1.5">
+        <button onClick={openCreate} className="btn-primary btn-sm flex items-center gap-1.5">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           Add Account
         </button>
       </div>
 
+      <div className="flex items-center gap-1 border-b border-gray-200" role="tablist" aria-label="Account lists">
+        {([
+          { key: "accounts" as const, label: "Accounts", count: activeAccounts.length },
+          { key: "pending" as const, label: "Pending approval", count: pendingAccounts.length },
+        ]).map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+            className={`px-4 py-2.5 -mb-px text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${tab === t.key ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-800"}`}>
+            {t.label}
+            {!loading && (
+              <span className={`px-1.5 rounded-full text-xs ${t.key === "pending" && t.count > 0 ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-500"}`}>{t.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === "accounts" && pendingAccounts.length > 0 && (
+        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900 flex flex-wrap items-center gap-2">
+          <span className="flex-1">
+            {pendingAccounts.length} office admin account{pendingAccounts.length !== 1 ? "s are" : " is"} waiting for your approval.
+          </span>
+          <button type="button" onClick={() => setTab("pending")} className="text-xs font-semibold underline underline-offset-2 hover:no-underline">Review</button>
+        </div>
+      )}
+
+      {tab === "accounts" && (
       <div className="flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="relative flex-1 lg:max-w-md">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -218,7 +328,7 @@ export default function AccountsPage() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="input pl-9"
+            className="input" style={{ paddingLeft: "2.25rem" }}
             placeholder="Search by name, email, office, or role..."
             aria-label="Search admin accounts"
           />
@@ -262,25 +372,74 @@ export default function AccountsPage() {
           </div>
         </div>
       </div>
-
-      {message && (
-        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 animate-fade-in ${message.type === "success" ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
-          {message.type === "success" ? <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> : <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-          {message.text}
-        </div>
       )}
 
-      {loading ? (
+      {message && <StatusMessage message={message} onDismiss={() => setMessage(null)} />}
+
+      {tab === "pending" && !loading && !loadError ? (
+        pendingAccounts.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+            <p className="text-sm text-gray-500">No accounts are waiting for approval.</p>
+            <p className="text-xs text-gray-400 mt-1">Office admins who register themselves appear here until you approve or reject them.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pendingAccounts.map((a) => {
+              const officeName = offices.find((o) => o.id === a.office_id)?.name || "Unknown office";
+              const busy = approvalBusyId === a.id;
+              return (
+                <div key={a.id} className="bg-white rounded-xl border border-amber-200 p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-amber-700">{(a.name || a.email || "?")[0].toUpperCase()}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{a.name || "—"}</div>
+                      <div className="text-xs text-gray-500 truncate">{a.email}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        Office admin for <span className="font-medium text-gray-700">{officeName}</span>
+                        {a.created_at && <> · registered {new Date(a.created_at).toLocaleString("en-US", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
+                      </div>
+                    </div>
+                  </div>
+                  {rejectingId === a.id ? (
+                    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Confirm rejecting ${a.name || a.email}`}>
+                      <span className="text-xs text-gray-600">Reject and delete this account?</span>
+                      <button type="button" onClick={() => handleApproval(a, "reject")} disabled={busy} className="btn-danger btn-sm disabled:opacity-50">
+                        {busy ? "Rejecting..." : "Yes, reject"}
+                      </button>
+                      <button type="button" onClick={() => setRejectingId(null)} disabled={busy} className="btn-ghost btn-sm">Cancel</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => handleApproval(a, "approve")} disabled={busy || approvalBusyId !== null} className="btn-primary btn-sm disabled:opacity-50">
+                        {busy ? "Approving..." : "Approve"}
+                      </button>
+                      <button type="button" onClick={() => setRejectingId(a.id)} disabled={approvalBusyId !== null}
+                        className="text-sm font-medium text-red-600 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50">
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <p className="text-xs text-gray-400">Only approve people you know work in the office they chose. Approved admins can see that office&apos;s visitor details and approve appointments.</p>
+          </div>
+        )
+      ) : loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <div key={i} className="bg-white rounded-xl border border-gray-200 p-5"><div className="skeleton h-5 w-32 mb-3" /><div className="skeleton h-3 w-48 mb-2" /><div className="skeleton h-3 w-24" /></div>)}
         </div>
+      ) : loadError ? (
+        <StatusMessage message={{ type: "error", text: "Could not load accounts. Check your connection and try again." }} onRetry={fetchData} />
       ) : accounts.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
             <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 7.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
           </div>
           <p className="text-sm text-gray-500 mb-3">No admin accounts yet</p>
-          <button onClick={() => setModalOpen(true)} className="text-sm font-medium text-primary hover:text-primary-light">Create first account</button>
+          <button onClick={openCreate} className="text-sm font-medium text-primary hover:text-primary-light">Create first account</button>
         </div>
       ) : filteredAccounts.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
@@ -332,6 +491,9 @@ export default function AccountsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
+                        <button type="button" aria-label={`Edit ${a.name || a.email}`} onClick={() => openEdit(a)} className="whitespace-nowrap text-xs font-medium text-gray-600 px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                          Edit
+                        </button>
                         <button type="button" aria-label={`Reset password for ${a.name || a.email}`} onClick={() => openResetPassword(a)} className="whitespace-nowrap text-xs font-medium text-primary px-2.5 py-1.5 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">
                           Reset Password
                         </button>
@@ -361,7 +523,7 @@ export default function AccountsPage() {
                     {a.role === "gate_user" && <div className="text-xs text-gray-500">Employee ID: {a.employee_id}</div>}
                   </div>
                 </div>
-                  <span className={getRoleBadge(a.role)}>{a.role === "super_admin" ? "Super" : a.role === "gate_user" ? "Gate" : "Office"}</span>
+                  <span className={`${getRoleBadge(a.role)} whitespace-nowrap flex-shrink-0`}>{getRoleLabel(a.role)}</span>
               </div>
               {a.office_id && (
                 <div className="text-xs text-gray-500 mb-3">
@@ -370,6 +532,9 @@ export default function AccountsPage() {
                 </div>
               )}
               <div className="flex gap-2">
+                <button type="button" aria-label={`Edit ${a.name || a.email}`} onClick={() => openEdit(a)} className="flex-1 text-center text-xs font-medium text-gray-600 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                  Edit
+                </button>
                 <button type="button" aria-label={`Reset password for ${a.name || a.email}`} onClick={() => openResetPassword(a)} className="flex-1 text-center text-xs font-medium text-primary py-1.5 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">
                   Reset Password
                 </button>
@@ -394,45 +559,46 @@ export default function AccountsPage() {
             </>
           }>
           <form id="account-form" onSubmit={handleCreate} className="space-y-4">
-            {form.role === "gate_user" ? (
-              <div>
-                <label className="label">Employee ID</label>
-                <input required className="input" placeholder="Employee ID number" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} />
-              </div>
-            ) : (
-              <div>
-                <label className="label">Email</label>
-                <input type="email" required className="input" placeholder="name@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              </div>
-            )}
+            {formError && <StatusMessage message={{ type: "error", text: formError }} />}
             <div>
-              <label className="label">Name</label>
-              <input required className="input" placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Password</label>
-              <div className="relative">
-                <input type={showPassword ? "text" : "password"} required className="input pr-10" placeholder="Minimum 6 characters" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                  {showPassword ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" /></svg> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="label">Role</label>
-              <div className="flex gap-2">
+              <span id="account-role-label" className="label">Role</span>
+              <div className="flex gap-2" role="group" aria-labelledby="account-role-label">
                 {[{ v: "office_admin", l: "Office Admin" }, { v: "super_admin", l: "Super Admin" }, { v: "gate_user", l: "Gate User" }].map((r) => (
-                  <button key={r.v} type="button" onClick={() => setForm({ ...form, role: r.v as "super_admin" | "office_admin" | "gate_user", email: "" })}
+                  <button key={r.v} type="button" aria-pressed={form.role === r.v} onClick={() => setForm({ ...form, role: r.v as "super_admin" | "office_admin" | "gate_user", email: "" })}
                     className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border-2 transition-all ${form.role === r.v ? "border-primary bg-primary/5 text-primary" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"}`}>
                     {r.l}
                   </button>
                 ))}
               </div>
             </div>
+            {form.role === "gate_user" ? (
+              <div>
+                <label htmlFor="account-employee-id" className="label">Employee ID</label>
+                <input id="account-employee-id" required className="input" placeholder="Employee ID number" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} />
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="account-email" className="label">Email</label>
+                <input id="account-email" type="email" required className="input" placeholder="name@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              </div>
+            )}
+            <div>
+              <label htmlFor="account-name" className="label">Name</label>
+              <input id="account-name" required className="input" placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor="account-password" className="label">Password</label>
+              <div className="relative">
+                <input id="account-password" type={showPassword ? "text" : "password"} required minLength={8} maxLength={128} autoComplete="new-password" className="input pr-10" placeholder="Minimum 8 characters" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                  {showPassword ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" /></svg> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>}
+                </button>
+              </div>
+            </div>
             {form.role === "office_admin" && (
               <div>
-                <label className="label">Assign Office</label>
-                <select className="input" value={form.office_id} onChange={(e) => setForm({ ...form, office_id: e.target.value })}>
+                <label htmlFor="account-office" className="label">Assign Office</label>
+                <select id="account-office" required className="input" value={form.office_id} onChange={(e) => setForm({ ...form, office_id: e.target.value })}>
                   <option value="">Select an office</option>
                   {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
@@ -441,6 +607,52 @@ export default function AccountsPage() {
           </form>
         </ModalShell>
       )}
+
+      {/* Edit account modal */}
+      <ModalShell open={Boolean(editingAccount)} title="Edit Account" subtitle={editingAccount?.email} onClose={() => setEditingAccount(null)} maxWidthClass="max-w-xl"
+        footer={
+          <>
+            <button type="submit" form="edit-account-form" disabled={editSaving} className="btn-primary flex-1 btn-sm disabled:opacity-50">
+              {editSaving ? "Saving..." : "Save Changes"}
+            </button>
+            <button type="button" onClick={() => setEditingAccount(null)} className="btn-secondary btn-sm">Cancel</button>
+          </>
+        }>
+        <form id="edit-account-form" onSubmit={handleEdit} className="space-y-4">
+          {editError && <StatusMessage message={{ type: "error", text: editError }} />}
+          {editingAccount?.role === "gate_user" ? (
+            <p className="text-xs text-gray-500">Gate accounts keep the Gate User role. Employee ID: <span className="font-medium text-gray-700">{editingAccount.employee_id || "—"}</span></p>
+          ) : (
+            <div>
+              <span id="edit-role-label" className="label">Role</span>
+              <div className="flex gap-2" role="group" aria-labelledby="edit-role-label">
+                {([{ v: "office_admin", l: "Office Admin" }, { v: "super_admin", l: "Super Admin" }] as const).map((r) => (
+                  <button key={r.v} type="button" aria-pressed={editForm.role === r.v}
+                    disabled={editingAccount?.id === admin.id}
+                    onClick={() => setEditForm({ ...editForm, role: r.v })}
+                    className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border-2 transition-all disabled:cursor-not-allowed disabled:opacity-60 ${editForm.role === r.v ? "border-primary bg-primary/5 text-primary" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"}`}>
+                    {r.l}
+                  </button>
+                ))}
+              </div>
+              {editingAccount?.id === admin.id && <p className="text-[11px] text-gray-400 mt-1">You can&apos;t change your own role.</p>}
+            </div>
+          )}
+          <div>
+            <label htmlFor="edit-name" className="label">Name</label>
+            <input id="edit-name" required maxLength={100} className="input" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+          </div>
+          {editForm.role === "office_admin" && (
+            <div>
+              <label htmlFor="edit-office" className="label">Assigned Office</label>
+              <select id="edit-office" required className="input" value={editForm.office_id} onChange={(e) => setEditForm({ ...editForm, office_id: e.target.value })}>
+                <option value="">Select an office</option>
+                {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+          )}
+        </form>
+      </ModalShell>
 
       {/* Reset password modal */}
       <ModalShell open={Boolean(resettingAccount)} title="Reset Password" subtitle={resettingAccount ? resettingAccount.name || resettingAccount.email : undefined} onClose={closeResetModal} maxWidthClass="max-w-md"
@@ -457,18 +669,18 @@ export default function AccountsPage() {
             Set a new password for <strong>{resettingAccount?.name || resettingAccount?.email}</strong>. Enter your own password to confirm.
           </p>
           <div>
-            <label className="label">New Password</label>
-            <input type="password" className="input" placeholder="Minimum 8 characters" value={resetNewPassword} onChange={(e) => { setResetNewPassword(e.target.value); setResetError(null); }} autoFocus />
+            <label htmlFor="reset-new-password" className="label">New Password</label>
+            <input id="reset-new-password" type="password" autoComplete="new-password" className="input" placeholder="Minimum 8 characters" value={resetNewPassword} onChange={(e) => { setResetNewPassword(e.target.value); setResetError(null); }} autoFocus />
           </div>
           <div>
-            <label className="label">Confirm New Password</label>
-            <input type="password" className="input" placeholder="Re-enter new password" value={resetConfirmPassword} onChange={(e) => { setResetConfirmPassword(e.target.value); setResetError(null); }} onKeyDown={(e) => { if (e.key === "Enter") handleResetPassword(); }} />
+            <label htmlFor="reset-confirm-password" className="label">Confirm New Password</label>
+            <input id="reset-confirm-password" type="password" autoComplete="new-password" className="input" placeholder="Re-enter new password" value={resetConfirmPassword} onChange={(e) => { setResetConfirmPassword(e.target.value); setResetError(null); }} onKeyDown={(e) => { if (e.key === "Enter") handleResetPassword(); }} />
           </div>
           <div>
-            <label className="label">Your Password</label>
-            <input type="password" className="input" placeholder="Enter your password" value={resetSuperPassword} onChange={(e) => { setResetSuperPassword(e.target.value); setResetError(null); }} onKeyDown={(e) => { if (e.key === "Enter") handleResetPassword(); }} />
+            <label htmlFor="reset-own-password" className="label">Your Password</label>
+            <input id="reset-own-password" type="password" autoComplete="current-password" className="input" placeholder="Enter your password" value={resetSuperPassword} onChange={(e) => { setResetSuperPassword(e.target.value); setResetError(null); }} onKeyDown={(e) => { if (e.key === "Enter") handleResetPassword(); }} />
           </div>
-          {resetError && <p className="text-xs text-red-600">{resetError}</p>}
+          {resetError && <p className="text-xs text-red-600" role="alert">{resetError}</p>}
         </div>
       </ModalShell>
 
@@ -487,10 +699,10 @@ export default function AccountsPage() {
             You are about to remove <strong>{deletingAccount?.name || deletingAccount?.email}</strong>. Enter your password to confirm.
           </p>
           <div>
-            <label className="label">Your Password</label>
-            <input type="password" className="input" placeholder="Enter your password" value={deletePassword} onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(null); }} autoFocus onKeyDown={(e) => { if (e.key === "Enter") handleDelete(); }} />
+            <label htmlFor="delete-own-password" className="label">Your Password</label>
+            <input id="delete-own-password" type="password" autoComplete="current-password" className="input" placeholder="Enter your password" value={deletePassword} onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(null); }} autoFocus onKeyDown={(e) => { if (e.key === "Enter") handleDelete(); }} />
           </div>
-          {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
+          {deleteError && <p className="text-xs text-red-600" role="alert">{deleteError}</p>}
         </div>
       </ModalShell>
     </div>

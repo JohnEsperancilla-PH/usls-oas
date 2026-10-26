@@ -1,15 +1,21 @@
 import { NextResponse, after } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin } from "@/lib/rbac";
+import { getAuthAdmin, requireDashboardAdmin } from "@/lib/rbac";
 import { runPostDeclineTasks, runPostponementTasks } from "@/lib/appointment-actions";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import { getManilaToday } from "@/lib/time";
+import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
 export async function POST(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
+    const dashboardAccess = requireDashboardAdmin(admin);
+    if (!dashboardAccess.ok) return NextResponse.json({ message: dashboardAccess.error }, { status: dashboardAccess.status });
 
     const body = await request.json();
 

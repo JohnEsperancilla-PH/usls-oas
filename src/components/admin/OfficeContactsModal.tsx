@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { OfficeContact } from "@/types/database";
 import { ModalShell } from "@/components/admin/ModalShell";
+import { adminFetch } from "@/lib/admin-fetch";
 
 interface OfficeContactsModalProps {
   open: boolean;
@@ -40,16 +41,9 @@ function ContactFormModal({ open, officeId, contact, onClose, onSaved }: {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) throw new Error("Invalid contact email");
       const method = contact ? "PUT" : "POST";
       const url = contact ? `/api/admin/office-contacts/${contact.id}` : "/api/admin/office-contacts";
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (method === "POST") {
-        const csrfRes = await fetch("/api/csrf-token");
-        if (!csrfRes.ok) throw new Error("Unable to obtain security token");
-        const { csrfToken } = await csrfRes.json();
-        headers["x-csrf-token"] = csrfToken;
-      }
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...(contact ? {} : { officeId }), name: form.name, email: form.email, position: form.position || null }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.message || "Failed to save contact"); }
@@ -72,18 +66,18 @@ function ContactFormModal({ open, officeId, contact, onClose, onSaved }: {
         </>
       }>
       <form id="contact-form" onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">{error}</div>}
+        {error && <div role="alert" className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">{error}</div>}
         <div>
-          <label className="label">Name <span className="text-red-500">*</span></label>
-          <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={255} placeholder="e.g. Maria Santos" autoFocus required />
+          <label htmlFor="contact-name" className="label">Name <span className="text-red-500">*</span></label>
+          <input id="contact-name" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={255} placeholder="e.g. Maria Santos" autoFocus required />
         </div>
         <div>
-          <label className="label">Email <span className="text-red-500">*</span></label>
-          <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={254} placeholder="contact@email.com" required />
+          <label htmlFor="contact-email" className="label">Email <span className="text-red-500">*</span></label>
+          <input id="contact-email" type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={254} placeholder="contact@email.com" required />
         </div>
         <div>
-          <label className="label">Position</label>
-          <input className="input" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} maxLength={255} placeholder="e.g. Secretary" />
+          <label htmlFor="contact-position" className="label">Position</label>
+          <input id="contact-position" className="input" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} maxLength={255} placeholder="e.g. Secretary" />
         </div>
       </form>
     </ModalShell>
@@ -102,7 +96,7 @@ export function OfficeContactsPanel({ officeId, onChanged }: { officeId: string;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/office-contacts?officeId=${encodeURIComponent(officeId)}`);
+      const res = await adminFetch(`/api/admin/office-contacts?officeId=${encodeURIComponent(officeId)}`);
       if (!res.ok) throw new Error("Failed to load contacts");
       const data = await res.json();
       setContacts((data || []).filter((c: OfficeContact) => c.active));
@@ -119,16 +113,22 @@ export function OfficeContactsPanel({ officeId, onChanged }: { officeId: string;
   const openCreate = () => { setEditing(null); setFormSession((s) => s + 1); setFormOpen(true); };
   const openEdit = (contact: OfficeContact) => { setEditing(contact); setFormSession((s) => s + 1); setFormOpen(true); };
 
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const handleDelete = async (contact: OfficeContact) => {
-    if (!confirm(`Remove ${contact.name} from office contacts?`)) return;
     setError(null);
+    setDeletingId(contact.id);
     try {
-      const res = await fetch(`/api/admin/office-contacts/${contact.id}`, { method: "DELETE" });
+      const res = await adminFetch(`/api/admin/office-contacts/${contact.id}`, { method: "DELETE" });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.message || "Failed to delete contact"); }
+      setConfirmingId(null);
       fetchContacts();
       onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete contact");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -163,10 +163,20 @@ export function OfficeContactsPanel({ officeId, onChanged }: { officeId: string;
                   {contact.position ? `${contact.position} · ` : ""}{contact.email}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => openEdit(contact)} className="text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">Edit</button>
-                <button onClick={() => handleDelete(contact)} className="text-xs font-medium text-red-600 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">Remove</button>
-              </div>
+              {confirmingId === contact.id ? (
+                <div className="flex items-center gap-2 flex-shrink-0" role="group" aria-label={`Confirm removing ${contact.name}`}>
+                  <span className="text-xs text-gray-600 hidden sm:inline">Remove?</span>
+                  <button onClick={() => handleDelete(contact)} disabled={deletingId === contact.id} className="text-xs font-medium text-white px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50">
+                    {deletingId === contact.id ? "Removing..." : "Yes, remove"}
+                  </button>
+                  <button onClick={() => setConfirmingId(null)} disabled={deletingId === contact.id} className="text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">Cancel</button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => openEdit(contact)} aria-label={`Edit ${contact.name}`} className="text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">Edit</button>
+                  <button onClick={() => setConfirmingId(contact.id)} aria-label={`Remove ${contact.name}`} className="text-xs font-medium text-red-600 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">Remove</button>
+                </div>
+              )}
             </div>
           ))}
         </div>

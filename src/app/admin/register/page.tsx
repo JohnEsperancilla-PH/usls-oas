@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { validateOfficeAdminEmail } from "@/lib/admin-email";
 
 interface OfficeOption {
@@ -28,11 +26,9 @@ export default function AdminRegisterPage() {
   >("idle");
   const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -98,7 +94,6 @@ export default function AdminRegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
 
     const emailCheck = validateOfficeAdminEmail(email);
     if (!emailCheck.ok) {
@@ -149,36 +144,8 @@ export default function AdminRegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Registration failed");
 
-      setSuccess("Account created. Signing you in...");
-
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: emailCheck.email,
-        password,
-      });
-      if (signInError) {
-        setSuccess(null);
-        setError(
-          "Your account was created, but automatic sign-in failed. Please sign in manually."
-        );
-        return;
-      }
-
-      const authResponse = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailCheck.email }),
-      });
-      if (!authResponse.ok) {
-        await supabase.auth.signOut();
-        setSuccess(null);
-        setError(
-          "Your account was created, but access could not be verified. Please sign in manually."
-        );
-        return;
-      }
-
-      router.push("/admin");
-      router.refresh();
+      // New accounts wait for super admin approval, so there is no automatic sign-in.
+      setSubmittedEmail(emailCheck.email);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred during registration");
     } finally {
@@ -196,6 +163,18 @@ export default function AdminRegisterPage() {
         </div>
 
         <div className="card">
+          {submittedEmail ? (
+            <div className="text-center space-y-3" role="status">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <h2 className="text-base font-semibold text-gray-900">Waiting for approval</h2>
+              <p className="text-sm text-gray-600">
+                Your account for <strong>{submittedEmail}</strong> was created. A super admin needs to approve it before you can sign in.
+                We&apos;ll email you when it&apos;s approved.
+              </p>
+            </div>
+          ) : (
           <form onSubmit={handleRegister} className="space-y-4">
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2 animate-fade-in">
@@ -203,14 +182,6 @@ export default function AdminRegisterPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 {error}
-              </div>
-            )}
-            {success && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center gap-2 animate-fade-in">
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                {success}
               </div>
             )}
             <div>
@@ -292,6 +263,7 @@ export default function AdminRegisterPage() {
               ) : "Create Account"}
             </button>
           </form>
+          )}
 
           <div className="mt-4 pt-4 border-t border-gray-100 text-center text-sm text-gray-500">
             Already have an account?{" "}

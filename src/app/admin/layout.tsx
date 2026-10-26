@@ -1,12 +1,29 @@
 "use client";
 
 import { useEffect, useState, createContext, useContext } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, usePathname } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { Admin } from "@/types/database";
 
-const PUBLIC_ADMIN_ROUTES = ["/admin/login", "/admin/register"];
+const PUBLIC_ADMIN_ROUTES = ["/admin/login", "/admin/register", "/admin/forgot-password", "/admin/reset-password"];
+
+const PAGE_TITLES: Record<string, string> = {
+  "/admin": "Appointments",
+  "/admin/analytics": "Analytics",
+  "/admin/invitations": "Invitations",
+  "/admin/contacts": "Contacts",
+  "/admin/offices": "Offices",
+  "/admin/accounts": "Accounts",
+  "/admin/audit": "Audit Log",
+  "/admin/settings": "Settings",
+  "/admin/maintenance": "Maintenance",
+  "/admin/login": "Admin Login",
+  "/admin/register": "Register Office Admin",
+  "/admin/forgot-password": "Forgot Password",
+  "/admin/reset-password": "Reset Password",
+};
 
 interface AdminContextType {
   user: User;
@@ -23,16 +40,20 @@ export function useAdmin() {
 
 function SidebarLink({ href, label, icon, active, onClick }: { href: string; label: string; icon: string; active: boolean; onClick?: () => void }) {
   return (
-    <a href={href} onClick={onClick}
+    <Link href={href} onClick={onClick} aria-current={active ? "page" : undefined}
       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
         active ? "bg-primary/10 text-primary" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
       }`}>
-      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={icon} />
       </svg>
       {label}
-    </a>
+    </Link>
   );
+}
+
+function isActivePath(pathname: string, href: string) {
+  return href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -46,14 +67,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isPublicRoute = PUBLIC_ADMIN_ROUTES.includes(pathname);
 
   const checkUser = async () => {
-    if (isPublicRoute) { setLoading(false); return; }
+    // Access is verified once per session; re-checking on every page change trips the auth rate limit.
+    if (isPublicRoute || admin) { setLoading(false); return; }
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/admin/login"); return; }
       const authResponse = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
+        body: JSON.stringify({}),
       });
       if (!authResponse.ok) { router.push("/admin/login"); return; }
       const { admin: adminData } = await authResponse.json();
@@ -66,9 +88,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { checkUser(); }, [pathname]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/admin/login"); };
+  // Admin pages are client components, so the tab title is set here instead of through route metadata.
+  useEffect(() => {
+    const title = PAGE_TITLES[pathname];
+    if (title) document.title = `${title} | USLS OASYS`;
+  }, [pathname, loading]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [sidebarOpen]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setAdmin(null);
+    router.push("/admin/login");
+  };
 
   if (loading) {
     return (
@@ -91,6 +132,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navItems = [
     { href: "/admin", label: "Appointments", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
     ...(admin.role !== "gate_user" ? [
+      { href: "/admin/analytics", label: "Analytics", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
       { href: "/admin/invitations", label: "Invitations", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
     ] : []),
     ...(admin.role === "office_admin" ? [
@@ -101,9 +143,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       { href: "/admin/accounts", label: "Accounts", icon: "M12 4.354a4 4 0 110 7.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
       { href: "/admin/audit", label: "Audit Log", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" },
       { href: "/admin/settings", label: "Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" },
-      { href: "/admin/maintenance", label: "Maintenance", icon: "M11.42 15.17l-5.658 5.658a2 2 0 01-2.829-2.829l5.657-5.657m7.865-5.365a5.5 5.5 0 019.193 9.193m-1.222-1.222a1.5 1.5 0 01.707.707l1.414 1.414a1.5 1.5 0 11-2.121 2.121l-1.414-1.414a1.5 1.5 0 01-.707-.707l-1.414-1.414a1.5 1.5 0 012.121-2.121z" },
+      { href: "/admin/maintenance", label: "Maintenance", icon: "M21.75 6.75a4.5 4.5 0 01-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 11-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 016.336-4.486l-3.276 3.276a3.004 3.004 0 002.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852z M4.867 19.125h.008v.008h-.008v-.008z" },
     ] : []),
   ];
+  const currentPage = navItems.find((item) => isActivePath(pathname, item.href));
 
   return (
     <AdminContext.Provider value={{ user, admin }}>
@@ -115,7 +158,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => (
-              <SidebarLink key={item.href} {...item} active={pathname === item.href} />
+              <SidebarLink key={item.href} {...item} active={isActivePath(pathname, item.href)} />
             ))}
           </nav>
           <div className="border-t border-gray-100 p-3">
@@ -141,23 +184,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {sidebarOpen && (
           <div className="lg:hidden fixed inset-0 z-40">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
-            <aside className="relative w-72 h-full bg-white shadow-xl animate-slide-in-left">
-              <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100">
+            <aside id="admin-mobile-nav" aria-label="Admin navigation" className="relative w-72 max-w-[85vw] h-full bg-white shadow-xl animate-slide-in-left flex flex-col">
+              <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100 flex-shrink-0">
                 <div className="flex items-center justify-center">
-            <img src="/usls-oas.png" alt="USLS OASYS" className="h-10 w-auto object-contain" />
+                  <img src="/usls-oas.png" alt="USLS OASYS" className="h-10 w-auto object-contain" />
                 </div>
-                <button onClick={() => setSidebarOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+                <button onClick={() => setSidebarOpen(false)} aria-label="Close menu" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              <nav className="px-3 py-4 space-y-1">
+              <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
                 {navItems.map((item) => (
-                  <SidebarLink key={item.href} {...item} active={pathname === item.href} onClick={() => setSidebarOpen(false)} />
+                  <SidebarLink key={item.href} {...item} active={isActivePath(pathname, item.href)} onClick={() => setSidebarOpen(false)} />
                 ))}
               </nav>
-              <div className="absolute bottom-0 left-0 right-0 border-t border-gray-100 p-3 bg-white">
+              <div className="flex-shrink-0 border-t border-gray-100 p-3 bg-white">
                 <div className="flex items-center gap-3 px-3 py-2">
                   <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-xs font-bold text-primary">{(admin.name || user.email || "?")[0].toUpperCase()}</span>
@@ -182,11 +225,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex-1 lg:pl-60 flex flex-col min-h-screen min-w-0 overflow-x-hidden">
           {/* Mobile top bar */}
           <header className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-20 h-14 flex items-center px-4 gap-3 overflow-hidden">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-gray-100 text-gray-500">
+            <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" aria-expanded={sidebarOpen} aria-controls="admin-mobile-nav" className="p-2 -ml-2 rounded-lg hover:bg-gray-100 text-gray-500">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+            <img src="/usls-oas.png" alt="USLS OASYS" className="h-7 w-auto object-contain" />
+            {currentPage && (
+              <span className="ml-auto text-sm font-medium text-gray-500 truncate">{currentPage.label}</span>
+            )}
           </header>
           <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8 min-w-0 overflow-x-hidden">
             {children}

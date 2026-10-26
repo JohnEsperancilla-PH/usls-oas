@@ -10,6 +10,7 @@ import { getManilaToday } from "@/lib/time";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
 import { getAppointmentContacts } from "@/lib/appointment-contacts";
 import type { Database } from "@/types/database";
+import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
 const VISITOR_CATEGORIES = ["external", "parents", "alumni", "vendor"] as const;
 
@@ -88,6 +89,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });

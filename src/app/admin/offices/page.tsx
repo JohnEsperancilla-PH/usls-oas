@@ -5,6 +5,28 @@ import { useAdmin } from "@/app/admin/layout";
 import type { Office } from "@/types/database";
 import { OfficeContactsModal } from "@/components/admin/OfficeContactsModal";
 import { ModalShell } from "@/components/admin/ModalShell";
+import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
+import { adminFetch } from "@/lib/admin-fetch";
+
+// Operating hours are stored as text like "8:00 AM - 5:00 PM"; the form edits them as two 24-hour times.
+function parseHours(value: string): { start: string; end: string } | null {
+  const match = value.match(/^\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*$/i);
+  if (!match) return null;
+  const to24 = (h: string, m: string | undefined, period: string) => {
+    let hour = parseInt(h, 10) % 12;
+    if (period.toUpperCase() === "PM") hour += 12;
+    return `${String(hour).padStart(2, "0")}:${m || "00"}`;
+  };
+  return { start: to24(match[1], match[2], match[3]), end: to24(match[4], match[5], match[6]) };
+}
+
+function formatHours(start: string, end: string): string {
+  const to12 = (time: string) => {
+    const [h, m] = time.split(":").map(Number);
+    return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+  };
+  return start && end ? `${to12(start)} - ${to12(end)}` : "";
+}
 
 export default function OfficesPage() {
   const { admin } = useAdmin();
@@ -12,49 +34,65 @@ export default function OfficesPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOffice, setEditingOffice] = useState<Office | null>(null);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useStatusMessage();
   const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false });
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
   const [contactsOffice, setContactsOffice] = useState<Office | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [confirmingDeactivate, setConfirmingDeactivate] = useState<Office | null>(null);
+  const [toggling, setToggling] = useState(false);
 
   const fetchOffices = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/offices", {});
+      const res = await adminFetch("/api/admin/offices", {});
+      if (!res.ok) throw new Error("Failed to load offices");
       const data = await res.json();
-      setOffices(data || []);
-    } catch { /* */ }
+      setOffices(Array.isArray(data) ? data : []);
+      setLoadError(false);
+    } catch { setLoadError(true); }
     finally { setLoading(false); }
   }, [admin]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchOffices(); }, []);
 
-  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false }); setModalOpen(true); };
-  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "", hide_time_slots: o.hide_time_slots || false }); setModalOpen(true); };
+  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false }); setFormError(null); setModalOpen(true); };
+  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "", hide_time_slots: o.hide_time_slots || false }); setFormError(null); setModalOpen(true); };
+
+  const parsedHours = parseHours(form.operating_hours);
+  const hours = parsedHours || { start: "08:00", end: "17:00" };
+  const setHours = (start: string, end: string) => setForm({ ...form, operating_hours: formatHours(start, end) });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true); setMessage(null);
+    e.preventDefault(); setMessage(null); setFormError(null);
+    if (!parsedHours) { setFormError("Pick the opening and closing times to replace the old operating hours."); return; }
+    if (parsedHours.end <= parsedHours.start) { setFormError("Closing time must be after opening time."); return; }
+    setSaving(true);
     try {
       const url = "/api/admin/offices";
       const method = editingOffice ? "PUT" : "POST";
       const body = editingOffice ? { id: editingOffice.id, ...form } : form;
-      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
-      setMessage({ type: "success", text: editingOffice ? "Office updated" : "Office created" });
+      const res = await adminFetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || "Could not save the office. Please try again."); }
+      setMessage({ type: "success", text: editingOffice ? `${form.name} updated` : `${form.name} created` });
       setModalOpen(false); fetchOffices();
-    } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
+    } catch (err) { setFormError(err instanceof Error ? err.message : "Could not save the office. Please try again."); }
     finally { setSaving(false); }
   };
 
   const handleToggle = async (o: Office) => {
-    setMessage(null);
+    setMessage(null); setToggling(true);
     try {
-      await fetch("/api/admin/offices", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: o.id, active: !o.active }) });
-      setMessage({ type: "success", text: o.active ? "Deactivated" : "Activated" });
+      const res = await adminFetch("/api/admin/offices", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: o.id, active: !o.active }) });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || `Could not ${o.active ? "deactivate" : "activate"} ${o.name}.`); }
+      setMessage({ type: "success", text: o.active ? `${o.name} deactivated. Visitors can no longer book it.` : `${o.name} activated. Visitors can book it again.` });
+      setConfirmingDeactivate(null);
       fetchOffices();
-    } catch { setMessage({ type: "error", text: "Failed" }); }
+    } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : `Could not update ${o.name}.` }); setConfirmingDeactivate(null); }
+    finally { setToggling(false); }
   };
 
   const filteredOffices = offices.filter((o) => {
@@ -76,12 +114,7 @@ export default function OfficesPage() {
         </button>
       </div>
 
-      {message && (
-        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 animate-fade-in ${message.type === "success" ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
-          {message.type === "success" ? <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> : <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-          {message.text}
-        </div>
-      )}
+      {message && <StatusMessage message={message} onDismiss={() => setMessage(null)} />}
 
       <div className="relative">
         <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -92,6 +125,7 @@ export default function OfficesPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search offices by name, category, or email..."
+          aria-label="Search offices"
           className="input"
           style={{ paddingLeft: "2.5rem" }}
           autoComplete="off"
@@ -108,6 +142,8 @@ export default function OfficesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <div key={i} className="bg-white rounded-xl border border-gray-200 p-5"><div className="skeleton h-5 w-32 mb-3" /><div className="skeleton h-3 w-48 mb-2" /><div className="skeleton h-3 w-24" /></div>)}
         </div>
+      ) : loadError ? (
+        <StatusMessage message={{ type: "error", text: "Could not load offices. Check your connection and try again." }} onRetry={fetchOffices} />
       ) : offices.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -160,7 +196,7 @@ export default function OfficesPage() {
               <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
                 <button onClick={() => openEdit(o)} className="flex-1 text-center text-xs font-medium text-gray-600 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">Edit</button>
                 <button onClick={() => setContactsOffice(o)} className="flex-1 text-center text-xs font-medium text-cyan-700 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 transition-colors">Contacts</button>
-                <button onClick={() => handleToggle(o)} className={`flex-1 text-center text-xs font-medium py-1.5 rounded-lg transition-colors ${o.active ? "text-gray-500 bg-gray-50 hover:bg-gray-100" : "text-green-600 bg-green-50 hover:bg-green-100"}`}>
+                <button onClick={() => (o.active ? setConfirmingDeactivate(o) : handleToggle(o))} disabled={toggling} className={`flex-1 text-center text-xs font-medium py-1.5 rounded-lg transition-colors ${o.active ? "text-gray-500 bg-gray-50 hover:bg-gray-100" : "text-green-600 bg-green-50 hover:bg-green-100"}`}>
                   {o.active ? "Deactivate" : "Activate"}
                 </button>
               </div>
@@ -181,14 +217,33 @@ export default function OfficesPage() {
             </>
           }>
           <form id="office-form" onSubmit={handleSubmit} className="space-y-4">
+            {formError && <StatusMessage message={{ type: "error", text: formError }} />}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2"><label className="label">Office Name</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Registrar" /></div>
-              <div className="sm:col-span-2"><label className="label">Category</label><input className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Vice Chancellor for Academic Affairs" /><p className="text-[11px] text-gray-400 mt-1">Groups this office under a section on the booking form and encounters list.</p></div>
-              <div><label className="label">Email</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@email.com" /></div>
-              <div><label className="label">Capacity per Slot</label><input type="number" min={1} className="input" value={form.capacity_per_slot} onChange={(e) => setForm({ ...form, capacity_per_slot: parseInt(e.target.value) || 1 })} /></div>
-              <div><label className="label">Contact Email</label><input type="email" className="input" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} placeholder="Shown to visitors for follow-ups" /></div>
-              <div><label className="label">Contact Phone</label><input type="tel" className="input" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} placeholder="e.g. (034) 433-7777 loc 123" /></div>
-              <div className="sm:col-span-2"><label className="label">Operating Hours</label><input className="input" value={form.operating_hours} onChange={(e) => setForm({ ...form, operating_hours: e.target.value })} required placeholder="8:00 AM - 5:00 PM" /><p className="text-[11px] text-gray-400 mt-1">All offices run 8:00 AM - 5:00 PM with a 12:00 PM - 1:30 PM lunch break. Shown to visitors for reference.</p></div>
+              <div className="sm:col-span-2"><label htmlFor="office-name" className="label">Office Name</label><input className="input" id="office-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Registrar" /></div>
+              <div className="sm:col-span-2"><label htmlFor="office-category" className="label">Category</label><input className="input" id="office-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Vice Chancellor for Academic Affairs" /><p className="text-[11px] text-gray-400 mt-1">Groups this office under a section on the booking form and encounters list.</p></div>
+              <div><label htmlFor="office-email" className="label">Email</label><input type="email" className="input" id="office-email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@email.com" /></div>
+              <div><label htmlFor="office-capacity" className="label">Capacity per Slot</label><input type="number" min={1} className="input" id="office-capacity" value={form.capacity_per_slot} onChange={(e) => setForm({ ...form, capacity_per_slot: parseInt(e.target.value) || 1 })} /></div>
+              <div><label htmlFor="office-contact-email" className="label">Contact Email</label><input type="email" className="input" id="office-contact-email" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} placeholder="Shown to visitors for follow-ups" /></div>
+              <div><label htmlFor="office-contact-phone" className="label">Contact Phone</label><input type="tel" className="input" id="office-contact-phone" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} placeholder="e.g. (034) 433-7777 loc 123" /></div>
+              <fieldset className="sm:col-span-2">
+                <legend className="label">Operating Hours</legend>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="office-hours-start" className="block text-xs text-gray-500 mb-1">Opens</label>
+                    <input id="office-hours-start" type="time" step={1800} className="input" value={hours.start} required
+                      onChange={(e) => setHours(e.target.value, hours.end)} />
+                  </div>
+                  <div>
+                    <label htmlFor="office-hours-end" className="block text-xs text-gray-500 mb-1">Closes</label>
+                    <input id="office-hours-end" type="time" step={1800} className="input" value={hours.end} required
+                      onChange={(e) => setHours(hours.start, e.target.value)} />
+                  </div>
+                </div>
+                {!parsedHours && form.operating_hours && (
+                  <p className="text-[11px] text-amber-700 mt-1">The saved hours &ldquo;{form.operating_hours}&rdquo; aren&apos;t in a standard format. Pick the times above to fix them.</p>
+                )}
+                <p className="text-[11px] text-gray-400 mt-1">Shown to visitors and used for the postpone and approval time options.</p>
+              </fieldset>
               <div className="sm:col-span-2">
                 <label className="flex items-start gap-3 cursor-pointer group">
                   <input 
@@ -203,11 +258,25 @@ export default function OfficesPage() {
                   </div>
                 </label>
               </div>
-              <div className="sm:col-span-2"><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of the office..." /></div>
+              <div className="sm:col-span-2"><label htmlFor="office-description" className="label">Description</label><textarea className="input" rows={2} id="office-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of the office..." /></div>
             </div>
           </form>
         </ModalShell>
       )}
+
+      <ModalShell open={Boolean(confirmingDeactivate)} title="Deactivate Office" subtitle={confirmingDeactivate?.name} onClose={() => setConfirmingDeactivate(null)} maxWidthClass="max-w-md"
+        footer={
+          <>
+            <button type="button" onClick={() => confirmingDeactivate && handleToggle(confirmingDeactivate)} disabled={toggling} className="btn-danger flex-1 btn-sm disabled:opacity-50">
+              {toggling ? "Deactivating..." : "Deactivate"}
+            </button>
+            <button type="button" onClick={() => setConfirmingDeactivate(null)} className="btn-secondary btn-sm">Cancel</button>
+          </>
+        }>
+        <p className="text-sm text-gray-600">
+          Visitors won&apos;t be able to book <strong>{confirmingDeactivate?.name}</strong> until it&apos;s activated again.
+        </p>
+      </ModalShell>
 
       <OfficeContactsModal
         open={Boolean(contactsOffice)}

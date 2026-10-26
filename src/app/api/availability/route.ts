@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isMaintenanceActive } from "@/lib/maintenance-server";
+import { getBookingRules } from "@/lib/booking-rules-server";
+import { isTooFar, isTooSoon } from "@/lib/booking-rules";
+import { getManilaToday } from "@/lib/time";
 
 // All offices run a fixed 8:00 AM - 5:00 PM day, enforced at slot-generation
 // time so it applies to every office automatically, including offices created
@@ -79,6 +82,8 @@ export async function GET(request: Request) {
     }
 
     const allSlots = generateSlots(OFFICE_START_HOUR, OFFICE_END_HOUR);
+    const bookingRules = await getBookingRules();
+    const today = getManilaToday();
 
     // If month is provided, return which dates have availability
     if (month && !date) {
@@ -120,6 +125,11 @@ export async function GET(request: Request) {
         const dayOfWeek = new Date(year, mon - 1, d).getDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
+        if (isTooFar(ds, bookingRules, today)) {
+          availability[ds] = { total: allSlots.length, available: 0 };
+          continue;
+        }
+
         const dayAppointments = appointmentsByDate[ds] || [];
         const appointmentCounts = buildSlotCounts(dayAppointments, allSlots);
 
@@ -127,7 +137,7 @@ export async function GET(request: Request) {
         for (const slot of allSlots) {
           const booked = appointmentCounts[slot] || 0;
           const isBlocked = blockedSet[ds]?.has(slot) || false;
-          if (!isBlocked && booked < office.capacity_per_slot) {
+          if (!isBlocked && booked < office.capacity_per_slot && !isTooSoon(ds, slot, bookingRules)) {
             availableCount++;
           }
         }
@@ -182,10 +192,13 @@ export async function GET(request: Request) {
         // explicitly so Vercel (UTC server) and local machines agree.
         const slotInstant = new Date(`${date}T${s}:00+08:00`).getTime();
         const past = slotInstant <= nowMs;
+        // Outside the booking window: sooner than the minimum notice, or beyond the max advance days.
+        const tooSoon = !past && isTooSoon(date, s, bookingRules, nowMs);
+        const tooFar = isTooFar(date, bookingRules, today);
         const booked = appointmentCounts[s] || 0;
         const isBlocked = s in blockedMap;
         const remaining = Math.max(0, office.capacity_per_slot - booked);
-        const available = !past && !isBlocked && remaining > 0;
+        const available = !past && !tooSoon && !tooFar && !isBlocked && remaining > 0;
 
         return {
           time: s,
@@ -195,6 +208,7 @@ export async function GET(request: Request) {
           blocked: isBlocked,
           blockReason: blockedMap[s] || null,
           past,
+          tooSoon,
         };
       });
 

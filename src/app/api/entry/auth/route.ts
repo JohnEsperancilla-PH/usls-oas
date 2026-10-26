@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-  const { allowed } = checkRateLimit(`entry-auth:${ip}`, 10, 15 * 60 * 1000);
+  const { allowed } = await checkRateLimit(`entry-auth:${ip}`, 10, 15 * 60 * 1000);
   if (!allowed) return rateLimitResponse();
 
   try {

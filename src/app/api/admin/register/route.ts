@@ -1,10 +1,33 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { validateOfficeAdminEmail } from "@/lib/admin-email";
 import { logAudit } from "@/lib/rbac";
+import { generateAccountApprovalRequestEmail, sendMail } from "@/lib/email";
+
+async function notifySuperAdminsOfPendingAccount(name: string, email: string, officeName: string, origin: string) {
+  try {
+    const supabase = createServiceClient();
+    const { data: superAdmins } = await supabase.from("admins").select("*").eq("role", "super_admin");
+    const recipients = (superAdmins || []).filter((a) => a.approval_status !== "pending" && a.email);
+    if (recipients.length === 0) return;
+
+    const message = await generateAccountApprovalRequestEmail(name, email, officeName, origin);
+    for (const admin of recipients) {
+      const result = await sendMail({
+        to: admin.email,
+        subject: `Account Awaiting Approval - ${name} - ${officeName} - USLS OASYS`,
+        html: message.html,
+        attachments: message.attachments,
+      });
+      if (!result.success) console.error(`Failed to send account approval request to ${admin.email}`);
+    }
+  } catch (err) {
+    console.error("Failed to notify super admins of pending account:", err);
+  }
+}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MIN_PASSWORD_LENGTH = 8;
@@ -37,7 +60,7 @@ async function findExistingAdmin(
 
 export async function GET(request: Request) {
   const ip = getClientIp(request);
-  const limit = checkRateLimit(`register-check:${ip}`, 30, 60 * 1000);
+  const limit = await checkRateLimit(`register-check:${ip}`, 30, 60 * 1000);
   if (!limit.allowed) return rateLimitResponse();
 
   try {
@@ -73,7 +96,7 @@ export async function POST(request: Request) {
 
   const ip = getClientIp(request);
 
-  const ipLimit = checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000);
+  const ipLimit = await checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000);
   if (!ipLimit.allowed) return rateLimitResponse();
 
   try {
@@ -92,7 +115,7 @@ export async function POST(request: Request) {
 
     const email = emailResult.email;
 
-    const emailLimit = checkRateLimit(`register-email:${email}`, 3, 60 * 60 * 1000);
+    const emailLimit = await checkRateLimit(`register-email:${email}`, 3, 60 * 60 * 1000);
     if (!emailLimit.allowed) return rateLimitResponse();
 
     if (!name) {
@@ -181,6 +204,8 @@ export async function POST(request: Request) {
       employee_id: null,
       role: "office_admin",
       office_id: officeId,
+      // Self-registered accounts can't sign in until a super admin approves them.
+      approval_status: "pending",
     });
 
     if (insertError) {
@@ -203,8 +228,13 @@ export async function POST(request: Request) {
       },
     });
 
+    const origin = new URL(request.url).origin;
+    after(async () => {
+      await notifySuperAdminsOfPendingAccount(name, adminEmail, office.name, origin);
+    });
+
     return NextResponse.json(
-      { message: "Account created", userId },
+      { message: "Account created. A super admin needs to approve it before you can sign in.", userId, pending: true },
       { status: 201 }
     );
   } catch (error) {

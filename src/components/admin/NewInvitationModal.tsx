@@ -5,6 +5,7 @@ import { useAdmin } from "@/app/admin/layout";
 import { VALID_IDS } from "@/lib/valid-ids";
 import type { Office, OfficeContact } from "@/types/database";
 import { ModalShell } from "@/components/admin/ModalShell";
+import { adminFetch } from "@/lib/admin-fetch";
 
 interface InvitationVehicle {
   plateNumber: string;
@@ -126,7 +127,7 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
   const fetchContacts = useCallback(async (officeId: string) => {
     if (!officeId) { setContacts([]); setTaggedContactIds([]); return; }
     try {
-      const res = await fetch(`/api/admin/office-contacts?officeId=${encodeURIComponent(officeId)}`, {});
+      const res = await adminFetch(`/api/admin/office-contacts?officeId=${encodeURIComponent(officeId)}`, {});
       if (!res.ok) { setContacts([]); return; }
       const data = await res.json();
       setContacts((data || []).filter((c: OfficeContact) => c.active));
@@ -190,7 +191,7 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
         }
       }
 
-      const res = await fetch("/api/admin/invitations", {
+      const res = await adminFetch("/api/admin/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

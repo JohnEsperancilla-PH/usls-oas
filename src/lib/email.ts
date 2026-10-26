@@ -239,8 +239,9 @@ export async function generateAdminAlertEmail(
     </table>
     <p style="color:#999;font-size:12px;margin:14px 0 0;text-align:center;">Prefer the admin panel? <a href="${dashboardUrl}" style="color:#006633;text-decoration:underline;">Review here instead</a></p>`
     : `
-    <div style="text-align:center;margin:28px 0 12px;">
-      <a href="${dashboardUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Review Appointment</a>
+    ${time ? "" : `<p style="color:#555;font-size:13px;margin:24px 0 0;text-align:center;">This office sets the visit time when approving. Open the dashboard to choose a time and approve or decline.</p>`}
+    <div style="text-align:center;margin:${time ? "28px" : "16px"} 0 12px;">
+      <a href="${dashboardUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">${time ? "Review Appointment" : "Open Dashboard"}</a>
     </div>`;
 
   const result = await wrap("New Appointment Request", `
@@ -250,7 +251,7 @@ export async function generateAdminAlertEmail(
       ${detailRow("Name", name)}
       ${detailRow("Office", office)}
       ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", formatTimeSlot(time))}
+      ${detailRow("Time", time ? formatTimeSlot(time) : "To be set by the office")}
       ${visitors && visitors.length > 1 ? detailRow("Number of Visitors", String(visitors.length)) : ""}
     </table>
     ${visitorDetails(visitors)}
@@ -482,6 +483,35 @@ export async function generatePersonToMeetApprovalEmail(
       ? `<div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">For questions, contact the office:<br/>${contactLines.join("<br/>")}</div>`
       : ""}
     <p style="color:#999;font-size:12px;margin:20px 0 0;">This is an automated notification from USLS OASYS.</p>
+  `);
+  return { html: result.html, attachments: result.attachments };
+}
+
+export async function generateAccountApprovalRequestEmail(name: string, email: string, office: string, baseUrl: string) {
+  const accountsUrl = `${baseUrl}/admin/accounts`;
+  const result = await wrap("Account Awaiting Approval", `
+    <p style="color:#555;margin:0 0 20px;">A new office admin account was registered and needs a super admin to approve it before it can sign in.</p>
+    ${bulletList([
+      `Name: <strong>${escapeHtml(name)}</strong>`,
+      `Email: <strong>${escapeHtml(email)}</strong>`,
+      `Office: <strong>${escapeHtml(office)}</strong>`,
+    ])}
+    <div style="text-align:center;margin:28px 0 12px;">
+      <a href="${accountsUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Review Account</a>
+    </div>
+    <p style="color:#999;font-size:12px;margin:0;">Only approve accounts for people you know work in this office. You are receiving this because you are a super admin.</p>
+  `);
+  return { html: result.html, attachments: result.attachments };
+}
+
+export async function generateAccountApprovedEmail(name: string, office: string, baseUrl: string) {
+  const loginUrl = `${baseUrl}/admin/login`;
+  const result = await wrap("Account Approved", `
+    <p style="color:#555;margin:0 0 20px;">Hi <strong>${escapeHtml(name)}</strong>,</p>
+    <p style="color:#555;margin:0 0 6px;">Your office admin account for <strong>${escapeHtml(office)}</strong> has been approved. You can now sign in to the admin dashboard.</p>
+    <div style="text-align:center;margin:28px 0 12px;">
+      <a href="${loginUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Sign In</a>
+    </div>
   `);
   return { html: result.html, attachments: result.attachments };
 }

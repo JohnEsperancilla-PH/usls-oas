@@ -6,6 +6,8 @@ import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { generateActionToken } from "@/lib/action-token";
 import { isValidId } from "@/lib/valid-ids";
 import { getManilaToday } from "@/lib/time";
+import { getBookingRules } from "@/lib/booking-rules-server";
+import { describeNotice, isTooFar, isTooSoon } from "@/lib/booking-rules";
 import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-mirror";
 import { validateCsrfToken, csrfErrorResponse, isSafeMethod } from "@/lib/csrf";
 import { getMaintenanceState } from "@/lib/maintenance-server";
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
   if (!csrfValid) return csrfErrorResponse();
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-  const { allowed } = checkRateLimit(`booking:${ip}`, 5, 15 * 60 * 1000);
+  const { allowed } = await checkRateLimit(`booking:${ip}`, 5, 15 * 60 * 1000);
   if (!allowed) return rateLimitResponse();
 
   const maintenance = await getMaintenanceState();
@@ -169,6 +171,22 @@ export async function POST(request: Request) {
     const todayStr = getManilaToday();
     if (body.date < todayStr) {
       return NextResponse.json({ message: "Cannot book appointments in the past" }, { status: 400 });
+    }
+
+    // Booking window from Settings > Booking Rules
+    const bookingRules = await getBookingRules();
+    if (isTooFar(body.date, bookingRules, todayStr)) {
+      return NextResponse.json(
+        { message: `Appointments can only be booked up to ${bookingRules.maxAdvanceDays} days in advance` },
+        { status: 400 }
+      );
+    }
+    const requestedSlot = typeof body.timeSlot === "string" && body.timeSlot.trim() ? body.timeSlot.trim() : null;
+    if (isTooSoon(body.date, requestedSlot, bookingRules)) {
+      return NextResponse.json(
+        { message: `Appointments must be booked at least ${describeNotice(bookingRules.minNoticeHours ?? 0)} in advance` },
+        { status: 400 }
+      );
     }
 
     // Validate office ID format
@@ -404,10 +422,12 @@ export async function POST(request: Request) {
     // Send admin alert email
     if (await isNotificationEnabled("admin_alert")) {
       const origin = new URL(request.url).origin;
-      const { data: admins } = await supabase
+      const { data: allAdmins } = await supabase
         .from("admins")
-        .select("email")
+        .select("*")
         .or(`office_id.eq.${body.officeId},role.eq.super_admin`);
+      // Accounts awaiting approval get no alerts or action links.
+      const admins = (allAdmins || []).filter((a) => a.approval_status !== "pending");
 
       const makeActionUrl = (adminEmail: string, action: "approve" | "decline") => {
         const token = generateActionToken({
@@ -428,10 +448,10 @@ export async function POST(request: Request) {
             officeFull.name,
             appointment.id,
             origin,
-            {
-              approveUrl: makeActionUrl(admin.email, "approve"),
-              declineUrl: makeActionUrl(admin.email, "decline"),
-            },
+            // Offices with hidden time slots set the time when approving, which only the dashboard can do.
+            body.timeSlot
+              ? { approveUrl: makeActionUrl(admin.email, "approve"), declineUrl: makeActionUrl(admin.email, "decline") }
+              : undefined,
             visitorRows.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
           );
 
@@ -460,10 +480,9 @@ export async function POST(request: Request) {
           officeFull.name,
           appointment.id,
           origin,
-          {
-            approveUrl: makeActionUrl(officeFull.email, "approve"),
-            declineUrl: makeActionUrl(officeFull.email, "decline"),
-          },
+          body.timeSlot
+            ? { approveUrl: makeActionUrl(officeFull.email, "approve"), declineUrl: makeActionUrl(officeFull.email, "decline") }
+            : undefined,
           visitorRows.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
         );
         await sendMail({

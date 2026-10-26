@@ -7,6 +7,7 @@ import { formatTimeSlot } from "@/lib/time";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { createClient } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
+import { adminFetch } from "@/lib/admin-fetch";
 
 interface ScanResult {
   success: boolean;
@@ -86,7 +87,7 @@ export default function ScanPage() {
   const loadExpectedVisitors = async () => {
     setDashboardLoading(true);
     try {
-      const response = await fetch("/api/scan");
+      const response = await adminFetch("/api/scan");
       if (!response.ok) return;
       const data = await response.json();
       setExpectedVisitors(data.visitors || []);
@@ -258,7 +259,7 @@ export default function ScanPage() {
     setError(null);
     setScanResult(null);
     try {
-      const response = await fetch("/api/scan", {
+      const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: value }),
@@ -277,7 +278,7 @@ export default function ScanPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/scan", {
+      const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
@@ -322,7 +323,7 @@ export default function ScanPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const response = await fetch("/api/scan", {
+      const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, action: "allow_entry" }),
@@ -342,7 +343,7 @@ export default function ScanPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const response = await fetch("/api/scan", {
+      const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, action: "checkout" }),
@@ -368,7 +369,7 @@ export default function ScanPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/scan", {
+      const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, action: "deny_entry", reason: denyReason }),

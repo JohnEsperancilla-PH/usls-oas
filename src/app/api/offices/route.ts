@@ -27,7 +27,8 @@ export async function GET() {
     const officeIds = data.map((office: { id: string }) => office.id);
     const { data: contacts, error: contactsError } = await supabase
       .from("office_contacts")
-      .select("*")
+      // Public endpoint: contact names and positions for the booking form only, never their emails.
+      .select("id, office_id, name, position")
       .eq("active", true)
       .in("office_id", officeIds)
       .order("name");

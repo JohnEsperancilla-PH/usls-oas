@@ -7,7 +7,13 @@ import Link from "next/link";
 export default function ContactsPage() {
   const { admin } = useAdmin();
 
-  if (admin.role === "gate_user") return null;
+  if (admin.role === "gate_user") {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <p className="text-sm text-gray-500">You do not have permission to manage office contacts.</p>
+      </div>
+    );
+  }
 
   if (admin.role === "super_admin") {
     return (

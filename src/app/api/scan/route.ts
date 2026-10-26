@@ -8,6 +8,7 @@ import { getEntryTimingStatus, getManilaToday } from "@/lib/time";
 import type { Appointment } from "@/types/database";
 import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
+import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
 type ScanReason = "preview" | "not_found" | "pending" | "cancelled" | "expired" | "wrong_date" | "already_used" | "duplicate_scan" | "invalid_id" | "checked_out" | "entry_denied" | "too_early" | "too_late";
 
@@ -78,13 +79,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   const { admin, error, status } = await getAuthAdmin(request);
   if (!admin) return NextResponse.json({ success: false, message: error }, { status });
   const access = requireEntryUser(admin);
   if (!access.ok) return NextResponse.json({ success: false, message: access.error }, { status: access.status });
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-  const { allowed } = checkRateLimit(`scan:${ip}`, 30, 60 * 1000);
+  const { allowed } = await checkRateLimit(`scan:${ip}`, 30, 60 * 1000);
   if (!allowed) return rateLimitResponse();
 
   try {

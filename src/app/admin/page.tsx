@@ -4,8 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import { NewInvitationModal } from "@/components/admin/NewInvitationModal";
 import { ModalShell } from "@/components/admin/ModalShell";
+import { StatusMessage, useStatusMessage, type StatusMessageValue } from "@/components/admin/StatusMessage";
+import { Pagination, SearchInput } from "@/components/admin/Pagination";
 import type { Appointment, Office, BlockedTime } from "@/types/database";
 import { formatTimeSlot, getManilaToday } from "@/lib/time";
+import { adminFetch } from "@/lib/admin-fetch";
 
 function parseOperatingHours(hours: string): { startH: number; endH: number } {
   const match = hours.match(/(\d{1,2}):?\d{0,2}\s*(AM|PM)\s*[-–]\s*(\d{1,2}):?\d{0,2}\s*(AM|PM)/i);
@@ -29,6 +32,34 @@ function buildPostponeSlots(office: Office | undefined): string[] {
   return slots;
 }
 
+function findPersonContact(appointment: Appointment, offices: Office[]) {
+  const contacts = offices.find((o) => o.id === appointment.office_id)?.contacts || [];
+  return contacts.find((c) => c.name.toLowerCase() === (appointment.person_to_meet || "").toLowerCase());
+}
+
+// Approving needs extra input when the office hides time slots or the person to meet isn't a saved contact.
+function needsApprovalInput(appointment: Appointment, offices: Office[]): boolean {
+  if (!appointment.time_slot) return true;
+  return Boolean(appointment.person_to_meet) && !findPersonContact(appointment, offices);
+}
+
+const LOAD_ERROR = "Could not load appointments. Check your connection and try again.";
+const PAGE_SIZE = 20;
+
+const FILTERS: { key: string; label: string; hint?: string }[] = [
+  { key: "pending", label: "Pending" },
+  { key: "approved", label: "Approved" },
+  { key: "postponed", label: "Postponed" },
+  { key: "declined", label: "Declined" },
+  { key: "history", label: "Closed", hint: "Declined, completed and expired appointments" },
+  { key: "all", label: "All" },
+];
+
+// Parse "YYYY-MM-DD" as a local date so it doesn't shift a day in timezones behind UTC.
+function formatDay(date: string, options: Intl.DateTimeFormatOptions) {
+  return new Date(date + "T00:00:00").toLocaleDateString("en-US", options);
+}
+
 export default function AdminDashboardPage() {
   const { admin } = useAdmin();
   const isSuperAdmin = admin?.role === "super_admin";
@@ -38,9 +69,27 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [startWithDecline, setStartWithDecline] = useState(false);
   const [processing, setProcessing] = useState<{ id: string; action: "approve" | "decline" | "postpone" | "reset" } | null>(null);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useStatusMessage();
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  const changeFilter = (next: string) => { setFilter(next); setPage(1); };
+  const changeSearch = (next: string) => { setSearch(next); setPage(1); };
+
+  const openDetails = (appointment: Appointment | null, decline = false) => {
+    setMessage((m) => (m?.type === "error" ? null : m));
+    setStartWithDecline(decline);
+    setSelectedAppointment(appointment);
+  };
+
+  const closeDetails = () => {
+    setSelectedAppointment(null);
+    setStartWithDecline(false);
+  };
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true);
@@ -51,7 +100,8 @@ export default function AdminDashboardPage() {
       if (!response.ok) throw new Error("Failed to fetch");
       const data = await response.json();
       setAppointments(data || []);
-    } catch { /* */ }
+      setLoadError(null);
+    } catch { setLoadError(LOAD_ERROR); }
     finally { setLoading(false); }
   }, [filter, admin]);
 
@@ -68,7 +118,7 @@ export default function AdminDashboardPage() {
 
   const fetchOffices = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/offices", { headers: {} });
+      const response = await adminFetch("/api/admin/offices", { headers: {} });
       if (!response.ok) return;
       const data = await response.json();
       setOffices(data || []);
@@ -87,7 +137,8 @@ export default function AdminDashboardPage() {
       if (!response.ok) throw new Error("Failed to fetch history");
       const data = await response.json();
       setAppointments(data || []);
-    } catch { /* */ }
+      setLoadError(null);
+    } catch { setLoadError(LOAD_ERROR); }
     finally { setLoading(false); }
   }, []);
 
@@ -99,7 +150,7 @@ export default function AdminDashboardPage() {
   const handleApprove = async (appointment: Appointment, personToMeetEmail?: string, timeSlot?: string) => {
     setProcessing({ id: appointment.id, action: "approve" }); setMessage(null);
     try {
-      const res = await fetch("/api/appointments/approve", {
+      const res = await adminFetch("/api/appointments/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointmentId: appointment.id, personToMeetEmail, timeSlot }),
@@ -107,7 +158,7 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setMessage({ type: "success", text: "Appointment approved. Reference number & confirmation email are being sent." });
-      setSelectedAppointment(null);
+      closeDetails();
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
     finally { setProcessing(null); }
@@ -116,7 +167,7 @@ export default function AdminDashboardPage() {
   const handleDecline = async (appointment: Appointment, reason?: string) => {
     setProcessing({ id: appointment.id, action: "decline" }); setMessage(null);
     try {
-      const res = await fetch("/api/appointments/decline", {
+      const res = await adminFetch("/api/appointments/decline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointmentId: appointment.id, reason }),
@@ -124,7 +175,7 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setMessage({ type: "success", text: "Appointment declined. Notification email is being sent." });
-      setSelectedAppointment(null);
+      closeDetails();
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
     finally { setProcessing(null); }
@@ -133,7 +184,7 @@ export default function AdminDashboardPage() {
   const handlePostpone = async (appointment: Appointment, reason: string, newDate: string, newTimeSlot: string) => {
     setProcessing({ id: appointment.id, action: "postpone" }); setMessage(null);
     try {
-      const res = await fetch("/api/appointments/decline", {
+      const res = await adminFetch("/api/appointments/decline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointmentId: appointment.id, reason: reason || undefined, postpone: { date: newDate, timeSlot: newTimeSlot } }),
@@ -141,7 +192,7 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setMessage({ type: "success", text: "Appointment postponed. The visitor is being notified of the new schedule." });
-      setSelectedAppointment(null);
+      closeDetails();
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
     finally { setProcessing(null); }
@@ -150,7 +201,7 @@ export default function AdminDashboardPage() {
   const handleResetQR = async (appointment: Appointment) => {
     setProcessing({ id: appointment.id, action: "reset" }); setMessage(null);
     try {
-      const res = await fetch("/api/appointments/reset-qr", {
+      const res = await adminFetch("/api/appointments/reset-qr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ appointmentId: appointment.id }),
@@ -158,7 +209,7 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setMessage({ type: "success", text: "Reference number re-issued. New email is being sent." });
-      setSelectedAppointment(null);
+      closeDetails();
       fetchAppointments(); fetchAllAppointments();
     } catch (err) { setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed" }); }
     finally { setProcessing(null); }
@@ -167,17 +218,41 @@ export default function AdminDashboardPage() {
   const stats = {
     pending: allAppointments.filter((a) => a.status === "pending").length,
     approved: allAppointments.filter((a) => a.status === "approved").length,
+    postponed: allAppointments.filter((a) => a.status === "postponed").length,
     declined: allAppointments.filter((a) => a.status === "declined").length,
     total: allAppointments.length,
   };
 
   const getStatusBadge = (status: string) => {
-    const map: Record<string, string> = { pending: "status-pending", approved: "status-approved", declined: "status-declined", postponed: "status-pending", completed: "status-completed", expired: "status-expired" };
+    const map: Record<string, string> = { pending: "status-pending", approved: "status-approved", declined: "status-declined", postponed: "status-postponed", completed: "status-completed", expired: "status-expired" };
     return map[status] || "status-expired";
   };
 
+  // Approve straight from the list only when nothing else is needed; otherwise open the details to collect it.
+  const quickApprove = (a: Appointment) => {
+    if (needsApprovalInput(a, offices)) openDetails(a);
+    else handleApprove(a);
+  };
+
+  const refreshAll = () => { fetchAppointments(); fetchAllAppointments(); };
+
+  const searchTerm = search.trim().toLowerCase();
+  const filteredAppointments = searchTerm
+    ? appointments.filter((a) =>
+        [a.full_name, a.email, a.phone, a.person_to_meet, getOfficeName(a.office_id)]
+          .some((v) => (v || "").toLowerCase().includes(searchTerm)))
+    : appointments;
+  const pageCount = Math.max(1, Math.ceil(filteredAppointments.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pagedAppointments = filteredAppointments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const activeFilter = FILTERS.find((f) => f.key === filter);
+  const emptyText = searchTerm
+    ? `No appointments match "${search.trim()}"`
+    : `No ${filter !== "all" ? (activeFilter?.label || filter).toLowerCase() : ""} appointments`;
+  const actionError = message?.type === "error" ? message.text : null;
+
   if (!isSuperAdmin) {
-    return <CalendarView admin={admin} appointments={appointments} offices={offices} loading={loading} calendarDate={calendarDate} setCalendarDate={setCalendarDate} filter={filter} setFilter={setFilter} getOfficeName={getOfficeName} selectedAppointment={selectedAppointment} setSelectedAppointment={setSelectedAppointment} processing={processing} onApprove={handleApprove} onDecline={handleDecline} onPostpone={handlePostpone} onResetQR={handleResetQR} getStatusBadge={getStatusBadge} onRefresh={() => { fetchAppointments(); fetchAllAppointments(); }} />;
+    return <CalendarView admin={admin} appointments={appointments} offices={offices} loading={loading} loadError={loadError} message={message} onDismissMessage={() => setMessage(null)} calendarDate={calendarDate} setCalendarDate={setCalendarDate} filter={filter} setFilter={changeFilter} getOfficeName={getOfficeName} selectedAppointment={selectedAppointment} openDetails={openDetails} closeDetails={closeDetails} processing={processing} onApprove={handleApprove} onDecline={handleDecline} onPostpone={handlePostpone} onResetQR={handleResetQR} getStatusBadge={getStatusBadge} onRefresh={refreshAll} />;
   }
 
   return (
@@ -187,14 +262,16 @@ export default function AdminDashboardPage() {
         <p className="text-sm text-gray-500 mt-1">Manage and review appointment requests</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {[
-          { label: "Pending", value: stats.pending, color: "text-amber-600", bg: "bg-amber-50", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
-          { label: "Approved", value: stats.approved, color: "text-green-600", bg: "bg-green-50", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
-          { label: "Declined", value: stats.declined, color: "text-red-600", bg: "bg-red-50", icon: "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" },
-          { label: "Total", value: stats.total, color: "text-gray-600", bg: "bg-gray-50", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
+          { key: "pending", label: "Pending", value: stats.pending, color: "text-amber-600", bg: "bg-amber-50", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
+          { key: "approved", label: "Approved", value: stats.approved, color: "text-green-600", bg: "bg-green-50", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+          { key: "postponed", label: "Postponed", value: stats.postponed, color: "text-orange-600", bg: "bg-orange-50", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+          { key: "declined", label: "Declined", value: stats.declined, color: "text-red-600", bg: "bg-red-50", icon: "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" },
+          { key: "all", label: "Total", value: stats.total, color: "text-gray-600", bg: "bg-gray-50", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
+          <button key={s.label} type="button" onClick={() => changeFilter(s.key)} aria-pressed={filter === s.key}
+            className={`text-left bg-white rounded-xl border p-4 sm:p-5 transition-all hover:shadow-sm ${filter === s.key ? "border-primary ring-1 ring-primary" : "border-gray-200 hover:border-gray-300"}`}>
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center flex-shrink-0`}>
                 <svg className={`w-5 h-5 ${s.color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -206,37 +283,42 @@ export default function AdminDashboardPage() {
                 <div className="text-xs text-gray-500">{s.label}</div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {["pending", "approved", "postponed", "declined", "history", "all"].map((s) => (
-          <button key={s} onClick={() => setFilter(s)}
-            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filter === s ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
-            {s.charAt(0).toUpperCase() + s.slice(1)}
-            {s === "pending" && stats.pending > 0 && <span className="ml-1.5 bg-white/20 px-1.5 rounded-full text-xs">{stats.pending}</span>}
           </button>
         ))}
       </div>
 
-      {message && (
-        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 animate-fade-in ${message.type === "success" ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
-          {message.type === "success" ? <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> : <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-          {message.text}
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0" role="group" aria-label="Filter by status">
+          {FILTERS.map((f) => (
+            <button key={f.key} onClick={() => changeFilter(f.key)} aria-pressed={filter === f.key} title={f.hint}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filter === f.key ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
+              {f.label}
+              {f.key === "pending" && stats.pending > 0 && <span className={`ml-1.5 px-1.5 rounded-full text-xs ${filter === f.key ? "bg-white/20" : "bg-amber-100 text-amber-700"}`}>{stats.pending}</span>}
+            </button>
+          ))}
         </div>
-      )}
+        <div className="lg:ml-auto lg:w-80">
+          <SearchInput value={search} onChange={changeSearch} placeholder="Search name, email, phone, office..." label="Search appointments" />
+        </div>
+      </div>
+      {activeFilter?.hint && <p className="text-xs text-gray-500 -mt-3">{activeFilter.hint}</p>}
 
+      {message && <StatusMessage message={message} onDismiss={() => setMessage(null)} />}
+
+      {loadError && !loading ? (
+        <StatusMessage message={{ type: "error", text: loadError }} onRetry={refreshAll} />
+      ) : (
       <>
         <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
             {loading ? (
           <div className="p-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" /></div>
-        ) : appointments.length === 0 ? (
+        ) : filteredAppointments.length === 0 ? (
           <div className="p-12 text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
             </div>
-            <p className="text-sm text-gray-500">No {filter !== "all" ? filter : ""} appointments</p>
+            <p className="text-sm text-gray-500">{emptyText}</p>
+            {searchTerm && <button onClick={() => changeSearch("")} className="text-sm font-medium text-primary hover:text-primary-light mt-2">Clear search</button>}
           </div>
         ) : (
           <table className="w-full">
@@ -248,7 +330,7 @@ export default function AdminDashboardPage() {
               <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-50">
-              {appointments.map((a) => (
+              {pagedAppointments.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="text-sm font-medium text-gray-900">{a.full_name}</div>
@@ -257,20 +339,20 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="px-5 py-3.5 text-sm text-gray-600">{getOfficeName(a.office_id)}</td>
                   <td className="px-5 py-3.5">
-                    <div className="text-sm text-gray-900">{new Date(a.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                    <div className="text-sm text-gray-900">{formatDay(a.date, { month: "short", day: "numeric" })}</div>
                     <div className="text-xs text-gray-400">{formatTimeSlot(a.time_slot || "TBD")} · {a.duration}m</div>
                   </td>
                   <td className="px-5 py-3.5"><span className={getStatusBadge(a.status)}>{a.status}</span></td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setSelectedAppointment(a)} className="text-xs font-medium text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors">View</button>
+                      <button onClick={() => openDetails(a)} className="text-xs font-medium text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors">View</button>
                       {a.status === "pending" && (
                         <>
-                          <button onClick={() => handleApprove(a)} disabled={processing !== null} className="text-xs font-medium text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50 transition-colors disabled:opacity-50">
-                            {processing?.id === a.id && processing.action === "approve" ? "..." : "Approve"}
+                          <button onClick={() => quickApprove(a)} disabled={processing !== null} className="text-xs font-medium text-green-600 hover:text-green-700 px-2 py-1 rounded hover:bg-green-50 transition-colors disabled:opacity-50">
+                            {processing?.id === a.id && processing.action === "approve" ? "Approving..." : "Approve"}
                           </button>
-                          <button onClick={() => handleDecline(a)} disabled={processing !== null} className="text-xs font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50">
-                            {processing?.id === a.id && processing.action === "decline" ? "..." : "Decline"}
+                          <button onClick={() => openDetails(a, true)} disabled={processing !== null} className="text-xs font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50">
+                            Decline
                           </button>
                         </>
                       )}
@@ -286,10 +368,10 @@ export default function AdminDashboardPage() {
       <div className="md:hidden space-y-3">
         {loading ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8 text-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto" /></div>
-        ) : appointments.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">No {filter !== "all" ? filter : ""} appointments</div>
+        ) : filteredAppointments.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">{emptyText}</div>
         ) : (
-          appointments.map((a) => (
+          pagedAppointments.map((a) => (
             <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -301,18 +383,18 @@ export default function AdminDashboardPage() {
               </div>
               <div className="flex items-center gap-4 text-xs text-gray-500">
                 <span>{getOfficeName(a.office_id)}</span>
-                <span>{new Date(a.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                <span>{formatDay(a.date, { month: "short", day: "numeric" })}</span>
                 <span>{formatTimeSlot(a.time_slot || "TBD")}</span>
               </div>
               <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                <button onClick={() => setSelectedAppointment(a)} className="flex-1 text-center text-xs font-medium text-gray-600 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">View Details</button>
+                <button onClick={() => openDetails(a)} className="flex-1 text-center text-xs font-medium text-gray-600 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">View Details</button>
                 {a.status === "pending" && (
                   <>
-                    <button onClick={() => handleApprove(a)} disabled={processing !== null} className="flex-1 text-center text-xs font-medium text-green-600 py-2 rounded-lg bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-50">
-                      {processing?.id === a.id && processing.action === "approve" ? "..." : "Approve"}
+                    <button onClick={() => quickApprove(a)} disabled={processing !== null} className="flex-1 text-center text-xs font-medium text-green-600 py-2 rounded-lg bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-50">
+                      {processing?.id === a.id && processing.action === "approve" ? "Approving..." : "Approve"}
                     </button>
-                    <button onClick={() => handleDecline(a)} disabled={processing !== null} className="flex-1 text-center text-xs font-medium text-red-500 py-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50">
-                      {processing?.id === a.id && processing.action === "decline" ? "..." : "Decline"}
+                    <button onClick={() => openDetails(a, true)} disabled={processing !== null} className="flex-1 text-center text-xs font-medium text-red-500 py-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50">
+                      Decline
                     </button>
                   </>
                 )}
@@ -321,10 +403,12 @@ export default function AdminDashboardPage() {
           ))
         )}
       </div>
+      {!loading && <Pagination page={currentPage} pageSize={PAGE_SIZE} total={filteredAppointments.length} onPageChange={setPage} itemLabel="appointments" />}
       </>
+      )}
 
       {selectedAppointment && (
-        <DetailModal appointment={selectedAppointment} offices={offices} onApprove={handleApprove} onDecline={handleDecline} onPostpone={handlePostpone} onResetQR={handleResetQR} onClose={() => setSelectedAppointment(null)} processing={processing} getStatusBadge={getStatusBadge} />
+        <DetailModal appointment={selectedAppointment} offices={offices} onApprove={handleApprove} onDecline={handleDecline} onPostpone={handlePostpone} onResetQR={handleResetQR} onClose={closeDetails} processing={processing} getStatusBadge={getStatusBadge} error={actionError} startWithDecline={startWithDecline} />
       )}
     </div>
   );
@@ -332,18 +416,19 @@ export default function AdminDashboardPage() {
 
 /* ─── Calendar View (office admins) ─── */
 
-function CalendarView({ admin, appointments, offices, loading, calendarDate, setCalendarDate, filter, setFilter, getOfficeName, selectedAppointment, setSelectedAppointment, processing, onApprove, onDecline, onPostpone, onResetQR, getStatusBadge, onRefresh }: {
+function CalendarView({ admin, appointments, offices, loading, loadError, message, onDismissMessage, calendarDate, setCalendarDate, filter, setFilter, getOfficeName, selectedAppointment, openDetails, closeDetails, processing, onApprove, onDecline, onPostpone, onResetQR, getStatusBadge, onRefresh }: {
   admin: { email: string; office_id: string | null; role: string; offices?: { name: string } | null };
-  appointments: Appointment[]; offices: Office[]; loading: boolean; calendarDate: Date;
+  appointments: Appointment[]; offices: Office[]; loading: boolean; loadError: string | null;
+  message: StatusMessageValue | null; onDismissMessage: () => void; calendarDate: Date;
   setCalendarDate: (d: Date) => void; filter: string; setFilter: (f: string) => void;
   getOfficeName: (id: string) => string; selectedAppointment: Appointment | null;
-  setSelectedAppointment: (a: Appointment | null) => void;
+  openDetails: (a: Appointment) => void; closeDetails: () => void;
   processing: { id: string; action: "approve" | "decline" | "postpone" | "reset" } | null;
   onApprove: (a: Appointment, personToMeetEmail?: string, timeSlot?: string) => void; onDecline: (a: Appointment, reason?: string) => void;
   onPostpone: (a: Appointment, reason: string, newDate: string, newTimeSlot: string) => void;
   onResetQR: (a: Appointment) => void;
   getStatusBadge: (s: string) => string;
-  onRefresh?: () => void;
+  onRefresh: () => void;
 }) {
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
@@ -369,7 +454,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
       const m = `${year}-${String(month + 1).padStart(2, "0")}`;
       const params = new URLSearchParams({ month: m });
       if (admin.office_id) params.set("officeId", admin.office_id);
-      const res = await fetch(`/api/admin/blocked-times?${params}`);
+      const res = await adminFetch(`/api/admin/blocked-times?${params}`);
       if (!res.ok) {
         setBlockError("Could not load blocked times. Please refresh and try again.");
         return;
@@ -393,7 +478,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
         setBlockError("Your account is not assigned to an office. Contact a super admin to block times.");
         return;
       }
-      const res = await fetch("/api/admin/blocked-times", {
+      const res = await adminFetch("/api/admin/blocked-times", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ office_id: officeId, date, time_slot: timeSlot, reason: "Blocked by admin" }),
@@ -411,7 +496,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
   const handleUnblockTime = async (id: string) => {
     setBlockError(null);
     try {
-      const res = await fetch("/api/admin/blocked-times", {
+      const res = await adminFetch("/api/admin/blocked-times", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -434,46 +519,64 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
 
   const officeId = admin.office_id || offices[0]?.id || "";
 
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+  const goToToday = () => setCalendarDate(new Date());
+
+  const showDayInList = (ds: string) => {
+    setViewMode("list");
+    setTimeout(() => document.getElementById(`day-${ds}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
           <p className="text-sm text-gray-500 mt-0.5">{admin.offices?.name || "Office"} schedule</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button onClick={() => setModalOpen(true)} className="btn-primary btn-sm flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             New Invitation
           </button>
-          <div className="flex bg-gray-100 rounded-lg p-0.5 mr-1">
+          <div className="flex bg-gray-100 rounded-lg p-0.5" role="group" aria-label="View mode">
             {(["calendar", "list"] as const).map((v) => (
-              <button key={v} onClick={() => setViewMode(v)}
+              <button key={v} onClick={() => setViewMode(v)} aria-pressed={viewMode === v}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === v ? "bg-primary text-white shadow-sm" : "text-gray-600 hover:text-gray-900"}`}>
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             ))}
           </div>
-          {["pending", "approved", "postponed", "declined", "all"].map((s) => (
-            <button key={s} onClick={() => setFilter(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${filter === s ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1 max-w-full" role="group" aria-label="Filter by status">
+            {["pending", "approved", "postponed", "declined", "all"].map((s) => (
+              <button key={s} onClick={() => setFilter(s)} aria-pressed={filter === s}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${filter === s ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {message && <StatusMessage message={message} onDismiss={onDismissMessage} />}
+      {loadError && !loading && <StatusMessage message={{ type: "error", text: loadError }} onRetry={onRefresh} />}
 
       {viewMode === "calendar" ? (
         <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
         <div className="flex items-center justify-between mb-5">
-          <button onClick={() => setCalendarDate(new Date(year, month - 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={() => setCalendarDate(new Date(year, month - 1))} aria-label="Previous month" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
           <h3 className="text-base font-semibold text-gray-900">{calendarDate.toLocaleString("default", { month: "long", year: "numeric" })}</h3>
-          <button onClick={() => setCalendarDate(new Date(year, month + 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={() => setCalendarDate(new Date(year, month + 1))} aria-label="Next month" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
+        {!isCurrentMonth && (
+          <div className="flex justify-center -mt-3 mb-4">
+            <button onClick={goToToday} className="text-xs font-medium text-primary hover:underline">Back to today</button>
+          </div>
+        )}
 
         <div className="grid grid-cols-7 gap-px bg-gray-100 rounded-lg overflow-hidden">
           {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
@@ -494,14 +597,16 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
                   <span className={`text-xs font-medium ${isToday ? "text-primary font-bold" : "text-gray-600"}`}>{day}</span>
                   {!isPast && officeId && (
                     <button onClick={() => { setBlockError(null); setBlockModalDate(ds); }}
-                      className="opacity-0 group-hover:opacity-100 w-4 h-4 rounded bg-gray-100 hover:bg-primary/10 text-gray-400 hover:text-primary flex items-center justify-center transition-all">
-                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                      aria-label={`Block time slots on ${new Date(ds + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}`}
+                      title="Block time slots"
+                      className="[@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 w-6 h-6 -m-1 rounded bg-gray-100 hover:bg-primary/10 text-gray-500 hover:text-primary flex items-center justify-center transition-all">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     </button>
                   )}
                 </div>
                 <div className="space-y-0.5">
                   {da.slice(0, 2).map((a) => (
-                    <button key={a.id} onClick={() => setSelectedAppointment(a)}
+                    <button key={a.id} onClick={() => openDetails(a)}
                       className={`block w-full text-left text-[10px] sm:text-xs px-1.5 py-0.5 rounded border truncate transition-colors hover:opacity-80 ${color(a.status)}`}>
                       {formatTimeSlot(a.time_slot || "TBD")} {a.full_name.split(" ")[0]}
                     </button>
@@ -512,7 +617,11 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
                       {db.length} blocked
                     </div>
                   )}
-                  {da.length > 2 && <div className="text-[10px] text-gray-400 px-1">+{da.length - 2} more</div>}
+                  {da.length > 2 && (
+                    <button onClick={() => showDayInList(ds)} className="text-[10px] sm:text-xs text-gray-500 hover:text-primary px-1 hover:underline">
+                      +{da.length - 2} more
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -538,7 +647,8 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
           month={month}
           onPrevMonth={() => setCalendarDate(new Date(year, month - 1))}
           onNextMonth={() => setCalendarDate(new Date(year, month + 1))}
-          onView={(a) => setSelectedAppointment(a)}
+          onToday={isCurrentMonth ? undefined : goToToday}
+          onView={(a) => openDetails(a)}
           onBlockDate={(ds) => { setBlockError(null); setBlockModalDate(ds); setCalendarDate(new Date(ds + "T00:00:00")); }}
           color={color}
         />
@@ -566,9 +676,10 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
           onDecline={onDecline}
           onPostpone={onPostpone}
           onResetQR={onResetQR}
-          onClose={() => setSelectedAppointment(null)}
+          onClose={closeDetails}
           processing={processing}
           getStatusBadge={getStatusBadge}
+          error={message?.type === "error" ? message.text : null}
         />
       )}
 
@@ -583,7 +694,7 @@ function CalendarView({ admin, appointments, offices, loading, calendarDate, set
 
 /* ─── List by Day (office admin) ─── */
 
-function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, month, onPrevMonth, onNextMonth, onView, onBlockDate, color }: {
+function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, month, onPrevMonth, onNextMonth, onToday, onView, onBlockDate, color }: {
   byDate: Record<string, Appointment[]>;
   blockedByDate: Record<string, BlockedTime[]>;
   loading: boolean;
@@ -593,6 +704,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
   month: number;
   onPrevMonth: () => void;
   onNextMonth: () => void;
+  onToday?: () => void;
   onView: (a: Appointment) => void;
   onBlockDate: (ds: string) => void;
   color: (s: string) => string;
@@ -606,48 +718,47 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
   const formatDate = (ds: string) =>
     new Date(ds + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto" />
-      </div>
-    );
-  }
-
-  if (sortedDates.length === 0) {
-    return (
-      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-        </div>
-        <p className="text-sm text-gray-500">No {filter !== "all" ? filter : ""} appointments in this month</p>
-        <p className="text-xs text-gray-400 mt-1">Switch to the Calendar view or change months to see more.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
         <div className="flex items-center justify-between">
-          <button onClick={onPrevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onPrevMonth} aria-label="Previous month" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
           <h3 className="text-base font-semibold text-gray-900">{new Date(year, month).toLocaleString("default", { month: "long", year: "numeric" })}</h3>
-          <button onClick={onNextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onNextMonth} aria-label="Next month" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-2">{sortedDates.length} day{sortedDates.length !== 1 ? "s" : ""} with appointments</p>
+        {!loading && sortedDates.length > 0 && (
+          <p className="text-center text-xs text-gray-400 mt-2">{sortedDates.length} day{sortedDates.length !== 1 ? "s" : ""} with appointments</p>
+        )}
+        {onToday && (
+          <div className="flex justify-center mt-2">
+            <button onClick={onToday} className="text-xs font-medium text-primary hover:underline">Back to today</button>
+          </div>
+        )}
       </div>
 
-      {sortedDates.map((ds) => {
+      {loading ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto" />
+        </div>
+      ) : sortedDates.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          </div>
+          <p className="text-sm text-gray-500">No {filter !== "all" ? filter : ""} appointments in this month</p>
+          <p className="text-xs text-gray-400 mt-1">Use the arrows above to check another month.</p>
+        </div>
+      ) : sortedDates.map((ds) => {
         const dayAppointments = (byDate[ds] || []).slice().sort((a, b) => (a.time_slot || "TBD").localeCompare(b.time_slot || "TBD"));
         const dayBlocks = blockedByDate[ds] || [];
         const isPast = ds < todayStr;
 
         return (
-          <div key={ds} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div key={ds} id={`day-${ds}`} className="bg-white rounded-xl border border-gray-200 overflow-hidden scroll-mt-6">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -696,7 +807,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                           <td className="px-4 py-3">
                             <span className="text-xs text-gray-600 max-w-[180px] truncate block">{a.valid_id || "—"}</span>
                           </td>
-                          <td className="px-4 py-3"><span className={color(a.status)}>{a.status}</span></td>
+                          <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${color(a.status)}`}>{a.status}</span></td>
                           <td className="px-4 py-3 text-right">
                             <button onClick={() => onView(a)} className="text-xs font-medium text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors">View</button>
                           </td>
@@ -711,9 +822,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                               Blocked time slot
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="text-xs text-gray-400">{formatTimeSlot(b.time_slot || "TBD")}</span>
-                          </td>
+                          <td className="px-4 py-3" />
                         </tr>
                       ))}
                     </tbody>
@@ -729,7 +838,7 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                           <div className="text-xs text-gray-400">{a.email} · {formatTimeSlot(a.time_slot || "TBD")} · {a.duration}m</div>
                           {a.visitor_count > 1 && <div className="text-xs text-primary mt-1">{a.visitor_count} visitors entering together</div>}
                         </div>
-                        <span className={color(a.status)}>{a.status}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize flex-shrink-0 ${color(a.status)}`}>{a.status}</span>
                       </div>
                       {a.valid_id && <div className="mt-3 text-xs text-gray-600">Valid ID: <span className="font-medium text-gray-800">{a.valid_id}</span></div>}
                       <button onClick={() => onView(a)} className="mt-3 w-full text-center text-xs font-medium text-gray-600 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">View Details</button>
@@ -839,15 +948,18 @@ function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onU
 
 /* ─── Detail Modal ─── */
 
-function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, onResetQR, onClose, processing, getStatusBadge }: {
+function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, onResetQR, onClose, processing, getStatusBadge, error, startWithDecline = false }: {
   appointment: Appointment; offices: Office[];
   onApprove: (a: Appointment, personToMeetEmail?: string, timeSlot?: string) => void; onDecline: (a: Appointment, reason?: string) => void;
   onPostpone: (a: Appointment, reason: string, newDate: string, newTimeSlot: string) => void;
   onResetQR: (a: Appointment) => void;
   onClose: () => void; processing: { id: string; action: "approve" | "decline" | "postpone" | "reset" } | null; getStatusBadge: (s: string) => string;
+  error?: string | null; startWithDecline?: boolean;
 }) {
   const [declineReason, setDeclineReason] = useState("");
-  const [showDeclineReason, setShowDeclineReason] = useState(false);
+  const [showDeclineReason, setShowDeclineReason] = useState(startWithDecline);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [confirmReissue, setConfirmReissue] = useState(false);
   const [approveTime, setApproveTime] = useState("");
   const [showPostpone, setShowPostpone] = useState(false);
   const [postponeDate, setPostponeDate] = useState("");
@@ -860,8 +972,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
   const postponeSlots = buildPostponeSlots(offices.find((o) => o.id === appointment.office_id));
   const needsTime = !appointment.time_slot;
 
-  const officeContacts = offices.find((o) => o.id === appointment.office_id)?.contacts || [];
-  const personContact = officeContacts.find((c) => c.name.toLowerCase() === (appointment.person_to_meet || "").toLowerCase());
+  const personContact = findPersonContact(appointment, offices);
   const isOtherPerson = Boolean(appointment.person_to_meet) && !personContact;
   const [personToMeetEmail, setPersonToMeetEmail] = useState("");
 
@@ -877,10 +988,22 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
   };
 
   return (
-    <ModalShell open={true} title="Appointment Details" subtitle={`${officeName} · ${formatTimeSlot(appointment.time_slot || "TBD")} (${appointment.duration} min)`} onClose={onClose} maxWidthClass="max-w-2xl"
+    <ModalShell open={true} title="Appointment Details" subtitle={`${officeName} · ${formatDay(appointment.date, { weekday: "short", month: "short", day: "numeric" })}, ${formatTimeSlot(appointment.time_slot || "TBD")} (${appointment.duration} min)`} onClose={onClose} maxWidthClass="max-w-2xl"
       footer={
-        appointment.status === "completed" ? (
-          <button onClick={() => onResetQR(appointment)} disabled={isBusy} className="btn-secondary flex-1 btn-sm disabled:opacity-50 flex items-center justify-center gap-2">
+        appointment.status === "completed" && confirmReissue ? (
+          <div className="w-full space-y-3">
+            <p className="text-sm text-gray-700">
+              Replace the reference number and email the new one to <strong>{appointment.email}</strong>? The old reference stops working, the recorded gate entry is cleared, and the appointment goes back to Approved so the visitor can enter again.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => onResetQR(appointment)} disabled={isBusy} className="btn-primary flex-1 btn-sm disabled:opacity-50">
+                {isProcessing && processing.action === "reset" ? "Re-issuing..." : "Yes, re-issue and send"}
+              </button>
+              <button onClick={() => setConfirmReissue(false)} disabled={isBusy} className="btn-secondary flex-1 btn-sm">Cancel</button>
+            </div>
+          </div>
+        ) : appointment.status === "completed" ? (
+          <button onClick={() => setConfirmReissue(true)} disabled={isBusy} className="btn-secondary flex-1 btn-sm disabled:opacity-50 flex items-center justify-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
             {isProcessing && processing.action === "reset" ? "Re-issuing..." : "Re-issue Reference & Re-send Email"}
           </button>
@@ -914,7 +1037,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
               </>
             ) : showDeclineReason ? (
               <>
-                <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Reason for decline (optional)" className="input" rows={2} />
+                <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Reason for decline (optional, included in the visitor's email)" aria-label="Reason for decline" className="input" rows={2} autoFocus={startWithDecline} />
                 <div className="flex gap-2">
                   <button onClick={() => { onDecline(appointment, declineReason); setShowDeclineReason(false); setDeclineReason(""); }} disabled={isBusy} className="btn-danger flex-1 btn-sm disabled:opacity-50">
                     {isProcessing && processing.action === "decline" ? "Processing..." : "Confirm Decline"}
@@ -930,7 +1053,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
                       Appointment Time <span className="text-red-500">*</span>
                     </label>
                     <select id="approve-time" className="input mt-1" value={approveTime}
-                      onChange={(e) => setApproveTime(e.target.value)}>
+                      onChange={(e) => { setApproveTime(e.target.value); setApproveError(null); }}>
                       <option value="">Select a time...</option>
                       {postponeSlots.map((slot) => <option key={slot} value={slot}>{formatTimeSlot(slot)}</option>)}
                     </select>
@@ -947,7 +1070,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
                       type="email"
                       className="input mt-1"
                       value={personToMeetEmail}
-                      onChange={(e) => setPersonToMeetEmail(e.target.value)}
+                      onChange={(e) => { setPersonToMeetEmail(e.target.value); setApproveError(null); }}
                       placeholder="person@email.com"
                       required
                     />
@@ -959,17 +1082,21 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
                     <strong>{personContact.name}</strong> ({personContact.email}) will be notified on approval.
                   </p>
                 )}
+                {approveError && <p className="error-text mb-2" role="alert">{approveError}</p>}
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => {
-                      if (isOtherPerson && !personToMeetEmail.trim()) {
-                        alert("Please enter an email for the person to meet.");
-                        return;
-                      }
                       if (needsTime && !approveTime) {
-                        alert("Please select an appointment time before approving.");
+                        setApproveError("Select an appointment time before approving.");
+                        document.getElementById("approve-time")?.focus();
                         return;
                       }
+                      if (isOtherPerson && !personToMeetEmail.trim()) {
+                        setApproveError(`Enter an email for ${appointment.person_to_meet} before approving.`);
+                        document.getElementById("personToMeetEmail")?.focus();
+                        return;
+                      }
+                      setApproveError(null);
                       onApprove(appointment, isOtherPerson ? personToMeetEmail : undefined, needsTime ? approveTime : undefined);
                     }}
                     disabled={isBusy}
@@ -992,6 +1119,8 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
           <button onClick={onClose} className="btn-secondary flex-1">Close</button>
         )
       }>
+      <div className="space-y-4">
+      {error && <StatusMessage message={{ type: "error", text: error }} />}
       <div className="grid grid-cols-2 gap-3">
         {[
           ["Visitor", appointment.full_name],
@@ -1000,7 +1129,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
           ["Phone", appointment.phone],
           ["Office", officeName],
           ["Person to Meet", appointment.person_to_meet || "—"],
-          ["Date", new Date(appointment.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
+          ["Date", formatDay(appointment.date, { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
           ["Time", `${formatTimeSlot(appointment.time_slot || "TBD")} (${appointment.duration} min)`],
           ["Number of Visitors", String(appointment.visitor_count || appointment.visitors?.length || 1)],
         ].map(([l, v]) => (
@@ -1079,6 +1208,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
           This appointment was postponed to the schedule shown above. Approve it to issue the reference number, or decline it to cancel.
         </div>
       )}
+      </div>
     </ModalShell>
   );
 }

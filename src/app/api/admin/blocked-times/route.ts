@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { getAuthAdmin, logAudit, requireDashboardAdmin } from "@/lib/rbac";
+import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
 // Detect a missing/uncached `blocked_times` table (PostgREST PGRST205) so admins
 // get an actionable message instead of a generic 500.
@@ -26,6 +27,8 @@ export async function GET(request: Request) {
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
+    const dashboardAccess = requireDashboardAdmin(admin);
+    if (!dashboardAccess.ok) return NextResponse.json({ message: dashboardAccess.error }, { status: dashboardAccess.status });
 
     const { searchParams } = new URL(request.url);
     const officeId = searchParams.get("officeId");
@@ -58,9 +61,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
+    const dashboardAccess = requireDashboardAdmin(admin);
+    if (!dashboardAccess.ok) return NextResponse.json({ message: dashboardAccess.error }, { status: dashboardAccess.status });
 
     const body = await request.json();
     const { office_id, date, time_slot, reason } = body;
@@ -116,9 +124,14 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
+    const dashboardAccess = requireDashboardAdmin(admin);
+    if (!dashboardAccess.ok) return NextResponse.json({ message: dashboardAccess.error }, { status: dashboardAccess.status });
 
     const body = await request.json();
     const { id, office_id, date, time_slot } = body;

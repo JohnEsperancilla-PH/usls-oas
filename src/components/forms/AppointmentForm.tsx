@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { BookingData } from "@/components/landing/BookingLanding";
 import type { Office } from "@/types/database";
+import { DEFAULT_BOOKING_RULES, describeNotice, getLatestBookableDate, isTooSoon, type BookingRules } from "@/lib/booking-rules";
+import { getManilaToday } from "@/lib/time";
 
 interface AppointmentFormProps {
   data: BookingData;
@@ -24,6 +26,7 @@ interface SlotInfo {
   blocked?: boolean;
   blockReason?: string | null;
   past?: boolean;
+  tooSoon?: boolean;
 }
 
 function parseOperatingHours(hours: string): { startH: number; endH: number } {
@@ -85,6 +88,16 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchOffices(); }, []);
+
+  const [bookingRules, setBookingRules] = useState<BookingRules>(DEFAULT_BOOKING_RULES);
+  useEffect(() => {
+    fetch("/api/booking-rules")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((rules) => { if (rules) setBookingRules(rules); })
+      .catch(() => { /* keep defaults; the server still enforces the real rules */ });
+  }, []);
+  const todayStr = getManilaToday();
+  const latestDate = getLatestBookableDate(bookingRules, todayStr);
 
   const fetchMonthAvailability = useCallback(async (officeId: string, year: number, month: number) => {
     setLoadingMonth(true);
@@ -208,11 +221,10 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
     if (!selectedDate) e.date = "Please select a date";
     else {
       const d = new Date(selectedDate + "T00:00:00");
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const max = new Date(); max.setDate(max.getDate() + 30);
-      if (d < today) e.date = "Cannot book in the past";
-      else if (d > max) e.date = "Cannot book more than 30 days ahead";
+      if (selectedDate < todayStr) e.date = "Cannot book in the past";
+      else if (latestDate && selectedDate > latestDate) e.date = `Cannot book more than ${bookingRules.maxAdvanceDays} days ahead`;
       else if (d.getDay() === 0 || d.getDay() === 6) e.date = "Weekends are not available";
+      else if (isTooSoon(selectedDate, selectedTime || null, bookingRules)) e.date = `Appointments must be booked at least ${describeNotice(bookingRules.minNoticeHours ?? 0)} in advance`;
     }
     // Only require time slot if the office doesn't hide time slots
     if (!selectedOffice?.hide_time_slots && !selectedTime) e.timeSlot = "Please select a time";
@@ -232,8 +244,8 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   const firstDayOfWeek = new Date(calendarMonth.year, calendarMonth.month - 1, 1).getDay();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const maxDate = new Date();
-  maxDate.setDate(maxDate.getDate() + 30);
+  // No upper month limit when the advance-booking rule is switched off.
+  const latestMonth = latestDate ? { year: Number(latestDate.slice(0, 4)), month: Number(latestDate.slice(5, 7)) } : null;
 
   const calendarCells: (number | null)[] = [];
   for (let i = 0; i < firstDayOfWeek; i++) calendarCells.push(null);
@@ -248,7 +260,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   };
 
   const getSlotButtonStyle = (slot: SlotInfo) => {
-    if (slot.past) return "bg-gray-50 text-gray-300 cursor-not-allowed border-gray-100";
+    if (slot.past || slot.tooSoon) return "bg-gray-50 text-gray-300 cursor-not-allowed border-gray-100";
     if (slot.blocked) return "bg-gray-50 text-gray-400 cursor-not-allowed border-gray-200 line-through";
     if (!slot.available) return "bg-red-50 text-red-300 cursor-not-allowed border-red-100";
     if (selectedTime === slot.time) return "bg-primary text-white border-primary shadow-sm ring-2 ring-primary/20";
@@ -468,7 +480,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                   const y = calendarMonth.month === 12 ? calendarMonth.year + 1 : calendarMonth.year;
                   setCalendarMonth({ year: y, month: m });
                 }} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                  disabled={calendarMonth.year === maxDate.getFullYear() && calendarMonth.month >= maxDate.getMonth() + 1}>
+                  disabled={latestMonth !== null && (calendarMonth.year > latestMonth.year || (calendarMonth.year === latestMonth.year && calendarMonth.month >= latestMonth.month))}>
                   <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                 </button>
               </div>
@@ -482,9 +494,11 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                   const ds = `${calendarMonth.year}-${String(calendarMonth.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                   const cellDate = new Date(calendarMonth.year, calendarMonth.month - 1, day);
                   const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
-                  const isPast = cellDate < today;
-                  const isTooFar = cellDate > maxDate;
-                  const disabled = isWeekend || isPast || isTooFar;
+                  const isPast = ds < todayStr;
+                  const isTooFar = latestDate !== null && ds > latestDate;
+                  // Even the last slot of the day falls inside the minimum notice period.
+                  const isTooSoonDay = !isPast && isTooSoon(ds, null, bookingRules);
+                  const disabled = isWeekend || isPast || isTooFar || isTooSoonDay;
                   const isSelected = selectedDate === ds;
                   const availColor = !disabled ? getAvailabilityColor(ds) : "";
 
@@ -495,7 +509,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                         disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-gray-50"
                       } ${isSelected ? "ring-2 ring-primary ring-inset" : ""}`}>
                       <span className={`text-xs font-medium ${
-                        isSelected ? "text-primary font-bold" : isWeekend || isPast ? "text-gray-300" : "text-gray-700"
+                        isSelected ? "text-primary font-bold" : disabled ? "text-gray-300" : "text-gray-700"
                       }`}>{day}</span>
                       {!disabled && availColor && (
                         <div className={`w-1.5 h-1.5 rounded-full mt-0.5 ${availColor.split(" ")[0]}`} />
@@ -512,6 +526,15 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                 <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-200" /><span className="text-[10px] text-gray-400">Full</span></div>
               </div>
             </div>
+            {(bookingRules.minNoticeHours || bookingRules.maxAdvanceDays) && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                {bookingRules.minNoticeHours && bookingRules.maxAdvanceDays
+                  ? `Book at least ${describeNotice(bookingRules.minNoticeHours)} ahead and up to ${bookingRules.maxAdvanceDays} days in advance.`
+                  : bookingRules.minNoticeHours
+                  ? `Book at least ${describeNotice(bookingRules.minNoticeHours)} ahead.`
+                  : `Book up to ${bookingRules.maxAdvanceDays} days in advance.`}
+              </p>
+            )}
             {errors.date && <p className="error-text mt-1">{errors.date}</p>}
           </div>
         )}
@@ -555,6 +578,8 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                         <div className="text-[10px] text-gray-400 mt-0.5">Blocked</div>
                       ) : slot.past ? (
                         <div className="text-[10px] text-gray-300 mt-0.5">Passed</div>
+                      ) : slot.tooSoon ? (
+                        <div className="text-[10px] text-gray-300 mt-0.5">Too soon</div>
                       ) : !slot.available ? (
                         <div className="text-[10px] text-red-300 mt-0.5">Full</div>
                       ) : (

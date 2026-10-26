@@ -129,6 +129,11 @@ async function executeAction(action: string | null, token: string | null, baseUr
     return renderPage({ stage: "already", action, appointment, baseUrl });
   }
 
+  // Covers links in emails sent before hidden-time offices stopped getting Approve buttons.
+  if (action === "approve" && !appointment.time_slot) {
+    return renderPage({ stage: "error", message: "This office sets the visit time when approving, so it can't be approved from email.", baseUrl });
+  }
+
   const supabase = createServiceClient();
   const adminId = auth.adminId ?? null;
   const adminEmail = verified.payload.adminEmail;
@@ -246,9 +251,13 @@ async function authorizeAdmin(
   if (adminEmail) {
     const { data: adminRow } = await supabase
       .from("admins")
-      .select("id, role, office_id")
+      .select("*")
       .eq("email", adminEmail)
       .single();
+
+    if (adminRow?.approval_status === "pending") {
+      return { allowed: false, message: "Your account is waiting for a super admin to approve it." };
+    }
 
     if (adminRow) {
       if (adminRow.role === "office_admin" && adminRow.office_id !== appointment.office_id) {

@@ -8,8 +8,11 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   checkout: "Checked out visitor",
   entry_denied: "Denied entry",
   create_account: "Created admin account",
+  update_account: "Updated admin account",
   delete_account: "Removed admin account",
   reset_password: "Reset admin password",
+  approve_account: "Approved admin account",
+  reject_account: "Rejected admin account",
   create_office: "Created office",
   update_office: "Updated office",
   delete_office: "Deactivated office",
@@ -26,6 +29,10 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   disable_maintenance: "Disabled maintenance mode",
   update_maintenance: "Updated maintenance settings",
 };
+
+export const AUDIT_ACTION_OPTIONS = (Object.entries(ACTION_LABELS) as [AuditAction, string][])
+  .map(([value, label]) => ({ value, label }))
+  .sort((a, b) => a.label.localeCompare(b.label));
 
 export function getAuditActionLabel(action: string): string {
   return ACTION_LABELS[action as AuditAction] || action.replace(/_/g, " ");
@@ -79,8 +86,11 @@ export function getAuditSummary(log: AuditLog): string {
     case "entry_denied":
       return [visitor, reason ? `Reason: ${reason}` : null].filter(Boolean).join(" - ") || "Entry denied";
     case "create_account":
+    case "update_account":
     case "delete_account":
     case "reset_password":
+    case "approve_account":
+    case "reject_account":
       return [log.target_email, role].filter(Boolean).join(" - ") || "Admin account changed";
     case "create_office":
     case "update_office":

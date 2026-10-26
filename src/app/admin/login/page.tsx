@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,25 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const supabase = createClient();
 
+  // Admins who are already signed in go straight to the dashboard; anyone else signed in is signed out.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }).catch(() => null);
+      if (cancelled) return;
+      if (res?.ok) router.replace("/admin");
+      else if (res && res.status === 403) await supabase.auth.signOut();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -24,10 +43,19 @@ export default function AdminLoginPage() {
       const authResponse = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ event: "login" }),
       });
       if (!authResponse.ok) {
-        setError("You are not authorized to access the admin dashboard");
+        const body = await authResponse.json().catch(() => ({}));
+        setError(
+          authResponse.status === 429
+            ? "Too many sign-in attempts. Wait a minute and try again."
+            : authResponse.status === 403
+            ? body.message === "Not an admin"
+              ? "This account is not registered as an admin."
+              : body.message || "You are not authorized to access the admin dashboard."
+            : "Could not verify admin access. Please try again."
+        );
         await supabase.auth.signOut();
         return;
       }
@@ -65,11 +93,14 @@ export default function AdminLoginPage() {
                 className="input" placeholder="name@email.com" required autoComplete="email" />
             </div>
             <div>
-              <label htmlFor="password" className="label">Password</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+                <Link href="/admin/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link>
+              </div>
               <div className="relative">
                 <input type={showPassword ? "text" : "password"} id="password" value={password}
                   onChange={(e) => setPassword(e.target.value)} className="input pr-10" placeholder="Enter password" required autoComplete="current-password" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
                   {showPassword ? (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" /></svg>

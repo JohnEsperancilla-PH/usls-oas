@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin } from "@/lib/rbac";
+import { getAuthAdmin, requireDashboardAdmin } from "@/lib/rbac";
 import { attachAppointmentVisitors } from "@/lib/appointment-visitors";
 import { attachAppointmentVehicles } from "@/lib/appointment-vehicles";
+import { expireStaleAppointments } from "@/lib/expire-appointments";
 
 export async function GET(request: Request) {
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
+    const dashboardAccess = requireDashboardAdmin(admin);
+    if (!dashboardAccess.ok) return NextResponse.json({ message: dashboardAccess.error }, { status: dashboardAccess.status });
+
+    await expireStaleAppointments();
 
     const { searchParams } = new URL(request.url);
     const filterStatus = searchParams.get("status");

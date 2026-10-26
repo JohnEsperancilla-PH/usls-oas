@@ -212,6 +212,80 @@ export async function PATCH(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
+  try {
+    const { admin, error, status } = await getAuthAdmin(request);
+    if (!admin) return NextResponse.json({ message: error }, { status });
+
+    const check = requireSuperAdmin(admin);
+    if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
+
+    const body = await request.json();
+    const { id: targetAdminId, role, office_id } = body;
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+
+    if (!targetAdminId) {
+      return NextResponse.json({ message: "Admin ID is required" }, { status: 400 });
+    }
+    if (!name) {
+      return NextResponse.json({ message: "Name is required" }, { status: 400 });
+    }
+    if (name.length > 100) {
+      return NextResponse.json({ message: "Name is too long (max 100 characters)" }, { status: 400 });
+    }
+    if (!["super_admin", "office_admin", "gate_user"].includes(role)) {
+      return NextResponse.json({ message: "Invalid role" }, { status: 400 });
+    }
+    if (role === "office_admin" && !office_id) {
+      return NextResponse.json({ message: "Office is required for office admins" }, { status: 400 });
+    }
+
+    const supabase = createServiceClient();
+
+    const { data: targetAdmin, error: fetchError } = await supabase
+      .from("admins")
+      .select("*")
+      .eq("id", targetAdminId)
+      .single();
+
+    if (fetchError || !targetAdmin) {
+      return NextResponse.json({ message: "Admin not found" }, { status: 404 });
+    }
+
+    // Gate accounts sign in with a generated employee-ID email, so they can't switch to or from an email-based role.
+    if ((targetAdmin.role === "gate_user") !== (role === "gate_user")) {
+      return NextResponse.json(
+        { message: "Gate accounts can't be changed to or from other roles. Remove the account and create a new one instead." },
+        { status: 400 }
+      );
+    }
+    if (targetAdmin.id === admin.id && role !== targetAdmin.role) {
+      return NextResponse.json({ message: "You can't change your own role" }, { status: 400 });
+    }
+
+    const { error: updateError } = await supabase
+      .from("admins")
+      .update({ name, role, office_id: role === "office_admin" ? office_id : null })
+      .eq("id", targetAdmin.id);
+
+    if (updateError) {
+      return NextResponse.json({ message: "Failed to update account" }, { status: 500 });
+    }
+
+    await logAudit(admin.id, admin.email, "update_account", {
+      target_email: targetAdmin.email,
+      meta: { name, role, office_id: role === "office_admin" ? office_id : null, previous_role: targetAdmin.role },
+    });
+
+    return NextResponse.json({ message: "Account updated" });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
 export async function DELETE(request: Request) {
   const csrfValid = await validateCsrfToken(request);
   if (!csrfValid) return csrfErrorResponse();
