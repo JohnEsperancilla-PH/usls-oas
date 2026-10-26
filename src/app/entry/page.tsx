@@ -9,6 +9,34 @@ import { createClient } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import { adminFetch } from "@/lib/admin-fetch";
 
+// Headings per gate result. Only an actual refusal reads "Entry Denied"; "too early" is a come-back-later, not a rejection.
+const FAILURE_HEADINGS: Record<string, string> = {
+  too_early: "Too Early",
+  too_late: "Entry Code Expired",
+  not_found: "Reference Not Found",
+  already_used: "Already Used",
+  duplicate_scan: "Already Scanned",
+  pending: "Not Checked In",
+  checked_out: "Already Checked Out",
+  invalid_id: "ID Does Not Match",
+  cancelled: "Appointment Not Valid",
+  expired: "Appointment Expired",
+  wrong_date: "Wrong Date",
+  entry_denied: "Entry Denied",
+};
+const WAIT_REASONS = new Set(["too_early"]);
+
+function resultHeading(result: { success: boolean; reason?: string }) {
+  if (result.success) return result.reason === "preview" ? "Confirm Entry" : result.reason === "checked_out" ? "Checkout Recorded" : "Entry Approved";
+  return (result.reason && FAILURE_HEADINGS[result.reason]) || "Entry Denied";
+}
+
+function resultTone(result: { success: boolean; reason?: string }) {
+  if (result.success) return { panel: "bg-green-50 border-green-200", iconBg: "bg-green-100", title: "text-green-800", text: "text-green-700", wait: false };
+  if (result.reason && WAIT_REASONS.has(result.reason)) return { panel: "bg-amber-50 border-amber-200", iconBg: "bg-amber-100", title: "text-amber-800", text: "text-amber-800", wait: true };
+  return { panel: "bg-red-50 border-red-200", iconBg: "bg-red-100", title: "text-red-800", text: "text-red-700", wait: false };
+}
+
 interface ScanResult {
   success: boolean;
   reason?: string;
@@ -451,16 +479,20 @@ export default function ScanPage() {
           </div>
           {scanResult && (
             <div className="lg:fixed lg:inset-0 lg:z-50 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/40">
-            <div className={`relative w-full max-w-[min(28rem,calc(100vw-1rem))] lg:max-w-6xl min-h-[calc(100vh-0.5rem)] sm:min-h-0 lg:min-h-0 max-h-none lg:max-h-[calc(100vh-2rem)] rounded-none sm:rounded-xl lg:overflow-y-auto p-3 sm:p-4 text-center animate-modal-in border ${scanResult.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+            <div className={`relative w-full max-w-[min(28rem,calc(100vw-1rem))] lg:max-w-6xl min-h-[calc(100vh-0.5rem)] sm:min-h-0 lg:min-h-0 max-h-none lg:max-h-[calc(100vh-2rem)] rounded-none sm:rounded-xl lg:overflow-y-auto p-3 sm:p-4 text-center animate-modal-in border ${resultTone(scanResult).panel}`}>
               <button type="button" onClick={reset} aria-label="Close confirmation" className="absolute top-3 right-3 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-white/70 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-1 ${scanResult.success ? "bg-green-100" : "bg-red-100"}`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-1 ${resultTone(scanResult).iconBg}`}>
                 {scanResult.success ? (
                   <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : resultTone(scanResult).wait ? (
+                  <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 ) : (
                   <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -468,10 +500,10 @@ export default function ScanPage() {
                   </svg>
                 )}
               </div>
-              <h2 className={`text-xl font-bold mb-1 ${scanResult.success ? "text-green-800" : "text-red-800"}`}>
-                {scanResult.success ? (scanResult.reason === "preview" ? "Confirm Entry" : scanResult.reason === "checked_out" ? "Checkout Recorded" : "Entry Approved") : "Entry Denied"}
+              <h2 className={`text-xl font-bold mb-1 ${resultTone(scanResult).title}`}>
+                {resultHeading(scanResult)}
               </h2>
-              <p className={`text-sm mb-2 ${scanResult.success ? "text-green-700" : "text-red-700"}`}>{scanResult.message}</p>
+              <p className={`text-sm mb-2 ${resultTone(scanResult).text}`}>{scanResult.message}</p>
               {scanResult.reason && <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-3">Result: {scanResult.reason.replace(/_/g, " ")}</p>}
 
               {scanResult.appointment && (

@@ -4,7 +4,7 @@ import { normalizeReference } from "@/lib/reference";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import { getAuthAdmin, requireEntryUser, logAudit } from "@/lib/rbac";
-import { getEntryTimingStatus, getManilaToday } from "@/lib/time";
+import { formatTimeSlot, getEntryTimingStatus, getManilaToday } from "@/lib/time";
 import type { Appointment } from "@/types/database";
 import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
@@ -193,7 +193,11 @@ export async function POST(request: Request) {
     if (action === "preview" || action === "allow_entry") {
       const timingStatus = getEntryTimingStatus(appointment.date, appointment.time_slot);
       if (timingStatus === "too_early") {
-        return scanFailure("Entry is allowed only from 30 minutes before the scheduled time. Please arrive at Gate 2 by 20 minutes before the appointment for security screening.", "too_early", summary, 409);
+        const scheduled = `${new Date(`${appointment.date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}${appointment.time_slot ? ` at ${formatTimeSlot(appointment.time_slot)}` : ""}`;
+        const message = appointment.date > getManilaToday()
+          ? `This visit is scheduled for ${scheduled}. Entry opens 30 minutes before the scheduled time on that day.`
+          : `Entry opens 30 minutes before the scheduled time (${scheduled}). Please arrive at Gate 2 by 20 minutes before the appointment for security screening.`;
+        return scanFailure(message, "too_early", summary, 409);
       }
       if (timingStatus === "too_late") {
         const expiredAt = new Date().toISOString();
