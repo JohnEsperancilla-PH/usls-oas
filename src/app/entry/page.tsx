@@ -264,7 +264,8 @@ export default function ScanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: value }),
       });
-      const data: ScanResult = await response.json();
+      const data = await readScanResponse(response);
+      if (!data) return;
       setScanResult(data);
       setShowManual(false);
     } catch {
@@ -272,6 +273,21 @@ export default function ScanPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Gate decisions (allowed, denied, already used...) always carry a reason. Anything else is a failed
+  // request (expired session, security token, rate limit, server error) and must not look like a denial.
+  const readScanResponse = async (response: Response): Promise<ScanResult | null> => {
+    const data = await response.json().catch(() => null);
+    if (data && (data.success || data.reason)) return data as ScanResult;
+    setError(
+      response.status === 401
+        ? "Your session has expired. Sign in again to continue."
+        : response.status === 429
+        ? "Too many requests. Wait a moment and try again."
+        : `Could not complete the request${data?.message ? ` (${data.message})` : ""}. Please try again.`
+    );
+    return null;
   };
 
   const verifyReference = async (token: string) => {
@@ -283,7 +299,8 @@ export default function ScanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
-      const data: ScanResult = await response.json();
+      const data = await readScanResponse(response);
+      if (!data) return;
       setScanResult(data);
       setReference("");
     } catch {
@@ -328,7 +345,8 @@ export default function ScanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, action: "allow_entry" }),
       });
-      const data: ScanResult = await response.json();
+      const data = await readScanResponse(response);
+      if (!data) return;
       setScanResult(data);
       void loadExpectedVisitors();
     } catch {
@@ -348,7 +366,8 @@ export default function ScanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, action: "checkout" }),
       });
-      const data: ScanResult = await response.json();
+      const data = await readScanResponse(response);
+      if (!data) return;
       setScanResult(data);
       void loadExpectedVisitors();
     } catch {
@@ -374,7 +393,8 @@ export default function ScanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, action: "deny_entry", reason: denyReason }),
       });
-      const data: ScanResult = await response.json();
+      const data = await readScanResponse(response);
+      if (!data) return;
       setScanResult(data);
       void loadExpectedVisitors();
     } catch {

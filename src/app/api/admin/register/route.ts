@@ -209,6 +209,7 @@ export async function POST(request: Request) {
     });
 
     if (insertError) {
+      console.error("Failed to insert self-registered admin:", insertError.message);
       await supabase.auth.admin.deleteUser(userId);
       return NextResponse.json(
         { message: "Failed to create admin account" },

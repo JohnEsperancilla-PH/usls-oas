@@ -5,9 +5,12 @@ import crypto from "crypto";
 const CSRF_COOKIE_NAME = "__csrf_token";
 const CSRF_HEADER_NAME = "x-csrf-token";
 
+// Reuses the browser's current token when it has one: minting a new token on every call replaced the
+// cookie under other open tabs and pages, so their requests failed with "Invalid CSRF token".
 export async function generateCsrfToken(): Promise<string> {
-  const token = crypto.randomBytes(32).toString("hex");
   const cookieStore = await cookies();
+  const existing = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+  const token = existing && /^[0-9a-f]{64}$/.test(existing) ? existing : crypto.randomBytes(32).toString("hex");
   cookieStore.set(CSRF_COOKIE_NAME, token, {
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",
