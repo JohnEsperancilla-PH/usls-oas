@@ -33,6 +33,7 @@ export default function AuditPage() {
       delete_contact: "bg-cyan-100 text-cyan-800",
       create_account: "bg-blue-100 text-blue-800",
       delete_account: "bg-red-100 text-red-800",
+      reset_password: "bg-amber-100 text-amber-800",
       create_office: "bg-blue-100 text-blue-800",
       update_office: "bg-yellow-100 text-yellow-800",
       delete_office: "bg-red-100 text-red-800",

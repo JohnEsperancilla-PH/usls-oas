@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -88,11 +89,18 @@ export default function AdminLoginPage() {
               ) : "Sign In"}
             </button>
           </form>
+
+          <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+            <p className="text-sm text-gray-500 mb-2">Don&apos;t have an account?</p>
+            <Link href="/admin/register" className="btn-secondary w-full block text-sm">
+              Register as office admin
+            </Link>
+          </div>
         </div>
 
-        <a href="/" className="block text-center text-sm text-gray-400 hover:text-gray-600 mt-6 transition-colors">
+        <Link href="/" className="block text-center text-sm text-gray-400 hover:text-gray-600 mt-6 transition-colors">
           ← Back to USLS OASYS
-        </a>
+        </Link>
       </div>
     </div>
   );

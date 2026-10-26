@@ -9,6 +9,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   entry_denied: "Denied entry",
   create_account: "Created admin account",
   delete_account: "Removed admin account",
+  reset_password: "Reset admin password",
   create_office: "Created office",
   update_office: "Updated office",
   delete_office: "Deactivated office",
@@ -79,6 +80,7 @@ export function getAuditSummary(log: AuditLog): string {
       return [visitor, reason ? `Reason: ${reason}` : null].filter(Boolean).join(" - ") || "Entry denied";
     case "create_account":
     case "delete_account":
+    case "reset_password":
       return [log.target_email, role].filter(Boolean).join(" - ") || "Admin account changed";
     case "create_office":
     case "update_office":

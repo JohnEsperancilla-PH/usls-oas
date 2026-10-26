@@ -129,6 +129,89 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) return csrfErrorResponse();
+
+  try {
+    const { admin, error, status } = await getAuthAdmin(request);
+    if (!admin) return NextResponse.json({ message: error }, { status });
+
+    const check = requireSuperAdmin(admin);
+    if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
+
+    const body = await request.json();
+    const { id: targetAdminId, new_password, password } = body;
+
+    if (!targetAdminId) {
+      return NextResponse.json({ message: "Admin ID is required" }, { status: 400 });
+    }
+
+    if (!password) {
+      return NextResponse.json({ message: "Your password is required" }, { status: 400 });
+    }
+
+    if (typeof new_password !== "string" || new_password.length < 8) {
+      return NextResponse.json(
+        { message: "New password must be at least 8 characters" },
+        { status: 400 }
+      );
+    }
+
+    if (new_password.length > 128) {
+      return NextResponse.json(
+        { message: "New password is too long (max 128 characters)" },
+        { status: 400 }
+      );
+    }
+
+    // Verify the super admin's password before allowing a password reset.
+    const { createClient } = await import("@supabase/supabase-js");
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { error: signInError } = await authClient.auth.signInWithPassword({
+      email: admin.email,
+      password,
+    });
+
+    if (signInError) {
+      return NextResponse.json({ message: "Incorrect password" }, { status: 403 });
+    }
+
+    const supabase = createServiceClient();
+
+    const { data: targetAdmin, error: fetchError } = await supabase
+      .from("admins")
+      .select("*")
+      .eq("id", targetAdminId)
+      .single();
+
+    if (fetchError || !targetAdmin) {
+      return NextResponse.json({ message: "Admin not found" }, { status: 404 });
+    }
+
+    const { error: updateError } = await supabase.auth.admin.updateUserById(
+      targetAdmin.id,
+      { password: new_password }
+    );
+
+    if (updateError) {
+      return NextResponse.json({ message: updateError.message }, { status: 400 });
+    }
+
+    await logAudit(admin.id, admin.email, "reset_password", {
+      target_email: targetAdmin.email,
+      meta: { name: targetAdmin.name, role: targetAdmin.role },
+    });
+
+    return NextResponse.json({ message: "Password reset" });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
 export async function DELETE(request: Request) {
   const csrfValid = await validateCsrfToken(request);
   if (!csrfValid) return csrfErrorResponse();

@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { Admin } from "@/types/database";
 
-const PUBLIC_ADMIN_ROUTES = ["/admin/login"];
+const PUBLIC_ADMIN_ROUTES = ["/admin/login", "/admin/register"];
 
 interface AdminContextType {
   user: User;
