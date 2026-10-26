@@ -30,30 +30,6 @@ export async function validateCsrfToken(request: Request): Promise<boolean> {
   const cookieToken = cookieStore.get(CSRF_COOKIE_NAME)?.value;
   const headerToken = request.headers.get(CSRF_HEADER_NAME);
 
-  // TEMPORARY dev-only diagnostics for the gate "Invalid CSRF token" report; remove once resolved.
-  if (process.env.NODE_ENV !== "production") {
-    const matches = !!cookieToken && !!headerToken && cookieToken === headerToken;
-    if (!matches) {
-      const raw = request.headers.get("cookie") || "";
-      const all = raw.split(/;\s*/).filter((c) => c.startsWith(`${CSRF_COOKIE_NAME}=`)).map((c) => c.slice(CSRF_COOKIE_NAME.length + 1, CSRF_COOKIE_NAME.length + 9));
-      const line = JSON.stringify({
-        at: new Date().toISOString(),
-        url: request.url,
-        method: request.method,
-        cookieFromStore: cookieToken ? cookieToken.slice(0, 8) : null,
-        cookiesInHeader: all,
-        header: headerToken ? headerToken.slice(0, 8) : null,
-        headerLength: headerToken?.length ?? 0,
-        host: request.headers.get("host"),
-        origin: request.headers.get("origin"),
-        cookieHeaderLength: raw.length,
-      });
-      try {
-        (await import("fs")).appendFileSync(`${process.cwd()}/.next/csrf-debug.log`, line + "\n");
-      } catch { /* diagnostics only */ }
-    }
-  }
-
   if (!cookieToken || !headerToken) {
     return false;
   }
