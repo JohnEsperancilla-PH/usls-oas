@@ -8,6 +8,7 @@ import MaintenanceWatcher from "@/components/landing/MaintenanceWatcher";
 import { formatTimeSlot } from "@/lib/time";
 import { ENTRY_TIMING_NOTE } from "@/lib/time";
 import type { Office } from "@/types/database";
+import { adminFetch } from "@/lib/admin-fetch";
 
 export interface BookingData {
   fullName: string;
@@ -79,17 +80,10 @@ export default function BookingLanding() {
       const finalData = { ...formData, ...data };
       setFormData(finalData);
 
-      const csrfRes = await fetch("/api/csrf-token");
-      if (!csrfRes.ok) {
-        throw new Error("Unable to obtain security token. Please try again.");
-      }
-      const { csrfToken } = await csrfRes.json();
-
-      const response = await fetch("/api/appointments", {
+      const response = await adminFetch("/api/appointments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           fullName: finalData.fullName,

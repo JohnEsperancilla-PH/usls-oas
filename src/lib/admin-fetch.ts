@@ -1,6 +1,6 @@
 "use client";
 
-// fetch() for admin API calls that change data: attaches the CSRF token the server checks
+// fetch() for API calls that change data (admin, gate, and the public booking form): attaches the CSRF token the server checks
 // (double-submit: the x-csrf-token header must equal the __csrf_token cookie). Safe methods pass straight through.
 
 const CSRF_COOKIE = "__csrf_token";

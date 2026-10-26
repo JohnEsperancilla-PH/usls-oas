@@ -7,13 +7,17 @@ const CSRF_HEADER_NAME = "x-csrf-token";
 
 // Reuses the browser's current token when it has one: minting a new token on every call replaced the
 // cookie under other open tabs and pages, so their requests failed with "Invalid CSRF token".
-export async function generateCsrfToken(): Promise<string> {
+export async function generateCsrfToken(request: Request): Promise<string> {
   const cookieStore = await cookies();
   const existing = cookieStore.get(CSRF_COOKIE_NAME)?.value;
   const token = existing && /^[0-9a-f]{64}$/.test(existing) ? existing : crypto.randomBytes(32).toString("hex");
+  // Secure only over https (directly or behind a proxy): browsers drop Secure cookies on plain http,
+  // which made every protected request fail on a production build served over http.
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const isHttps = forwardedProto ? forwardedProto === "https" : new URL(request.url).protocol === "https:";
   cookieStore.set(CSRF_COOKIE_NAME, token, {
     httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
+    secure: isHttps,
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24,

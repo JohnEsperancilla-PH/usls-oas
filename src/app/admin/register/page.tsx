@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { validateOfficeAdminEmail } from "@/lib/admin-email";
+import { adminFetch } from "@/lib/admin-fetch";
 
 interface OfficeOption {
   id: string;
@@ -127,13 +128,9 @@ export default function AdminRegisterPage() {
 
     setLoading(true);
     try {
-      const csrfRes = await fetch("/api/csrf-token");
-      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
-      const { csrfToken } = await csrfRes.json();
-
-      const res = await fetch("/api/admin/register", {
+      const res = await adminFetch("/api/admin/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
           email: emailCheck.email,

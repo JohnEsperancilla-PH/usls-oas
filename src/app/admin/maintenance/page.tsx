@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import { toManilaInputValue, formatManilaDateTime, type MaintenanceWindowState } from "@/lib/maintenance";
 import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
+import { adminFetch } from "@/lib/admin-fetch";
 
 interface MaintenancePayload {
   active: boolean;
@@ -180,13 +181,9 @@ export default function MaintenancePage() {
     setSaving(true);
     setMessage(null);
     try {
-      const csrfRes = await fetch("/api/csrf-token");
-      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
-      const { csrfToken } = await csrfRes.json();
-
-      const res = await fetch("/api/admin/maintenance", {
+      const res = await adminFetch("/api/admin/maintenance", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
 

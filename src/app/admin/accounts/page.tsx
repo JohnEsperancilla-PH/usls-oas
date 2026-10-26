@@ -53,13 +53,9 @@ export default function AccountsPage() {
     if (form.role === "office_admin" && !form.office_id) { setFormError("Select the office this admin will manage."); return; }
     setSaving(true);
     try {
-      const csrfRes = await fetch("/api/csrf-token");
-      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
-      const { csrfToken } = await csrfRes.json();
-
-      const res = await fetch("/api/admin/accounts", {
+      const res = await adminFetch("/api/admin/accounts", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
       const data = await res.json();
@@ -98,13 +94,9 @@ export default function AccountsPage() {
     if (editForm.role === "office_admin" && !editForm.office_id) { setEditError("Select the office this admin will manage."); return; }
     setEditSaving(true);
     try {
-      const csrfRes = await fetch("/api/csrf-token");
-      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
-      const { csrfToken } = await csrfRes.json();
-
-      const res = await fetch("/api/admin/accounts", {
+      const res = await adminFetch("/api/admin/accounts", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: editingAccount.id, ...editForm }),
       });
       const data = await res.json().catch(() => ({}));
@@ -125,13 +117,9 @@ export default function AccountsPage() {
     if (!deletingAccount || !deletePassword) return;
     setDeleteLoading(true); setDeleteError(null);
     try {
-      const csrfRes = await fetch("/api/csrf-token");
-      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
-      const { csrfToken } = await csrfRes.json();
-
-      const res = await fetch("/api/admin/accounts", {
+      const res = await adminFetch("/api/admin/accounts", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: deletingAccount.id, password: deletePassword }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
@@ -177,13 +165,9 @@ export default function AccountsPage() {
 
     setResetLoading(true);
     try {
-      const csrfRes = await fetch("/api/csrf-token");
-      if (!csrfRes.ok) throw new Error("Unable to obtain security token");
-      const { csrfToken } = await csrfRes.json();
-
-      const res = await fetch("/api/admin/accounts", {
+      const res = await adminFetch("/api/admin/accounts", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: resettingAccount.id,
           new_password: resetNewPassword,
