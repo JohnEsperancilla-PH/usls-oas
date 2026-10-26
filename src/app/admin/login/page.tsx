@@ -91,10 +91,12 @@ export default function AdminLoginPage() {
           </form>
 
           <div className="mt-4 pt-4 border-t border-gray-100 text-center">
-            <p className="text-sm text-gray-500 mb-2">Don&apos;t have an account?</p>
-            <Link href="/admin/register" className="btn-secondary w-full block text-sm">
-              Register as office admin
-            </Link>
+            <p className="text-sm text-gray-500">
+              Don&apos;t have an account?{" "}
+              <Link href="/admin/register" className="font-medium text-primary hover:underline">
+                Register
+              </Link>
+            </p>
           </div>
         </div>
 
