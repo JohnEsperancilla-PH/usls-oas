@@ -4,6 +4,8 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { formatTimeSlot } from "@/lib/time";
+import { getArrivalNote, getEntryRuleNote } from "@/lib/entry-window";
+import { getEntryWindow } from "@/lib/entry-window-server";
 import { generateQrPng } from "@/lib/qr";
 
 export interface TicketVehicle {
@@ -147,11 +149,12 @@ export async function generateTicketPdf(data: TicketData): Promise<Uint8Array> {
   drawCenteredAt(page, refCenter, data.referenceNumber, bold, numberSize, refBoxTop - 40, WHITE);
 
   // 6. Notes with the long text wrapped so it continues on the line below.
+  const entryWindow = await getEntryWindow();
   const notes = [
     "Present this ticket or your reference number at USLS Gate 2 on your appointment date.",
     "Bring the government-issued ID listed above — the Guard will issue your visitor's pass.",
-    "Please arrive at Gate 2 by 20 minutes before your scheduled time.",
-    "Entry is allowed only from 30 minutes before the scheduled time; arriving 1 hour after voids the gate entry code.",
+    getArrivalNote(entryWindow),
+    getEntryRuleNote(entryWindow),
   ];
   const noteSize = 10;
   const noteLineHeight = 15;

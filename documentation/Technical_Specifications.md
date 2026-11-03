@@ -64,7 +64,7 @@ However, note: the action-token links let an admin **approve/decline directly fr
 
 - Reference numbers: 8 characters from a Crockford-style alphabet (`23456789ABCDEFGHJKLMNPQRSTUVWXYZ`), collision-checked at generation.
 - They are single-use. A used reference cannot be reused (`qr_used_at` prevents duplicate scans).
-- Entry window: 30 minutes before to 15 minutes after the scheduled time.
+- Entry window: configurable under Settings > Gate Entry Window (`entry_early_minutes`, `entry_late_minutes`, 0–240 each). Defaults to 30 minutes before to 1 hour after the scheduled time.
 - The gate can also re-issue a reference (`reset-qr`) for a completed appointment so a returning visitor gets a fresh code.
 
 ### 3.5 Gate entry flow (security)

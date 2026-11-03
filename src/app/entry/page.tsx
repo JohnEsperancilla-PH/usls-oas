@@ -5,6 +5,7 @@ import { BrowserQRCodeReader } from "@zxing/browser";
 import type { IScannerControls } from "@zxing/browser";
 import { formatTimeSlot } from "@/lib/time";
 import { ModalShell } from "@/components/admin/ModalShell";
+import { SystemAlertLoader } from "@/components/SystemAlertModal";
 import { createClient } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import { adminFetch } from "@/lib/admin-fetch";
@@ -459,6 +460,7 @@ export default function ScanPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      <SystemAlertLoader audience="gate" />
       <header className="bg-white border-b border-gray-100 py-3 px-4 flex-shrink-0 overflow-hidden">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
           <img src="/usls-oas.png" alt="USLS OASYS" className="h-10 sm:h-16 w-auto" />

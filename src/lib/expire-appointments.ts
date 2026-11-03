@@ -1,10 +1,11 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
+import { getEntryWindow } from "@/lib/entry-window-server";
 import { getEntryTimingStatus, getManilaToday } from "@/lib/time";
 
 // Approved visits only become "expired" when a late visitor is scanned at the gate, so no-shows would
 // otherwise stay "approved" forever. This applies the same rule in bulk: an approved appointment is void
-// once it is more than an hour past its scheduled time (or, with no time slot, once its day has passed).
+// once it is past the entry window's late limit (or, with no time slot, once its day has passed).
 // Run lazily from admin reads, at most once per interval per server instance.
 
 const MIN_INTERVAL_MS = 5 * 60 * 1000;
@@ -36,8 +37,9 @@ async function run(): Promise<number> {
     .limit(500);
   if (error) throw error;
 
+  const entryWindow = await getEntryWindow();
   const stale = (candidates || []).filter((a) =>
-    a.time_slot ? getEntryTimingStatus(a.date, a.time_slot, now) === "too_late" : a.date < today);
+    a.time_slot ? getEntryTimingStatus(a.date, a.time_slot, entryWindow, now) === "too_late" : a.date < today);
 
   let expiredCount = 0;
   for (const appointment of stale) {

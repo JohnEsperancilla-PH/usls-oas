@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter, usePathname } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { Admin } from "@/types/database";
+import { SystemAlertLoader } from "@/components/SystemAlertModal";
 
 const PUBLIC_ADMIN_ROUTES = ["/admin/login", "/admin/register", "/admin/forgot-password", "/admin/reset-password"];
 
@@ -150,6 +151,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <AdminContext.Provider value={{ user, admin }}>
+      <SystemAlertLoader audience={admin.role === "gate_user" ? "gate" : "admin"} />
       <div className="min-h-screen bg-gray-50 flex overflow-x-hidden">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 z-30">

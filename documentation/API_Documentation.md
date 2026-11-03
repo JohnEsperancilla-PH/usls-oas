@@ -108,7 +108,7 @@ Verifies a reference number at the gate and applies an action.
 - **Response shape:** `{ success, reason, message, appointment? }`
 - **Reasons:** `preview | not_found | pending | cancelled | expired | wrong_date | already_used | duplicate_scan | invalid_id | checked_out | entry_denied | too_early | too_late | approved`
 - **Business rules:**
-  - `preview` / `allow_entry`: entry window is 30 minutes before to 15 minutes after the appointment time (`getEntryTimingStatus`).
+  - `preview` / `allow_entry`: entry window comes from the `entry_early_minutes` and `entry_late_minutes` settings, defaulting to 30 minutes before to 1 hour after the appointment time (`getEntryTimingStatus`).
   - `allow_entry` succeeds only when the reference is currently unused; sets `status = completed`, `scanned_at`, `qr_used_at`.
   - `deny_entry` requires a reason (up to 500 chars), sets `status = entry_denied`.
   - `checkout` records the visitor's departure (`checked_out_at`).
@@ -291,6 +291,14 @@ Controls the alternative public landing page from `/admin/maintenance`.
 - **Side effect:** audit log `enable_maintenance` / `disable_maintenance` / `update_maintenance`.
 - **Response 200:** `{ message, state }`
 - **Fails open:** if `system_settings` cannot be read, the system is treated as *not* in maintenance so a database hiccup cannot lock visitors out.
+
+### 11A.3 `GET /api/system-alert?audience=admin|gate`
+**Auth:** `admin` requires a super or office admin; `gate` requires a gate user or super admin.
+
+- **Response 200:** `{ alert: { version, headline, message } | null }`. `alert` is set only when the popup is on, inside its time window, and shown to that audience.
+- **Landing page:** its popup is rendered by the server, so this route is not public.
+- **Settings:** saved through `PUT /api/admin/settings` as `alert_enabled`, `alert_start`, `alert_end`, `alert_headline`, `alert_message`, and `alert_audience`. Changing the headline or message issues a new `alert_version`, which shows the popup again to browsers that dismissed it.
+- **Side effect:** saving a change writes the audit log action `update_system_alert`.
 
 ---
 

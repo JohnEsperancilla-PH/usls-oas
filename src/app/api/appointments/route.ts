@@ -404,7 +404,7 @@ export async function POST(request: Request) {
 
       confirmationResult = await sendMail({
         to: body.email,
-        subject: `Appointment Confirmation - ${body.fullName} - ${officeFull.name} - USLS OASYS`,
+        subject: confirmationEmail.subject,
         html: confirmationEmail.html,
         attachments: confirmationEmail.attachments,
       });
@@ -457,7 +457,7 @@ export async function POST(request: Request) {
 
           const adminResult = await sendMail({
             to: admin.email,
-            subject: `New Appointment Request - ${body.fullName} - ${officeFull.name} - USLS OASYS`,
+            subject: adminEmail.subject,
             html: adminEmail.html,
             attachments: adminEmail.attachments,
           });
@@ -487,7 +487,7 @@ export async function POST(request: Request) {
         );
         await sendMail({
           to: officeFull.email,
-          subject: `New Appointment - ${body.fullName} - ${officeFull.name} - ${body.date}`,
+          subject: officeEmail.subject,
           html: officeEmail.html,
           attachments: officeEmail.attachments,
         });

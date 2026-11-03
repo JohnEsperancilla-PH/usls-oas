@@ -28,6 +28,7 @@ export default function AdminRegisterPage() {
   const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState(true);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -141,7 +142,8 @@ export default function AdminRegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Registration failed");
 
-      // New accounts wait for super admin approval, so there is no automatic sign-in.
+      // There is no automatic sign-in; accounts may also wait for super admin approval.
+      setPendingApproval(data.pending !== false);
       setSubmittedEmail(emailCheck.email);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred during registration");
@@ -160,7 +162,17 @@ export default function AdminRegisterPage() {
         </div>
 
         <div className="card">
-          {submittedEmail ? (
+          {submittedEmail && !pendingApproval ? (
+            <div className="text-center space-y-3" role="status">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <h2 className="text-base font-semibold text-gray-900">Account created</h2>
+              <p className="text-sm text-gray-600">
+                Your account for <strong>{submittedEmail}</strong> is ready. You can sign in now.
+              </p>
+            </div>
+          ) : submittedEmail ? (
             <div className="text-center space-y-3" role="status">
               <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
                 <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>

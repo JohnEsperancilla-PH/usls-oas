@@ -5,7 +5,37 @@ import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { validateOfficeAdminEmail } from "@/lib/admin-email";
 import { logAudit } from "@/lib/rbac";
-import { generateAccountApprovalRequestEmail, sendMail } from "@/lib/email";
+import { generateAccountApprovalRequestEmail, generateAccountApprovedEmail, sendMail } from "@/lib/email";
+
+// Only an explicit "false" skips approval, so a missing setting or failed read keeps the manual step.
+async function requiresManualApproval(supabase: ReturnType<typeof createServiceClient>): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("system_settings")
+    .select("value")
+    .eq("key", "require_account_approval")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to read account approval setting:", error.message);
+    return true;
+  }
+  return data?.value !== "false";
+}
+
+async function sendAccountActivatedEmail(name: string, email: string, officeName: string, origin: string) {
+  try {
+    const message = await generateAccountApprovedEmail(name, officeName, origin);
+    const result = await sendMail({
+      to: email,
+      subject: "Your USLS OASYS admin account was approved",
+      html: message.html,
+      attachments: message.attachments,
+    });
+    if (!result.success) console.error(`Failed to send account approved email to ${email}`);
+  } catch (err) {
+    console.error("Failed to send account approved email:", err);
+  }
+}
 
 async function notifySuperAdminsOfPendingAccount(name: string, email: string, officeName: string, origin: string) {
   try {
@@ -176,6 +206,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const pending = await requiresManualApproval(supabase);
+
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -204,8 +236,8 @@ export async function POST(request: Request) {
       employee_id: null,
       role: "office_admin",
       office_id: officeId,
-      // Self-registered accounts can't sign in until a super admin approves them.
-      approval_status: "pending",
+      // Pending accounts can't sign in until a super admin approves them.
+      approval_status: pending ? "pending" : "approved",
     });
 
     if (insertError) {
@@ -224,6 +256,7 @@ export async function POST(request: Request) {
         name,
         role: "office_admin",
         source: "self_registration",
+        approval_status: pending ? "pending" : "auto_approved",
         office_name: office.name,
         ip,
       },
@@ -231,11 +264,21 @@ export async function POST(request: Request) {
 
     const origin = new URL(request.url).origin;
     after(async () => {
-      await notifySuperAdminsOfPendingAccount(name, adminEmail, office.name, origin);
+      if (pending) {
+        await notifySuperAdminsOfPendingAccount(name, adminEmail, office.name, origin);
+      } else {
+        await sendAccountActivatedEmail(name, adminEmail, office.name, origin);
+      }
     });
 
     return NextResponse.json(
-      { message: "Account created. A super admin needs to approve it before you can sign in.", userId, pending: true },
+      {
+        message: pending
+          ? "Account created. A super admin needs to approve it before you can sign in."
+          : "Account created. You can now sign in.",
+        userId,
+        pending,
+      },
       { status: 201 }
     );
   } catch (error) {

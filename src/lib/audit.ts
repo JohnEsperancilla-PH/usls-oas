@@ -28,6 +28,8 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   enable_maintenance: "Enabled maintenance mode",
   disable_maintenance: "Disabled maintenance mode",
   update_maintenance: "Updated maintenance settings",
+  update_system_alert: "Updated system update popup",
+  update_email_templates: "Updated email text",
 };
 
 export const AUDIT_ACTION_OPTIONS = (Object.entries(ACTION_LABELS) as [AuditAction, string][])
@@ -105,6 +107,10 @@ export function getAuditSummary(log: AuditLog): string {
       const contact = value(details, "contact_name");
       return [contact, log.target_email, office].filter(Boolean).join(" - ") || "Office contact changed";
     }
+    case "update_system_alert":
+      return [value(details, "enabled") === "true" ? "On" : "Off", value(details, "headline"), value(details, "audience")].filter(Boolean).join(" - ");
+    case "update_email_templates":
+      return value(details, "emails") || "Email text changed";
     case "login":
       return role ? `Role: ${role}` : "Admin session started";
     default:

@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ENTRY_TIMING_NOTE } from "@/lib/time";
+import { useCallback, useEffect, useState } from "react";
 
-const STEPS = [
+const getSteps = (entryTimingNote: string) => [
   {
     title: "Book",
     body: "Pick your office, date, and time slot.",
@@ -14,7 +13,7 @@ const STEPS = [
   },
   {
     title: "Enter at the gate",
-    body: `${ENTRY_TIMING_NOTE} Present your reference number and the valid ID you selected at USLS Gate 2.`,
+    body: `${entryTimingNote} Present your reference number and the valid ID you selected at USLS Gate 2.`,
   },
 ];
 
@@ -37,10 +36,13 @@ const FAQS = [
   },
 ];
 
-export default function WelcomeModal() {
+export default function WelcomeModal({ entryTimingNote, onClose }: { entryTimingNote: string; onClose: () => void }) {
   const [open, setOpen] = useState(false);
 
-  const close = () => setOpen(false);
+  const close = useCallback(() => {
+    setOpen(false);
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     const timer = setTimeout(() => setOpen(true), 0);
@@ -54,7 +56,7 @@ export default function WelcomeModal() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, close]);
 
   if (!open) return null;
 
@@ -97,7 +99,7 @@ export default function WelcomeModal() {
           <section className="mb-6">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">How it works</h3>
             <ol className="space-y-3">
-              {STEPS.map((step, i) => (
+              {getSteps(entryTimingNote).map((step, i) => (
                 <li key={step.title} className="flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                     {i + 1}

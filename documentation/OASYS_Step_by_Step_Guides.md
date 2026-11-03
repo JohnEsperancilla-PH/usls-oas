@@ -56,7 +56,7 @@ Fill in the form:
 ## On Your Visit Day
 - Arrive **20–30 minutes early**.
 - Bring your **reference number** and the **valid ID** you selected.
-- Entry is allowed **30 minutes before** up to **1 hour after** your time.
+- Entry is allowed **30 minutes before** up to **1 hour after** your time by default. Super admins can change this in Settings.
 
 ---
 
@@ -227,7 +227,7 @@ A preview appears showing:
 
 | Message | What to do |
 |---|---|
-| **Too early / too late** | Outside the entry window (30 min before → 1 hr after). Wait or reject. |
+| **Too early / too late** | Outside the entry window (default 30 min before → 1 hr after, set in Settings). Wait or reject. |
 | **Already used** | Code was already scanned — **do not** let them in. |
 | **Wrong date / expired** | Not their visit day — do not admit. |
 | **Pending** | Not yet approved — the office must approve it first. |

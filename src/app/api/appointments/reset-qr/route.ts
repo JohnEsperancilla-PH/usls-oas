@@ -116,13 +116,14 @@ async function runPostResetTasks(
       referenceNumber,
       appointment.offices?.contact_email || appointment.offices?.email,
       appointment.offices?.contact_phone,
-      visitors.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
+      visitors.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker })),
+      "qr_resend"
     );
 
     if (await isNotificationEnabled("qr_resend")) {
       mailResult = await sendMail({
         to: appointment.email,
-        subject: `Appointment Re-approved - ${appointment.full_name} - ${appointment.offices?.name || "Unknown Office"} - USLS OASYS`,
+        subject: emailResult.subject,
         html: emailResult.html,
         attachments: emailResult.attachments,
       });

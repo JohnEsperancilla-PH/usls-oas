@@ -5,6 +5,8 @@ import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import { getAuthAdmin, requireEntryUser, logAudit } from "@/lib/rbac";
 import { formatTimeSlot, getEntryTimingStatus, getManilaToday } from "@/lib/time";
+import { describeEntryCutoff, describeEntryOpening, getArrivalNote } from "@/lib/entry-window";
+import { getEntryWindow } from "@/lib/entry-window-server";
 import type { Appointment } from "@/types/database";
 import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
@@ -191,12 +193,13 @@ export async function POST(request: Request) {
     }
 
     if (action === "preview" || action === "allow_entry") {
-      const timingStatus = getEntryTimingStatus(appointment.date, appointment.time_slot);
+      const entryWindow = await getEntryWindow();
+      const timingStatus = getEntryTimingStatus(appointment.date, appointment.time_slot, entryWindow);
       if (timingStatus === "too_early") {
         const scheduled = `${new Date(`${appointment.date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}${appointment.time_slot ? ` at ${formatTimeSlot(appointment.time_slot)}` : ""}`;
         const message = appointment.date > getManilaToday()
-          ? `This visit is scheduled for ${scheduled}. Entry opens 30 minutes before the scheduled time on that day.`
-          : `Entry opens 30 minutes before the scheduled time (${scheduled}). Please arrive at Gate 2 by 20 minutes before the appointment for security screening.`;
+          ? `This visit is scheduled for ${scheduled}. Entry opens ${describeEntryOpening(entryWindow)} on that day.`
+          : `Entry opens ${describeEntryOpening(entryWindow)} (${scheduled}). ${getArrivalNote(entryWindow)}`;
         return scanFailure(message, "too_early", summary, 409);
       }
       if (timingStatus === "too_late") {
@@ -211,7 +214,7 @@ export async function POST(request: Request) {
         if (expired) {
           await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, { status: "expired", updated_at: expiredAt }));
         }
-        return scanFailure("This gate entry code is void because the visitor arrived more than 1 hour after the scheduled time. Please reapply for a new appointment.", "too_late", { ...summary, status: "expired" }, 409);
+        return scanFailure(`This gate entry code is void because the visitor arrived ${describeEntryCutoff(entryWindow)}. Please reapply for a new appointment.`, "too_late", { ...summary, status: "expired" }, 409);
       }
     }
 

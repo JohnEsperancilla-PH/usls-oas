@@ -1,21 +1,41 @@
+import { AsyncLocalStorage } from "async_hooks";
 import nodemailer from "nodemailer";
 import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/server";
 import { formatTimeSlot } from "@/lib/time";
+import { getArrivalNote, getEntryRuleNote } from "@/lib/entry-window";
+import { getEntryWindow } from "@/lib/entry-window-server";
+import { escapeHtml, getEmailFields, renderEmailText, type EmailPlaceholderValues, type EmailTemplateType } from "@/lib/email-templates";
 import { generateQrPng } from "@/lib/qr";
 
-export function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+export { escapeHtml };
 
 export { sanitizeError } from "@/lib/http";
+
+// Lets the Settings preview render unsaved text without changing what real emails send.
+const emailTextOverrides = new AsyncLocalStorage<Record<string, string>>();
+
+export function withEmailTextOverrides<R>(overrides: Record<string, string>, render: () => Promise<R>): Promise<R> {
+  return emailTextOverrides.run(overrides, render);
+}
+
+// A failed read just means the default text; it must never stop an email from going out.
+async function getEmailText<T extends EmailTemplateType>(type: T, values: EmailPlaceholderValues) {
+  const saved: Record<string, string> = {};
+  try {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", [...getEmailFields(type), ...getEmailFields("shared")].map(({ key }) => key));
+    data?.forEach((row) => { saved[row.key] = row.value; });
+  } catch (err) {
+    console.error(`Failed to load email text for "${type}":`, err);
+  }
+  return renderEmailText(type, { ...saved, ...emailTextOverrides.getStore() }, values);
+}
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -176,13 +196,13 @@ function bulletList(items: string[]) {
   </ul>`;
 }
 
-function gateNotes(validId: string) {
-  return bulletList([
-    `Present this ticket or your reference number at <strong>USLS Gate 2</strong> on your appointment date.`,
-    `Bring the <strong>${escapeHtml(validId)}</strong> you listed &mdash; the Guard will issue your visitor&apos;s pass.`,
-    `Please arrive at Gate 2 by <strong>20 minutes</strong> before your scheduled time.`,
-    `Entry is allowed only from 30 minutes before the scheduled time; arriving <strong>1 hour</strong> after voids the gate entry code.`,
-  ]);
+async function gateNoteExtras(validId: string) {
+  const entryWindow = await getEntryWindow();
+  return {
+    valid_id: `<strong>${escapeHtml(validId)}</strong>`,
+    arrival_note: escapeHtml(getArrivalNote(entryWindow)),
+    entry_rule: escapeHtml(getEntryRuleNote(entryWindow)),
+  };
 }
 
 export async function generateBookingConfirmationEmail(name: string, date: string, time: string, office: string, validId: string, contactEmail?: string | null, contactPhone?: string | null, visitors?: EmailVisitor[]) {
@@ -190,24 +210,25 @@ export async function generateBookingConfirmationEmail(name: string, date: strin
   const contactLines: string[] = [];
   if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
   if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const text = await getEmailText("confirmation", { name, office, date: formattedDate, time: formatTimeSlot(time) });
   const contactBlock = contactLines.length > 0
-    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0f7ff;border-radius:8px;border:1px solid #d0e3f7;font-size:13px;color:#555;line-height:1.8;">For follow-up questions, contact the office:<br/>${contactLines.join("<br/>")}</div>`
-    : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
-  const result = await wrap("Appointment Submitted", `
-    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
-    <p style="color:#555;margin:0 0 24px;">Your appointment has been received and is pending review.</p>
-    ${gateNotes(validId)}
+    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0f7ff;border-radius:8px;border:1px solid #d0e3f7;font-size:13px;color:#555;line-height:1.8;">${text.html("contact_intro")}<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:0;">${text.html("contact_fallback")}</p>`;
+  const result = await wrap(text.html("heading"), `
+    <p style="color:#555;margin:0 0 20px;">${text.html("greeting")}</p>
+    <p style="color:#555;margin:0 0 24px;">${text.html("message")}</p>
+    ${bulletList(text.lines("gate_notes", await gateNoteExtras(validId)))}
     <table style="width:100%;margin:0 0 24px;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
-      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
-      ${detailRow("Office", office)}
-      ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", formatTimeSlot(time))}
-      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Pending", "#b45309")}</td></tr>
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">${text.html("details_title")}</td></tr>
+      ${detailRow(text.label("label_office"), office)}
+      ${detailRow(text.label("label_date"), formattedDate)}
+      ${detailRow(text.label("label_time"), formatTimeSlot(time))}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">${escapeHtml(text.label("label_status"))}</td><td style="padding:12px 16px;text-align:right;">${statusBadge(escapeHtml(text.plain("status_label")), "#b45309")}</td></tr>
     </table>
     ${visitorDetails(visitors)}
     ${contactBlock}
   `);
-  return { html: result.html, attachments: result.attachments };
+  return { subject: text.plain("subject"), html: result.html, attachments: result.attachments };
 }
 
 export async function generateAdminAlertEmail(
@@ -244,21 +265,22 @@ export async function generateAdminAlertEmail(
       <a href="${dashboardUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">${time ? "Review Appointment" : "Open Dashboard"}</a>
     </div>`;
 
-  const result = await wrap("New Appointment Request", `
-    <p style="color:#555;margin:0 0 20px;">A new appointment has been submitted and is waiting for your review.</p>
+  const text = await getEmailText("admin_alert", { name, office, date: formattedDate, time: time ? formatTimeSlot(time) : "To be set by the office" });
+  const result = await wrap(text.html("heading"), `
+    <p style="color:#555;margin:0 0 20px;">${text.html("message")}</p>
     <table style="width:100%;margin:0 0 0;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">
-      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Visitor Information</td></tr>
-      ${detailRow("Name", name)}
-      ${detailRow("Office", office)}
-      ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", time ? formatTimeSlot(time) : "To be set by the office")}
-      ${visitors && visitors.length > 1 ? detailRow("Number of Visitors", String(visitors.length)) : ""}
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">${text.html("details_title")}</td></tr>
+      ${detailRow(text.label("label_name"), name)}
+      ${detailRow(text.label("label_office"), office)}
+      ${detailRow(text.label("label_date"), formattedDate)}
+      ${detailRow(text.label("label_time"), time ? formatTimeSlot(time) : "To be set by the office")}
+      ${visitors && visitors.length > 1 ? detailRow(text.label("label_visitors"), String(visitors.length)) : ""}
     </table>
     ${visitorDetails(visitors)}
     ${actionBlock}
-    <p style="color:#999;font-size:12px;margin:0;">You are receiving this because you are an administrator for this office.</p>
+    <p style="color:#999;font-size:12px;margin:0;">${text.html("footer_note")}</p>
   `);
-  return { html: result.html, attachments: result.attachments };
+  return { subject: text.plain("subject"), html: result.html, attachments: result.attachments };
 }
 
 export async function generateApprovalEmail(
@@ -270,37 +292,39 @@ export async function generateApprovalEmail(
   referenceNumber: string,
   contactEmail?: string | null,
   contactPhone?: string | null,
-  visitors?: EmailVisitor[]
+  visitors?: EmailVisitor[],
+  templateType: "approval" | "qr_resend" = "approval"
 ) {
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const contactLines: string[] = [];
   if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
   if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const text = await getEmailText(templateType, { name, office, date: formattedDate, time: formatTimeSlot(time) });
   const contactBlock = contactLines.length > 0
-    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">If you have questions about your appointment, contact the office:<br/>${contactLines.join("<br/>")}</div>`
-    : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
-  const result = await wrap("Appointment Approved", `
-    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
-    <p style="color:#555;margin:0 0 6px;">Great news! Your appointment has been approved. Please present your reference number below at the gate for entry.</p>
-    ${gateNotes(validId)}
+    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">${text.html("contact_intro")}<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:0;">${text.html("contact_fallback")}</p>`;
+  const result = await wrap(text.html("heading"), `
+    <p style="color:#555;margin:0 0 20px;">${text.html("greeting")}</p>
+    <p style="color:#555;margin:0 0 6px;">${text.html("message")}</p>
+    ${bulletList(text.lines("gate_notes", await gateNoteExtras(validId)))}
     <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
-      <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
+      <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">${escapeHtml(text.label("reference_title"))}</p>
       <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
       <img src="cid:qrcode" alt="QR Code" style="width:200px;height:200px;margin-top:16px;border:2px solid #006633;border-radius:8px;padding:6px;background:#fff;" />
     </div>
-    <p style="color:#999;font-size:12px;margin:0 0 20px;text-align:center;">This reference number is single-use and will be disabled after entry.</p>
+    <p style="color:#999;font-size:12px;margin:0 0 20px;text-align:center;">${text.html("reference_note")}</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
-      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
-      ${detailRow("Office", office)}
-      ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", formatTimeSlot(time))}
-      ${detailRow("Valid ID to Present", validId)}
-      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Approved", "#006633")}</td></tr>
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">${text.html("details_title")}</td></tr>
+      ${detailRow(text.label("label_office"), office)}
+      ${detailRow(text.label("label_date"), formattedDate)}
+      ${detailRow(text.label("label_time"), formatTimeSlot(time))}
+      ${detailRow(text.label("label_valid_id"), validId)}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">${escapeHtml(text.label("label_status"))}</td><td style="padding:12px 16px;text-align:right;">${statusBadge(escapeHtml(text.plain("status_label")), "#006633")}</td></tr>
     </table>
     ${visitorDetails(visitors)}
     ${contactBlock}
   `, [await getQrAttachment(referenceNumber)]);
-  return { html: result.html, attachments: result.attachments };
+  return { subject: text.plain("subject"), html: result.html, attachments: result.attachments };
 }
 
 export async function generateDeclineEmail(name: string, date: string, time: string, office: string, reason?: string, contactEmail?: string | null, contactPhone?: string | null, visitors?: EmailVisitor[]) {
@@ -317,27 +341,29 @@ export async function generateDeclineEmail(name: string, date: string, time: str
       : contactPhone
         ? escapeHtml(contactPhone)
         : "the office";
+  const text = await getEmailText("decline", { name, office, date: formattedDate, time: formatTimeSlot(time) });
   const contactBlock = contactLines.length > 0
-    ? `<div style="margin-top:16px;padding:12px 16px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;font-size:13px;color:#555;line-height:1.8;">If you believe this was an error, contact the office:<br/>${contactLines.join("<br/>")}</div>`
-    : `<p style="color:#999;font-size:13px;margin:14px 0 0;">If you believe this was an error, please contact the office directly.</p>`;
-  const result = await wrap("Appointment Declined", `
-    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
-    <p style="color:#555;margin:0 0 24px;">We regret to inform you that your appointment has been declined.</p>
+    ? `<div style="margin-top:16px;padding:12px 16px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;font-size:13px;color:#555;line-height:1.8;">${text.html("contact_intro")}<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:14px 0 0;">${text.html("contact_fallback")}</p>`;
+  const bookingLink = `<a href="${bookingUrl}" style="color:#006633;font-weight:600;text-decoration:underline;">${text.html("booking_link_text")}</a>`;
+  const result = await wrap(text.html("heading"), `
+    <p style="color:#555;margin:0 0 20px;">${text.html("greeting")}</p>
+    <p style="color:#555;margin:0 0 24px;">${text.html("message")}</p>
     ${bulletList([
-      reason ? `Reason: <strong>${escapeHtml(reason)}</strong>` : `A reason was not provided — please contact ${officeContact} if you believe this is an error.`,
-      `<a href="${bookingUrl}" style="color:#006633;font-weight:600;text-decoration:underline;">Submit a new appointment</a> anytime, or contact ${officeContact}.`,
+      reason ? text.html("reason_text", { reason: `<strong>${escapeHtml(reason)}</strong>` }) : text.html("no_reason_text", { office_contact: officeContact }),
+      text.html("rebook_text", { booking_link: bookingLink, office_contact: officeContact }),
     ])}
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#fef2f2;border-radius:8px;overflow:hidden;">
-      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
-      ${detailRow("Office", office)}
-      ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", formatTimeSlot(time))}
-      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Declined", "#dc2626")}</td></tr>
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;">${text.html("details_title")}</td></tr>
+      ${detailRow(text.label("label_office"), office)}
+      ${detailRow(text.label("label_date"), formattedDate)}
+      ${detailRow(text.label("label_time"), formatTimeSlot(time))}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">${escapeHtml(text.label("label_status"))}</td><td style="padding:12px 16px;text-align:right;">${statusBadge(escapeHtml(text.plain("status_label")), "#dc2626")}</td></tr>
     </table>
     ${visitorDetails(visitors)}
     ${contactBlock}
   `);
-  return { html: result.html, attachments: result.attachments };
+  return { subject: text.plain("subject"), html: result.html, attachments: result.attachments };
 }
 
 export async function generatePostponementEmail(
@@ -357,33 +383,34 @@ export async function generatePostponementEmail(
   const contactLines: string[] = [];
   if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
   if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const text = await getEmailText("postponement", { name, office, date: formattedNew, time: formatTimeSlot(newTime) });
   const contactBlock = contactLines.length > 0
-    ? `<div style="margin-top:16px;padding:12px 16px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;font-size:13px;color:#555;line-height:1.8;">If you have questions about the new schedule, contact the office:<br/>${contactLines.join("<br/>")}</div>`
-    : `<p style="color:#999;font-size:13px;margin:14px 0 0;">If you have questions about the new schedule, please contact the office directly.</p>`;
-  const result = await wrap("Appointment Postponed", `
-    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
-    <p style="color:#555;margin:0 0 6px;">The office has postponed your appointment. Your new schedule is below.</p>
+    ? `<div style="margin-top:16px;padding:12px 16px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;font-size:13px;color:#555;line-height:1.8;">${text.html("contact_intro")}<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:14px 0 0;">${text.html("contact_fallback")}</p>`;
+  const result = await wrap(text.html("heading"), `
+    <p style="color:#555;margin:0 0 20px;">${text.html("greeting")}</p>
+    <p style="color:#555;margin:0 0 6px;">${text.html("message")}</p>
     ${bulletList([
-      `New schedule: <strong>${formattedNew}</strong> at <strong>${formatTimeSlot(newTime)}</strong>${reason ? ` &mdash; ${escapeHtml(reason)}` : ""}`,
-      `Your reference number for the new schedule will be sent once the office confirms the appointment.`,
+      `${text.html("schedule_text")}${reason ? ` &mdash; ${escapeHtml(reason)}` : ""}`,
+      text.html("reference_note"),
     ])}
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#fff7ed;border-radius:8px;overflow:hidden;">
-      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#b45309;text-transform:uppercase;letter-spacing:0.5px;">Original Schedule</td></tr>
-      ${detailRow("Office", office)}
-      ${detailRow("Date", formattedOriginal)}
-      ${detailRow("Time", formatTimeSlot(originalTime))}
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#b45309;text-transform:uppercase;letter-spacing:0.5px;">${text.html("original_title")}</td></tr>
+      ${detailRow(text.label("label_office"), office)}
+      ${detailRow(text.label("label_date"), formattedOriginal)}
+      ${detailRow(text.label("label_time"), formatTimeSlot(originalTime))}
     </table>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
-      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">New Schedule</td></tr>
-      ${detailRow("Office", office)}
-      ${detailRow("Date", formattedNew)}
-      ${detailRow("Time", formatTimeSlot(newTime))}
-      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Postponed", "#b45309")}</td></tr>
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">${text.html("new_title")}</td></tr>
+      ${detailRow(text.label("label_office"), office)}
+      ${detailRow(text.label("label_date"), formattedNew)}
+      ${detailRow(text.label("label_time"), formatTimeSlot(newTime))}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">${escapeHtml(text.label("label_status"))}</td><td style="padding:12px 16px;text-align:right;">${statusBadge(escapeHtml(text.plain("status_label")), "#b45309")}</td></tr>
     </table>
     ${visitorDetails(visitors)}
     ${contactBlock}
   `);
-  return { html: result.html, attachments: result.attachments };
+  return { subject: text.plain("subject"), html: result.html, attachments: result.attachments };
 }
 
 export async function generateInvitationEmail(
@@ -402,32 +429,33 @@ export async function generateInvitationEmail(
   const contactLines: string[] = [];
   if (contactEmail) contactLines.push(`<strong>Email:</strong> ${escapeHtml(contactEmail)}`);
   if (contactPhone) contactLines.push(`<strong>Phone:</strong> ${escapeHtml(contactPhone)}`);
+  const text = await getEmailText("invitation", { name, office, date: formattedDate, time: formatTimeSlot(time) });
   const contactBlock = contactLines.length > 0
-    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">If you have questions about your appointment, contact the office:<br/>${contactLines.join("<br/>")}</div>`
-    : `<p style="color:#999;font-size:13px;margin:0;">If you have questions, contact the office directly.</p>`;
-  const result = await wrap("Appointment Invitation", `
-    <p style="color:#555;margin:0 0 20px;">Dear <strong>${escapeHtml(name)}</strong>,</p>
-    <p style="color:#555;margin:0 0 6px;">You have an appointment scheduled with <strong>${escapeHtml(office)}</strong>. Please present your reference number below at the gate for entry. Your ticket is attached to this email as a PDF.</p>
-    ${gateNotes(validId || "a government-issued ID")}
+    ? `<div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:13px;color:#555;line-height:1.8;">${text.html("contact_intro")}<br/>${contactLines.join("<br/>")}</div>`
+    : `<p style="color:#999;font-size:13px;margin:0;">${text.html("contact_fallback")}</p>`;
+  const result = await wrap(text.html("heading"), `
+    <p style="color:#555;margin:0 0 20px;">${text.html("greeting")}</p>
+    <p style="color:#555;margin:0 0 6px;">${text.html("message")}</p>
+    ${bulletList(text.lines("gate_notes", await gateNoteExtras(validId || "a government-issued ID")))}
     <div style="text-align:center;margin:24px 0;padding:24px;background:#f9fafb;border-radius:12px;border:1px dashed #d1d5db;">
-      <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Your Reference Number</p>
+      <p style="margin:0 0 8px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">${escapeHtml(text.label("reference_title"))}</p>
       <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#006633;padding:12px 24px;background:#fff;border:2px solid #006633;border-radius:8px;">${escapeHtml(referenceNumber)}</div>
       <img src="cid:qrcode" alt="QR Code" style="width:200px;height:200px;margin-top:16px;border:2px solid #006633;border-radius:8px;padding:6px;background:#fff;" />
     </div>
-    <p style="color:#999;font-size:12px;margin:0 0 20px;text-align:center;">This reference number is single-use and will be disabled after entry.</p>
+    <p style="color:#999;font-size:12px;margin:0 0 20px;text-align:center;">${text.html("reference_note")}</p>
     <table style="width:100%;margin:0 0 20px;border-collapse:collapse;background:#f0fdf4;border-radius:8px;overflow:hidden;">
-      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">Appointment Details</td></tr>
-      ${detailRow("Office", office)}
-      ${detailRow("Date", formattedDate)}
-      ${detailRow("Time", formatTimeSlot(time))}
-      ${personToMeet ? detailRow("Person to Meet", personToMeet) : ""}
-      ${purpose ? detailRow("Purpose of Visit", purpose) : ""}
-      ${validId ? detailRow("Valid ID to Present", validId) : ""}
-      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">Status</td><td style="padding:12px 16px;text-align:right;">${statusBadge("Confirmed", "#006633")}</td></tr>
+      <tr><td colspan="2" style="padding:12px 16px 8px;font-size:11px;font-weight:600;color:#006633;text-transform:uppercase;letter-spacing:0.5px;">${text.html("details_title")}</td></tr>
+      ${detailRow(text.label("label_office"), office)}
+      ${detailRow(text.label("label_date"), formattedDate)}
+      ${detailRow(text.label("label_time"), formatTimeSlot(time))}
+      ${personToMeet ? detailRow(text.label("label_person"), personToMeet) : ""}
+      ${purpose ? detailRow(text.label("label_purpose"), purpose) : ""}
+      ${validId ? detailRow(text.label("label_valid_id"), validId) : ""}
+      <tr><td style="padding:12px 16px;color:#666;font-size:13px;">${escapeHtml(text.label("label_status"))}</td><td style="padding:12px 16px;text-align:right;">${statusBadge(escapeHtml(text.plain("status_label")), "#006633")}</td></tr>
     </table>
     ${contactBlock}
   `, [await getQrAttachment(referenceNumber)]);
-  return { html: result.html, attachments: result.attachments };
+  return { subject: text.plain("subject"), html: result.html, attachments: result.attachments };
 }
 
 export async function generateContactNotificationEmail(

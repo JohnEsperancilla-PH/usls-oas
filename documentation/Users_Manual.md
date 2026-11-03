@@ -45,7 +45,7 @@ This manual is written for the three groups who use the system. Pick the section
 ## 1.3 Arriving at the gate
 
 - Arrive **20–30 minutes early**.
-- Entry is allowed from **30 minutes before** your slot until **15 minutes after**.
+- Entry is allowed from **30 minutes before** your slot until **1 hour after** by default. Super admins can change this under Settings > Gate Entry Window; the times in your email or on the booking page apply.
 - Present your **reference number** (email or PDF ticket) and your **valid ID**.
 
 ## 1.4 Appointment statuses you may see

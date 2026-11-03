@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { IdentityForm } from "@/components/forms/IdentityForm";
 import { AppointmentForm } from "@/components/forms/AppointmentForm";
 import WelcomeModal from "@/components/WelcomeModal";
+import { SystemAlertModal } from "@/components/SystemAlertModal";
+import type { SystemAlert } from "@/lib/system-alert";
 import MaintenanceWatcher from "@/components/landing/MaintenanceWatcher";
 import { formatTimeSlot } from "@/lib/time";
-import { ENTRY_TIMING_NOTE } from "@/lib/time";
 import type { Office } from "@/types/database";
 import { adminFetch } from "@/lib/admin-fetch";
 
@@ -48,7 +49,8 @@ const initialData: BookingData = {
   vehicles: [],
 };
 
-export default function BookingLanding() {
+export default function BookingLanding({ entryTimingNote, systemAlert }: { entryTimingNote: string; systemAlert: SystemAlert | null }) {
+  const [welcomeClosed, setWelcomeClosed] = useState(false);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<BookingData>(initialData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -180,7 +182,7 @@ export default function BookingLanding() {
 
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mb-6">
             <h2 className="text-sm font-semibold text-amber-900">Gate 2 arrival requirements</h2>
-            <p className="text-xs text-amber-800 mt-1 leading-relaxed">{ENTRY_TIMING_NOTE}</p>
+            <p className="text-xs text-amber-800 mt-1 leading-relaxed">{entryTimingNote}</p>
           </div>
 
           <p className="text-sm text-gray-500 mb-8">
@@ -204,7 +206,8 @@ export default function BookingLanding() {
   return (
     <div className="min-h-screen bg-gray-50">
       <MaintenanceWatcher />
-      <WelcomeModal />
+      <WelcomeModal entryTimingNote={entryTimingNote} onClose={() => setWelcomeClosed(true)} />
+      {welcomeClosed && systemAlert && <SystemAlertModal alert={systemAlert} />}
 
       <header className="bg-white border-b border-gray-100 py-5 overflow-hidden">
         <div className="container mx-auto px-4 flex items-center justify-center">
