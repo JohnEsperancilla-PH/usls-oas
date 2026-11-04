@@ -6,11 +6,12 @@ import { NewInvitationModal } from "@/components/admin/NewInvitationModal";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { StatusMessage, useStatusMessage, type StatusMessageValue } from "@/components/admin/StatusMessage";
 import { Pagination, SearchInput } from "@/components/admin/Pagination";
-import type { Appointment, Office, BlockedTime } from "@/types/database";
+import type { Appointment, Office, BlockedTime, ClosedDate } from "@/types/database";
 import { formatTimeSlot, getManilaToday } from "@/lib/time";
 import { adminFetch } from "@/lib/admin-fetch";
 import { Select } from "@/components/ui/Select";
 import { SubOfficeTags } from "@/components/admin/SubOfficeTags";
+import { UpcomingClosedDates } from "@/components/admin/UpcomingClosedDates";
 
 function parseOperatingHours(hours: string): { startH: number; endH: number } {
   const match = hours.match(/(\d{1,2}):?\d{0,2}\s*(AM|PM)\s*[-–]\s*(\d{1,2}):?\d{0,2}\s*(AM|PM)/i);
@@ -264,6 +265,8 @@ export default function AdminDashboardPage() {
         <p className="text-sm text-gray-500 mt-1">Manage and review appointment requests</p>
       </div>
 
+      <UpcomingClosedDates />
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {[
           { key: "pending", label: "Pending", value: stats.pending, color: "text-amber-600", bg: "bg-amber-50", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
@@ -471,6 +474,16 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchBlocked(); }, [fetchBlocked]);
 
+  // Campus-wide closed dates (holidays) set by super admins.
+  const [closedDates, setClosedDates] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const m = `${year}-${String(month + 1).padStart(2, "0")}`;
+    adminFetch(`/api/admin/closed-dates?month=${m}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows: ClosedDate[]) => setClosedDates(Object.fromEntries((Array.isArray(rows) ? rows : []).map((r) => [r.date, r.reason]))))
+      .catch(() => setClosedDates({}));
+  }, [year, month]);
+
   const handleBlockTime = async (date: string, timeSlot: string) => {
     setBlockingSlot(timeSlot);
     setBlockError(null);
@@ -516,6 +529,9 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  // Pad the last week so the grid stays a clean rectangle.
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weekCount = cells.length / 7;
 
   const color = (s: string) => ({ pending: "bg-amber-50 text-amber-700 border-amber-200", approved: "bg-green-50 text-green-700 border-green-200", postponed: "bg-orange-50 text-orange-700 border-orange-200", declined: "bg-red-50 text-red-700 border-red-200" }[s] || "bg-gray-50 text-gray-500 border-gray-200");
 
@@ -564,7 +580,8 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
       {loadError && !loading && <StatusMessage message={{ type: "error", text: loadError }} onRetry={onRefresh} />}
 
       {viewMode === "calendar" ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+        // On desktop the card fills the rest of the viewport (main padding + page header ≈ 9rem).
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 flex flex-col lg:min-h-[calc(100dvh-9rem)]">
         <div className="flex items-center justify-between mb-5">
           <button onClick={() => setCalendarDate(new Date(year, month - 1))} aria-label="Previous month" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -580,24 +597,28 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
           </div>
         )}
 
-        <div className="grid grid-cols-7 gap-px bg-gray-100 rounded-lg overflow-hidden">
-          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-            <div key={`h-${i}`} className="bg-gray-50 text-center text-xs font-medium text-gray-500 py-2">{d}</div>
+        <div className="flex-1 grid grid-cols-7 gap-px bg-gray-100 rounded-lg overflow-hidden"
+          style={{ gridTemplateRows: loading ? undefined : `auto repeat(${weekCount}, minmax(60px, 1fr))` }}>
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+            <div key={`h-${d}`} className="bg-gray-50 text-center text-xs font-medium text-gray-500 py-2">
+              <span className="sm:hidden">{d[0]}</span><span className="hidden sm:inline">{d}</span>
+            </div>
           ))}
           {loading ? (
             <div className="col-span-7 bg-white p-8 text-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto" /></div>
           ) : cells.map((day, i) => {
-            if (day === null) return <div key={`e-${i}`} className="bg-white min-h-[60px] sm:min-h-[80px]" />;
+            if (day === null) return <div key={`e-${i}`} className="bg-gray-50/60 min-h-[60px] sm:min-h-[80px]" />;
             const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             const da = byDate[ds] || [];
             const db = blockedByDate[ds] || [];
             const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
             const isPast = new Date(ds + "T00:00:00") < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const closedReason = closedDates[ds];
             return (
-              <div key={day} className={`bg-white p-1.5 min-h-[60px] sm:min-h-[80px] relative group ${isToday ? "bg-primary/5" : ""}`}>
+              <div key={day} className={`p-1.5 min-h-[60px] sm:min-h-[80px] relative group ${isPast ? "bg-gray-50" : closedReason ? "bg-red-50/50" : isToday ? "bg-primary/5" : "bg-white"}`}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className={`text-xs font-medium ${isToday ? "text-primary font-bold" : "text-gray-600"}`}>{day}</span>
-                  {!isPast && officeId && (
+                  <span className={`text-xs font-medium ${isToday ? "text-primary font-bold" : isPast ? "text-gray-300" : "text-gray-600"}`}>{day}</span>
+                  {!isPast && officeId && !closedReason && (
                     <button onClick={() => { setBlockError(null); setBlockModalDate(ds); }}
                       aria-label={`Block time slots on ${new Date(ds + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}`}
                       title="Block time slots"
@@ -606,7 +627,12 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
                     </button>
                   )}
                 </div>
-                <div className="space-y-0.5">
+                <div className={`space-y-0.5 ${isPast ? "opacity-60 hover:opacity-100 transition-opacity" : ""}`}>
+                  {closedReason && (
+                    <div title={`Campus closed: ${closedReason}`} className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium truncate">
+                      Closed · {closedReason}
+                    </div>
+                  )}
                   {da.slice(0, 2).map((a) => (
                     <button key={a.id} onClick={() => openDetails(a)}
                       className={`block w-full text-left text-[10px] sm:text-xs px-1.5 py-0.5 rounded border truncate transition-colors hover:opacity-80 ${color(a.status)}`}>
@@ -635,6 +661,7 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-green-200" /> Approved</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-orange-200" /> Postponed</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-200" /> Declined</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-100 border border-red-300" /> Campus closed</span>
           <span className="flex items-center gap-1"><svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg> Blocked</span>
         </div>
       </div>
@@ -642,6 +669,7 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
         <ListByDay
           byDate={byDate}
           blockedByDate={blockedByDate}
+          closedDates={closedDates}
           loading={loading}
           filter={filter}
           officeId={officeId}
@@ -696,9 +724,10 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
 
 /* ─── List by Day (office admin) ─── */
 
-function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, month, onPrevMonth, onNextMonth, onToday, onView, onBlockDate, color }: {
+function ListByDay({ byDate, blockedByDate, closedDates, loading, filter, officeId, year, month, onPrevMonth, onNextMonth, onToday, onView, onBlockDate, color }: {
   byDate: Record<string, Appointment[]>;
   blockedByDate: Record<string, BlockedTime[]>;
+  closedDates: Record<string, string>;
   loading: boolean;
   filter: string;
   officeId: string;
@@ -768,8 +797,11 @@ function ListByDay({ byDate, blockedByDate, loading, filter, officeId, year, mon
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isPast ? "bg-gray-100 text-gray-400" : "bg-primary/10 text-primary"}`}>
                   {isPast ? "Past" : `${dayAppointments.length} appointment${dayAppointments.length !== 1 ? "s" : ""}`}
                 </span>
+                {closedDates[ds] && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Campus closed · {closedDates[ds]}</span>
+                )}
               </div>
-              {officeId && (
+              {officeId && !closedDates[ds] && (
                 <button onClick={() => onBlockDate(ds)}
                   className="text-xs font-medium text-gray-500 hover:text-primary px-2 py-1 rounded hover:bg-gray-100 transition-colors flex items-center gap-1">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>

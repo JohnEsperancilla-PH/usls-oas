@@ -5,6 +5,7 @@ import { isMaintenanceActive } from "@/lib/maintenance-server";
 import { getBookingRules } from "@/lib/booking-rules-server";
 import { isTooFar, isTooSoon } from "@/lib/booking-rules";
 import { getManilaToday } from "@/lib/time";
+import { getClosedDateReason, getClosedDatesInRange } from "@/lib/closed-dates";
 
 // All offices run a fixed 8:00 AM - 5:00 PM day, enforced at slot-generation
 // time so it applies to every office automatically, including offices created
@@ -107,6 +108,8 @@ export async function GET(request: Request) {
         .gte("date", startDate)
         .lte("date", endDate);
 
+      const closed = await getClosedDatesInRange(startDate, endDate);
+
       const appointmentsByDate: Record<string, { time_slot: string; duration: number }[]> = {};
       (appointments || []).forEach((a) => {
         if (!appointmentsByDate[a.date]) appointmentsByDate[a.date] = [];
@@ -125,7 +128,7 @@ export async function GET(request: Request) {
         const dayOfWeek = new Date(year, mon - 1, d).getDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
-        if (isTooFar(ds, bookingRules, today)) {
+        if (closed[ds] || isTooFar(ds, bookingRules, today)) {
           availability[ds] = { total: allSlots.length, available: 0 };
           continue;
         }
@@ -148,6 +151,7 @@ export async function GET(request: Request) {
         office: { id: office.id, name: office.name, operating_hours: office.operating_hours, capacity_per_slot: office.capacity_per_slot },
         slots: allSlots,
         availability,
+        closed,
       });
     }
 
@@ -159,6 +163,16 @@ export async function GET(request: Request) {
           office: { id: office.id, name: office.name, operating_hours: office.operating_hours, capacity_per_slot: office.capacity_per_slot },
           slots: allSlots.map((s) => ({ time: s, label: formatSlotLabel(s), available: false, remaining: 0 })),
           date,
+        });
+      }
+
+      const closedReason = await getClosedDateReason(date);
+      if (closedReason) {
+        return NextResponse.json({
+          office: { id: office.id, name: office.name, operating_hours: office.operating_hours, capacity_per_slot: office.capacity_per_slot },
+          slots: allSlots.map((s) => ({ time: s, label: formatSlotLabel(s), available: false, remaining: 0, blocked: true, blockReason: closedReason })),
+          date,
+          closedReason,
         });
       }
 

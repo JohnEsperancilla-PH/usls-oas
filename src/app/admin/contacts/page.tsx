@@ -23,7 +23,7 @@ export default function ContactsPage() {
           <p className="text-sm text-gray-500 mt-0.5">Contacts are managed per office.</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-          <p className="text-sm text-gray-500 mb-3">As a super admin, open the Offices page and use the Contacts button on any office to manage its contacts.</p>
+          <p className="text-sm text-gray-500 mb-3">As a super admin, open the Offices page and use the People button on any office to manage its contacts.</p>
           <Link href="/admin/offices" className="text-sm font-medium text-primary hover:text-primary-light">
             Go to Offices →
           </Link>

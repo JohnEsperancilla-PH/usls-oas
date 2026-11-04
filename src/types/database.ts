@@ -1,7 +1,7 @@
 export type AppointmentStatus = "pending" | "approved" | "declined" | "postponed" | "entry_denied" | "completed" | "expired";
 export type AdminRole = "super_admin" | "office_admin" | "gate_user";
 export type VisitorCategory = "external" | "parents" | "alumni" | "vendor";
-export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "update_account" | "delete_account" | "reset_password" | "approve_account" | "reject_account" | "create_office" | "update_office" | "delete_office" | "permanently_delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation" | "create_contact" | "update_contact" | "delete_contact" | "enable_maintenance" | "disable_maintenance" | "update_maintenance" | "update_system_alert" | "update_email_templates" | "tag_sub_office";
+export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "update_account" | "delete_account" | "reset_password" | "approve_account" | "reject_account" | "create_office" | "update_office" | "delete_office" | "permanently_delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation" | "create_contact" | "update_contact" | "delete_contact" | "enable_maintenance" | "disable_maintenance" | "update_maintenance" | "update_system_alert" | "update_email_templates" | "tag_sub_office" | "close_date" | "reopen_date";
 
 export interface Office {
   id: string;
@@ -137,6 +137,15 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface ClosedDate {
+  id: string;
+  date: string;
+  reason: string;
+  created_by: string | null;
+  created_by_email: string | null;
+  created_at: string;
+}
+
 export interface BlockedTime {
   id: string;
   office_id: string;
@@ -197,6 +206,11 @@ blocked_times: {
         Row: BlockedTime;
         Insert: Omit<BlockedTime, "id" | "created_at">;
         Update: Partial<Omit<BlockedTime, "id" | "created_at">>;
+      };
+      closed_dates: {
+        Row: ClosedDate;
+        Insert: Omit<ClosedDate, "id" | "created_at">;
+        Update: Partial<Omit<ClosedDate, "id" | "created_at">>;
       };
       office_contacts: {
         Row: OfficeContact;

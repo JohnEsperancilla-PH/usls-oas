@@ -5,6 +5,7 @@ import { getAuthAdmin, requireDashboardAdmin } from "@/lib/rbac";
 import { runPostDeclineTasks, runPostponementTasks } from "@/lib/appointment-actions";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import { getManilaToday } from "@/lib/time";
+import { closedDateMessage, getClosedDateReason } from "@/lib/closed-dates";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { canAccessAppointment } from "@/lib/office-scope";
 
@@ -60,6 +61,10 @@ export async function POST(request: Request) {
       }
       if (postpone.date < getManilaToday()) {
         return NextResponse.json({ message: "Cannot postpone to a past date" }, { status: 400 });
+      }
+      const closedReason = await getClosedDateReason(postpone.date);
+      if (closedReason) {
+        return NextResponse.json({ message: closedDateMessage(postpone.date, closedReason) }, { status: 400 });
       }
 
       const postponedAt = new Date().toISOString();

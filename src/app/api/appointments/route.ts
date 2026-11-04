@@ -6,6 +6,7 @@ import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { generateActionToken } from "@/lib/action-token";
 import { isValidId } from "@/lib/valid-ids";
 import { getManilaToday } from "@/lib/time";
+import { closedDateMessage, getClosedDateReason } from "@/lib/closed-dates";
 import { getBookingRules } from "@/lib/booking-rules-server";
 import { describeNotice, isTooFar, isTooSoon } from "@/lib/booking-rules";
 import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-mirror";
@@ -198,6 +199,11 @@ export async function POST(request: Request) {
     const dayOfWeek = new Date(body.date + "T00:00:00").getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       return NextResponse.json({ message: "Appointments cannot be booked on weekends" }, { status: 400 });
+    }
+
+    const closedReason = await getClosedDateReason(body.date);
+    if (closedReason) {
+      return NextResponse.json({ message: closedDateMessage(body.date, closedReason) }, { status: 400 });
     }
 
     // Check if the office is active (reuse office from earlier check)

@@ -70,6 +70,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   });
 
   const [monthAvailability, setMonthAvailability] = useState<Record<string, DayAvailability>>({});
+  const [closedDates, setClosedDates] = useState<Record<string, string>>({});
   const [daySlots, setDaySlots] = useState<SlotInfo[]>([]);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [loadingDay, setLoadingDay] = useState(false);
@@ -111,6 +112,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
       if (!res.ok) return;
       const d = await res.json();
       setMonthAvailability(d.availability || {});
+      setClosedDates(d.closed || {});
     } catch { /* */ }
     finally { setLoadingMonth(false); }
   }, [visitorCount]);
@@ -503,19 +505,23 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                   const isTooFar = latestDate !== null && ds > latestDate;
                   // Even the last slot of the day falls inside the minimum notice period.
                   const isTooSoonDay = !isPast && isTooSoon(ds, null, bookingRules);
-                  const disabled = isWeekend || isPast || isTooFar || isTooSoonDay;
+                  const closedReason = !isWeekend && !isPast ? closedDates[ds] : undefined;
+                  const disabled = isWeekend || isPast || isTooFar || isTooSoonDay || Boolean(closedReason);
                   const isSelected = selectedDate === ds;
                   const availColor = !disabled ? getAvailabilityColor(ds) : "";
 
                   return (
                     <button key={day} type="button" onClick={() => !disabled && handleDateSelect(ds)}
                       disabled={disabled}
-                      className={`bg-white min-h-[52px] p-1 flex flex-col items-center justify-center transition-all duration-100 ${
-                        disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-gray-50"
+                      title={closedReason ? `Closed: ${closedReason}` : undefined}
+                      aria-label={closedReason ? `${day}, closed: ${closedReason}` : undefined}
+                      className={`min-h-[52px] p-1 flex flex-col items-center justify-center transition-all duration-100 ${
+                        closedReason ? "bg-red-50/60 cursor-not-allowed" : disabled ? "bg-white cursor-not-allowed opacity-40" : "bg-white cursor-pointer hover:bg-gray-50"
                       } ${isSelected ? "ring-2 ring-primary ring-inset" : ""}`}>
                       <span className={`text-xs font-medium ${
-                        isSelected ? "text-primary font-bold" : disabled ? "text-gray-300" : "text-gray-700"
+                        isSelected ? "text-primary font-bold" : closedReason ? "text-red-300 line-through" : disabled ? "text-gray-300" : "text-gray-700"
                       }`}>{day}</span>
+                      {closedReason && <span className="text-[9px] font-medium text-red-400 leading-none mt-0.5">Closed</span>}
                       {!disabled && availColor && (
                         <div className={`w-1.5 h-1.5 rounded-full mt-0.5 ${availColor.split(" ")[0]}`} />
                       )}
@@ -531,6 +537,15 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                 <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-200" /><span className="text-[10px] text-gray-400">Full</span></div>
               </div>
             </div>
+            {Object.keys(closedDates).filter((d) => d >= todayStr).length > 0 && (
+              <ul className="mt-1.5 space-y-0.5">
+                {Object.entries(closedDates).filter(([d]) => d >= todayStr).sort(([a], [b]) => a.localeCompare(b)).map(([d, reason]) => (
+                  <li key={d} className="text-xs text-red-500">
+                    Closed {new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}: {reason}
+                  </li>
+                ))}
+              </ul>
+            )}
             {(bookingRules.minNoticeHours || bookingRules.maxAdvanceDays) && (
               <p className="text-xs text-gray-400 mt-1.5">
                 {bookingRules.minNoticeHours && bookingRules.maxAdvanceDays

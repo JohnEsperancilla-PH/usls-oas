@@ -8,6 +8,7 @@ import { ModalShell } from "@/components/admin/ModalShell";
 import { adminFetch } from "@/lib/admin-fetch";
 import { Select } from "@/components/ui/Select";
 import { officeOptionLabel, orderOfficesAsTree } from "@/lib/office-tree";
+import { InvitationSchedulePicker } from "@/components/admin/InvitationSchedulePicker";
 
 interface InvitationVehicle {
   plateNumber: string;
@@ -40,36 +41,6 @@ const emptyForm = {
   timeSlot: "",
   duration: "30",
 };
-
-function parseOperatingHours(hours: string): { startH: number; endH: number } {
-  const match = hours.match(/(\d{1,2}):?\d{0,2}\s*(AM|PM)\s*[-–]\s*(\d{1,2}):?\d{0,2}\s*(AM|PM)/i);
-  if (!match) return { startH: 8, endH: 17 };
-  let startH = parseInt(match[1]);
-  let endH = parseInt(match[3]);
-  if (match[2].toUpperCase() === "PM" && startH < 12) startH += 12;
-  if (match[2].toUpperCase() === "AM" && startH === 12) startH = 0;
-  if (match[4].toUpperCase() === "PM" && endH < 12) endH += 12;
-  if (match[4].toUpperCase() === "AM" && endH === 12) endH = 0;
-  return { startH, endH };
-}
-
-function buildTimeSlots(office: Office | undefined): string[] {
-  if (!office) return [];
-  const { startH, endH } = parseOperatingHours(office.operating_hours);
-  const slots: string[] = [];
-  for (let h = startH; h < endH; h++) {
-    slots.push(`${String(h).padStart(2, "0")}:00`);
-    slots.push(`${String(h).padStart(2, "0")}:30`);
-  }
-  return slots;
-}
-
-function formatSlot(timeSlot: string): string {
-  const [h, m] = timeSlot.split(":").map(Number);
-  const suffix = h >= 12 ? "PM" : "AM";
-  const hour12 = h % 12 === 0 ? 12 : h % 12;
-  return `${hour12}:${String(m).padStart(2, "0")} ${suffix}`;
-}
 
 function SectionHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
@@ -129,7 +100,6 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
   const selectableOffices = canChooseOffice ? offices : offices.filter((o) => o.id === admin.office_id);
   const subOfficesOfSelected = offices.filter((o) => o.parent_office_id && o.parent_office_id === (form.officeId || (!isSuperAdmin ? admin.office_id : "")));
   const selectedOffice = selectableOffices.find((o) => o.id === (form.officeId || (!isSuperAdmin ? admin.office_id : "")));
-  const timeSlots = buildTimeSlots(selectedOffice);
   const activeOfficeId = form.officeId || (!isSuperAdmin ? admin.office_id || "" : "");
 
   const fetchContacts = useCallback(async (officeId: string) => {
@@ -289,27 +259,13 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <RequiredLabel label="Date" htmlFor="inv-date" />
-                    <input id="inv-date" type="date" className="input" value={form.date} min={new Date().toISOString().slice(0, 10)}
-                      onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
-                  </div>
-                  <div>
-                    <RequiredLabel label="Time" htmlFor="inv-time" />
-                    <Select id="inv-time" value={form.timeSlot} onChange={(e) => setForm((p) => ({ ...p, timeSlot: e.target.value }))}>
-                      <option value="">Select...</option>
-                      {timeSlots.map((slot) => <option key={slot} value={slot}>{formatSlot(slot)}</option>)}
-                    </Select>
-                  </div>
-                  <div>
-                    <label htmlFor="inv-duration" className="label">Duration</label>
-                    <Select id="inv-duration" value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: e.target.value }))}>
-                      <option value="30">30 minutes</option>
-                      <option value="60">60 minutes</option>
-                    </Select>
-                  </div>
-                </div>
+                <InvitationSchedulePicker
+                  office={selectedOffice}
+                  date={form.date}
+                  timeSlot={form.timeSlot}
+                  duration={form.duration}
+                  onChange={(next) => setForm((p) => ({ ...p, ...next }))}
+                />
               </div>
             </div>
 

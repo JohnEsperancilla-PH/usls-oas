@@ -7,6 +7,7 @@ import { runInvitationTasks, type AppointmentWithOffice } from "@/lib/appointmen
 import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-mirror";
 import { isValidId } from "@/lib/valid-ids";
 import { getManilaToday } from "@/lib/time";
+import { closedDateMessage, getClosedDateReason } from "@/lib/closed-dates";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
 import { getAppointmentContacts } from "@/lib/appointment-contacts";
 import type { Database } from "@/types/database";
@@ -164,6 +165,10 @@ export async function POST(request: Request) {
     const dayOfWeek = new Date(body.date + "T00:00:00").getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       return NextResponse.json({ message: "Appointments cannot be scheduled on weekends" }, { status: 400 });
+    }
+    const closedReason = await getClosedDateReason(body.date);
+    if (closedReason) {
+      return NextResponse.json({ message: closedDateMessage(body.date, closedReason) }, { status: 400 });
     }
     const duration = body.duration === 60 ? 60 : 30;
 

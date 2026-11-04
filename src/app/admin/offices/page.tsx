@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import type { Office } from "@/types/database";
-import { OfficeContactsModal } from "@/components/admin/OfficeContactsModal";
+import { OfficePeopleModal } from "@/components/admin/OfficePeopleModal";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
 import { adminFetch } from "@/lib/admin-fetch";
@@ -26,7 +26,7 @@ export default function OfficesPage() {
   const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false, can_invite_for_other_offices: false, allow_sub_offices: false, parent_office_id: "", max_advance_days: "", min_notice_hours: "" });
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
-  const [contactsOffice, setContactsOffice] = useState<Office | null>(null);
+  const [peopleOffice, setPeopleOffice] = useState<Office | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [confirmingDeactivate, setConfirmingDeactivate] = useState<Office | null>(null);
@@ -262,7 +262,7 @@ export default function OfficesPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
                 <button onClick={() => openEdit(o)} className="flex-1 text-center text-xs font-medium text-gray-600 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">Edit</button>
-                <button onClick={() => setContactsOffice(o)} className="flex-1 text-center text-xs font-medium text-cyan-700 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 transition-colors">Contacts</button>
+                <button onClick={() => setPeopleOffice(o)} className="flex-1 text-center text-xs font-medium text-cyan-700 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 transition-colors">People</button>
                 <button onClick={() => (o.active ? setConfirmingDeactivate(o) : handleToggle(o))} disabled={toggling} className={`flex-1 text-center text-xs font-medium py-1.5 rounded-lg transition-colors ${o.active ? "text-gray-500 bg-gray-50 hover:bg-gray-100" : "text-green-600 bg-green-50 hover:bg-green-100"}`}>
                   {o.active ? "Deactivate" : "Activate"}
                 </button>
@@ -433,11 +433,12 @@ export default function OfficesPage() {
         </div>
       </ModalShell>
 
-      <OfficeContactsModal
-        open={Boolean(contactsOffice)}
-        officeId={contactsOffice?.id || ""}
-        officeName={contactsOffice?.name || "Office"}
-        onClose={() => setContactsOffice(null)}
+      <OfficePeopleModal
+        key={peopleOffice?.id || "none"}
+        open={Boolean(peopleOffice)}
+        officeId={peopleOffice?.id || ""}
+        officeName={peopleOffice?.name || "Office"}
+        onClose={() => setPeopleOffice(null)}
       />
     </div>
   );
