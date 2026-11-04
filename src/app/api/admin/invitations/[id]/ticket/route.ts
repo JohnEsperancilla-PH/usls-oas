@@ -27,7 +27,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!appointment.is_invitation) {
       return NextResponse.json({ message: "Appointment is not an invitation" }, { status: 400 });
     }
-    if (admin.role === "office_admin" && admin.office_id !== appointment.office_id) {
+    if (admin.role === "office_admin" && admin.office_id !== appointment.office_id && admin.office_id !== appointment.invited_by_office_id) {
       return NextResponse.json({ message: "You can only access invitations for your office" }, { status: 403 });
     }
     if (!appointment.qr_token) {

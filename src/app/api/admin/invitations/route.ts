@@ -11,6 +11,7 @@ import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
 import { getAppointmentContacts } from "@/lib/appointment-contacts";
 import type { Database } from "@/types/database";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
+import { canInviteForOtherOffices } from "@/lib/invitation-access";
 
 const VISITOR_CATEGORIES = ["external", "parents", "alumni", "vendor"] as const;
 
@@ -29,7 +30,8 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
 
     if (admin.role === "office_admin" && admin.office_id) {
-      query = query.eq("office_id", admin.office_id);
+      // Includes invitations this office created on behalf of other offices.
+      query = query.or(`office_id.eq.${admin.office_id},invited_by_office_id.eq.${admin.office_id}`);
     }
 
     const { data, error: fetchError } = await query;
@@ -40,6 +42,14 @@ export async function GET(request: Request) {
 
     const appointments = data || [];
     const ids = appointments.map((appointment) => appointment.id);
+
+    const creatorOfficeIds = [...new Set(appointments
+      .filter((appointment) => appointment.invited_by_office_id && appointment.invited_by_office_id !== appointment.office_id)
+      .map((appointment) => appointment.invited_by_office_id as string))];
+    const { data: creatorOffices } = creatorOfficeIds.length > 0
+      ? await supabase.from("offices").select("id, name").in("id", creatorOfficeIds)
+      : { data: [] as { id: string; name: string }[] };
+    const creatorOfficeNames = new Map((creatorOffices || []).map((office) => [office.id, office.name]));
 
     const { data: emailLogs } = ids.length > 0
       ? await supabase.from("email_logs").select("appointment_id, status, created_at").eq("type", "invitation").in("appointment_id", ids)
@@ -58,6 +68,8 @@ export async function GET(request: Request) {
         phone: appointment.phone || null,
         officeId: appointment.office_id,
         officeName: appointment.offices?.name || "Unknown Office",
+        createdByOfficeId: appointment.invited_by_office_id && appointment.invited_by_office_id !== appointment.office_id ? appointment.invited_by_office_id : null,
+        createdByOfficeName: appointment.invited_by_office_id ? creatorOfficeNames.get(appointment.invited_by_office_id) || null : null,
         date: appointment.date,
         timeSlot: appointment.time_slot,
         duration: appointment.duration,
@@ -108,7 +120,7 @@ export async function POST(request: Request) {
     if (!body.officeId) {
       return NextResponse.json({ message: "Office is required" }, { status: 400 });
     }
-    if (admin.role === "office_admin" && admin.office_id !== body.officeId) {
+    if (admin.role === "office_admin" && admin.office_id !== body.officeId && !(await canInviteForOtherOffices(admin))) {
       return NextResponse.json({ message: "You can only create invitations for your office" }, { status: 403 });
     }
 
@@ -218,6 +230,7 @@ export async function POST(request: Request) {
       visitor_count: 1,
       vehicle_count: vehicles.length,
       is_invitation: true,
+      invited_by_office_id: admin.role === "office_admin" ? admin.office_id : null,
       status: "approved",
       qr_token: referenceNumber,
       qr_used_at: null,

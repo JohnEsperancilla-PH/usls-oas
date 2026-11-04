@@ -15,6 +15,10 @@ export interface Office {
   contact_email: string | null;
   contact_phone: string | null;
   hide_time_slots: boolean;
+  can_invite_for_other_offices?: boolean;
+  // Office booking limits; null follows Settings > Booking Rules.
+  max_advance_days?: number | null;
+  min_notice_hours?: number | null;
   contacts?: OfficeContact[];
   created_at: string;
 }
@@ -65,6 +69,8 @@ export interface Appointment {
   visitor_count: number;
   vehicle_count: number;
   is_invitation: boolean;
+  // Office whose admin created the invitation, when made on behalf of another office.
+  invited_by_office_id?: string | null;
   created_at: string;
   updated_at: string;
   office?: Office;

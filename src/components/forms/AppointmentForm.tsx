@@ -91,12 +91,14 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   useEffect(() => { fetchOffices(); }, []);
 
   const [bookingRules, setBookingRules] = useState<BookingRules>(DEFAULT_BOOKING_RULES);
+  // Offices can set their own limits, so the rules follow the selected office.
   useEffect(() => {
-    fetch("/api/booking-rules")
+    const query = selectedOfficeId ? `?officeId=${encodeURIComponent(selectedOfficeId)}` : "";
+    fetch(`/api/booking-rules${query}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((rules) => { if (rules) setBookingRules(rules); })
       .catch(() => { /* keep defaults; the server still enforces the real rules */ });
-  }, []);
+  }, [selectedOfficeId]);
   const todayStr = getManilaToday();
   const latestDate = getLatestBookableDate(bookingRules, todayStr);
 

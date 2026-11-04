@@ -20,6 +20,8 @@ interface Invitation {
   phone: string | null;
   officeId: string;
   officeName: string;
+  createdByOfficeId: string | null;
+  createdByOfficeName: string | null;
   date: string;
   timeSlot: string;
   duration: number;
@@ -156,6 +158,11 @@ export default function InvitationsPage() {
                   </div>
                   <div className="text-xs text-gray-500 mt-1.5 space-y-0.5">
                     <div>{invitation.officeName} · {formatDate(invitation.date)} · {formatSlot(invitation.timeSlot)} ({invitation.duration} min)</div>
+                    {invitation.createdByOfficeId && (
+                      <div className="text-purple-700">
+                        {invitation.createdByOfficeId === admin.office_id ? `Created by your office for ${invitation.officeName}` : `Created by ${invitation.createdByOfficeName || "another office"}`}
+                      </div>
+                    )}
                     {invitation.email && <div>{invitation.email}{invitation.phone ? ` · ${invitation.phone}` : ""}</div>}
                     {invitation.personToMeet && <div>Meeting: {invitation.personToMeet}</div>}
                     {invitation.vehicles.length > 0 && (

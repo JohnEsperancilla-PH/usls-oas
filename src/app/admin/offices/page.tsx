@@ -7,28 +7,10 @@ import { OfficeContactsModal } from "@/components/admin/OfficeContactsModal";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
 import { adminFetch } from "@/lib/admin-fetch";
+import { formatHours, parseHours } from "@/lib/office-hours";
 import type { OfficeDeleteCheck } from "@/lib/office-delete";
 import { Select } from "@/components/ui/Select";
 
-// Operating hours are stored as text like "8:00 AM - 5:00 PM"; the form edits them as two 24-hour times.
-function parseHours(value: string): { start: string; end: string } | null {
-  const match = value.match(/^\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*$/i);
-  if (!match) return null;
-  const to24 = (h: string, m: string | undefined, period: string) => {
-    let hour = parseInt(h, 10) % 12;
-    if (period.toUpperCase() === "PM") hour += 12;
-    return `${String(hour).padStart(2, "0")}:${m || "00"}`;
-  };
-  return { start: to24(match[1], match[2], match[3]), end: to24(match[4], match[5], match[6]) };
-}
-
-function formatHours(start: string, end: string): string {
-  const to12 = (time: string) => {
-    const [h, m] = time.split(":").map(Number);
-    return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
-  };
-  return start && end ? `${to12(start)} - ${to12(end)}` : "";
-}
 
 // Category filter value for offices without a category.
 const NO_CATEGORY = "__none__";
@@ -40,7 +22,7 @@ export default function OfficesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOffice, setEditingOffice] = useState<Office | null>(null);
   const [message, setMessage] = useStatusMessage();
-  const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false });
+  const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false, can_invite_for_other_offices: false, max_advance_days: "", min_notice_hours: "" });
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
   const [contactsOffice, setContactsOffice] = useState<Office | null>(null);
@@ -71,8 +53,8 @@ export default function OfficesPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchOffices(); }, []);
 
-  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false }); setFormError(null); setModalOpen(true); };
-  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "", hide_time_slots: o.hide_time_slots || false }); setFormError(null); setModalOpen(true); };
+  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false, can_invite_for_other_offices: false, max_advance_days: "", min_notice_hours: "" }); setFormError(null); setModalOpen(true); };
+  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "", hide_time_slots: o.hide_time_slots || false, can_invite_for_other_offices: o.can_invite_for_other_offices || false, max_advance_days: o.max_advance_days == null ? "" : String(o.max_advance_days), min_notice_hours: o.min_notice_hours == null ? "" : String(o.min_notice_hours) }); setFormError(null); setModalOpen(true); };
 
   const parsedHours = parseHours(form.operating_hours);
   const hours = parsedHours || { start: "08:00", end: "17:00" };
@@ -256,6 +238,12 @@ export default function OfficesPage() {
                     <span className="font-medium">Time slots hidden</span>
                   </div>
                 )}
+                {o.can_invite_for_other_offices && (
+                  <div className="flex items-center gap-1.5 text-purple-600">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    <span className="font-medium">Invites for other offices</span>
+                  </div>
+                )}
                 {(o.contact_email || o.contact_phone) && (
                   <div className="flex flex-col gap-1 pt-1 border-t border-gray-100">
                     {o.contact_email && <div className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>{o.contact_email}</div>}
@@ -331,6 +319,22 @@ export default function OfficesPage() {
                   </div>
                 </label>
               </div>
+              <div className="sm:col-span-2">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={form.can_invite_for_other_offices}
+                    onChange={(e) => setForm({ ...form, can_invite_for_other_offices: e.target.checked })}
+                    className="mt-0.5 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">Can Create Invitations for Other Offices</span>
+                    <p className="text-[11px] text-gray-500 mt-0.5">This office&apos;s admins can pick any active office on New Invitation and tag that office&apos;s contacts. They see the invitations they create; the chosen office sees them too.</p>
+                  </div>
+                </label>
+              </div>
+              <div><label htmlFor="office-max-advance" className="label">Max Advance Booking (days)</label><input type="number" min={1} max={365} className="input" id="office-max-advance" value={form.max_advance_days} onChange={(e) => setForm({ ...form, max_advance_days: e.target.value })} placeholder="System setting" /><p className="text-[11px] text-gray-400 mt-1">Leave blank to follow Settings &gt; Booking Rules.</p></div>
+              <div><label htmlFor="office-min-notice" className="label">Minimum Notice (hours)</label><input type="number" min={0} max={168} className="input" id="office-min-notice" value={form.min_notice_hours} onChange={(e) => setForm({ ...form, min_notice_hours: e.target.value })} placeholder="System setting" /><p className="text-[11px] text-gray-400 mt-1">Leave blank to follow Settings &gt; Booking Rules.</p></div>
               <div className="sm:col-span-2"><label htmlFor="office-description" className="label">Description</label><textarea className="input" rows={2} id="office-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of the office..." /></div>
             </div>
           </form>

@@ -173,8 +173,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Cannot book appointments in the past" }, { status: 400 });
     }
 
-    // Booking window from Settings > Booking Rules
-    const bookingRules = await getBookingRules();
+    // Booking window from Settings > Booking Rules, or the office's own limits
+    const bookingRules = await getBookingRules(typeof body.officeId === "string" ? body.officeId : null);
     if (isTooFar(body.date, bookingRules, todayStr)) {
       return NextResponse.json(
         { message: `Appointments can only be booked up to ${bookingRules.maxAdvanceDays} days in advance` },

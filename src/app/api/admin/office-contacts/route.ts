@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
 import { sanitizeName, sanitizeEmail } from "@/lib/sanitize";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
+import { canInviteForOtherOffices } from "@/lib/invitation-access";
 import type { Database } from "@/types/database";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,14 +35,15 @@ export async function GET(request: Request) {
 
     if (admin.role === "office_admin") {
       if (!admin.office_id) return NextResponse.json({ message: "Office not assigned" }, { status: 403 });
-      if (officeId && officeId !== admin.office_id) {
+      // Offices that invite on behalf of others need to tag the other office's contacts.
+      if (officeId && officeId !== admin.office_id && !(await canInviteForOtherOffices(admin))) {
         return NextResponse.json({ message: "You can only view contacts for your office" }, { status: 403 });
       }
     } else if (!officeId) {
       return NextResponse.json({ message: "Office is required" }, { status: 400 });
     }
 
-    const scopeOfficeId = admin.role === "office_admin" ? admin.office_id : officeId;
+    const scopeOfficeId = admin.role === "office_admin" ? officeId || admin.office_id : officeId;
 
     const supabase = createServiceClient();
     const { data, error: fetchError } = await supabase

@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { getOfficeDeleteCheck } from "@/lib/office-delete";
+import { validateOfficeSettings } from "@/lib/office-settings";
 
 export async function GET(request: Request) {
   try {
@@ -63,11 +64,14 @@ export async function POST(request: Request) {
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
     const body = await request.json();
-    const { name, email, description, operating_hours, capacity_per_slot, contact_email, contact_phone, category, hide_time_slots } = body;
+    const { name, email, description, operating_hours, capacity_per_slot, contact_email, contact_phone, category, hide_time_slots, can_invite_for_other_offices } = body;
 
     if (!name) {
       return NextResponse.json({ message: "Office name is required" }, { status: 400 });
     }
+
+    const limits = validateOfficeSettings({ max_advance_days: body.max_advance_days, min_notice_hours: body.min_notice_hours });
+    if ("error" in limits) return NextResponse.json({ message: limits.error }, { status: 400 });
 
     const supabase = createServiceClient();
 
@@ -83,6 +87,8 @@ export async function POST(request: Request) {
         contact_phone: contact_phone || null,
         category: category || null,
         hide_time_slots: hide_time_slots || false,
+        can_invite_for_other_offices: can_invite_for_other_offices === true,
+        ...limits.updates,
         active: true,
       })
       .select()
@@ -112,7 +118,7 @@ export async function PUT(request: Request) {
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
     const body = await request.json();
-    const { id, name, email, description, operating_hours, capacity_per_slot, active, contact_email, contact_phone, category, hide_time_slots } = body;
+    const { id, name, email, description, operating_hours, capacity_per_slot, active, contact_email, contact_phone, category, hide_time_slots, can_invite_for_other_offices } = body;
 
     if (!id) {
       return NextResponse.json({ message: "Office ID is required" }, { status: 400 });
@@ -131,6 +137,10 @@ export async function PUT(request: Request) {
     if (contact_phone !== undefined) updateData.contact_phone = contact_phone;
     if (category !== undefined) updateData.category = category;
     if (hide_time_slots !== undefined) updateData.hide_time_slots = hide_time_slots;
+    if (can_invite_for_other_offices !== undefined) updateData.can_invite_for_other_offices = can_invite_for_other_offices === true;
+    const limits = validateOfficeSettings(Object.fromEntries(["max_advance_days", "min_notice_hours"].filter((key) => key in body).map((key) => [key, body[key]])));
+    if ("error" in limits) return NextResponse.json({ message: limits.error }, { status: 400 });
+    Object.assign(updateData, limits.updates);
 
     const { error: updateError } = await supabase
       .from("offices")

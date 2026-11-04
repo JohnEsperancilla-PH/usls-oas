@@ -109,18 +109,22 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
   const [contacts, setContacts] = useState<OfficeContact[]>([]);
   const [taggedContactIds, setTaggedContactIds] = useState<string[]>([]);
 
+  // Offices allowed to invite on behalf of others pick an office like a super admin does; the server decides.
+  const [canChooseOffice, setCanChooseOffice] = useState(isSuperAdmin);
+
   const fetchOffices = useCallback(async () => {
     try {
-      const offRes = await fetch("/api/offices");
-      const offData = offRes.ok ? await offRes.json() : [];
-      setOffices((offData || []).filter((o: Office) => o.active));
+      const offRes = await fetch("/api/admin/invitations/offices", { cache: "no-store" });
+      const offData = offRes.ok ? await offRes.json() : null;
+      setOffices(offData?.offices || []);
+      setCanChooseOffice(offData?.canChooseOffice === true);
     } catch { /* keep empty */ }
   }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchOffices(); }, [fetchOffices]);
 
-  const selectableOffices = isSuperAdmin ? offices : offices.filter((o) => o.id === admin.office_id);
+  const selectableOffices = canChooseOffice ? offices : offices.filter((o) => o.id === admin.office_id);
   const selectedOffice = selectableOffices.find((o) => o.id === (form.officeId || (!isSuperAdmin ? admin.office_id : "")));
   const timeSlots = buildTimeSlots(selectedOffice);
   const activeOfficeId = form.officeId || (!isSuperAdmin ? admin.office_id || "" : "");
@@ -275,7 +279,7 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
                 <div>
                   <RequiredLabel label="Office" htmlFor="inv-office" />
                   <Select id="inv-office" value={form.officeId || (!isSuperAdmin ? admin.office_id || "" : "")}
-                    onChange={(e) => { setForm((p) => ({ ...p, officeId: e.target.value, timeSlot: "" })); setTaggedContactIds([]); }} disabled={!isSuperAdmin}>
+                    onChange={(e) => { setForm((p) => ({ ...p, officeId: e.target.value, timeSlot: "" })); setTaggedContactIds([]); }} disabled={!canChooseOffice}>
                     <option value="">Select an office...</option>
                     {selectableOffices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </Select>

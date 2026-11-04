@@ -82,7 +82,7 @@ export async function GET(request: Request) {
     }
 
     const allSlots = generateSlots(OFFICE_START_HOUR, OFFICE_END_HOUR);
-    const bookingRules = await getBookingRules();
+    const bookingRules = await getBookingRules(officeId);
     const today = getManilaToday();
 
     // If month is provided, return which dates have availability
