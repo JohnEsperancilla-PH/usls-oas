@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
+import { diffChanges } from "@/lib/audit";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { deleteInactiveOffice, getOfficeDeleteCheck } from "@/lib/office-delete";
 import { validateOfficeSettings } from "@/lib/office-settings";
@@ -165,6 +166,8 @@ export async function PUT(request: Request) {
       updateData.allow_sub_offices = body.allow_sub_offices === true && !updateData.parent_office_id;
     }
 
+    const { data: before } = await supabase.from("offices").select("*").eq("id", id).maybeSingle();
+
     const { error: updateError } = await supabase
       .from("offices")
       .update(updateData)
@@ -174,7 +177,16 @@ export async function PUT(request: Request) {
       return NextResponse.json({ message: "Failed to update office" }, { status: 500 });
     }
 
-    await logAudit(admin.id, admin.email, "update_office", { office_id: id, meta: updateData });
+    const changes = diffChanges(before, updateData);
+    // Show the main office by name rather than its ID.
+    if (changes.parent_office_id) {
+      const ids = [changes.parent_office_id.before, changes.parent_office_id.after].filter((v): v is string => typeof v === "string");
+      const { data: parents } = ids.length ? await supabase.from("offices").select("id, name").in("id", ids) : { data: [] };
+      const nameOf = (v: unknown) => (parents || []).find((p) => p.id === v)?.name ?? null;
+      changes.parent_office_id = { before: nameOf(changes.parent_office_id.before), after: nameOf(changes.parent_office_id.after) };
+    }
+
+    await logAudit(admin.id, admin.email, "update_office", { office_id: id, meta: { name: updateData.name ?? before?.name, changes } });
 
     return NextResponse.json({ message: "Office updated" });
   } catch (error) {

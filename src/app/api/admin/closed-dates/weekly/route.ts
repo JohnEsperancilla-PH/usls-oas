@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit, requireDashboardAdmin, requireSuperAdmin } from "@/lib/rbac";
+import { diffChanges } from "@/lib/audit";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { getManilaToday } from "@/lib/time";
 import { DEFAULT_WEEKLY_REASON, WEEKDAY_NAMES, getClosedWeekdays, saveClosedWeekdays, type ClosedWeekdays } from "@/lib/closed-dates";
@@ -63,11 +64,18 @@ export async function PUT(request: Request) {
       affectedAppointments = (data || []).filter((a) => added.includes(new Date(a.date + "T00:00:00Z").getUTCDay())).length;
     }
 
+    // Before/after per weekday, e.g. Wednesday: "Open" → "Faculty day".
+    const label = (map: ClosedWeekdays) => Object.fromEntries([1, 2, 3, 4, 5].map((d) => [WEEKDAY_NAMES[d], map[d] ?? "Open"]));
+    const changes = diffChanges(label(previous), label(next));
     for (const day of added) {
-      await logAudit(admin.id, admin.email, "close_date", { meta: { name: next[day], weekday: WEEKDAY_NAMES[day], recurring: "weekly" } });
+      await logAudit(admin.id, admin.email, "close_date", { meta: { name: next[day], weekday: WEEKDAY_NAMES[day], recurring: "weekly", changes } });
     }
     for (const day of removed) {
-      await logAudit(admin.id, admin.email, "reopen_date", { meta: { name: previous[day], weekday: WEEKDAY_NAMES[day], recurring: "weekly" } });
+      await logAudit(admin.id, admin.email, "reopen_date", { meta: { name: previous[day], weekday: WEEKDAY_NAMES[day], recurring: "weekly", changes } });
+    }
+    // A reason edit on an already-closed day isn't a close or reopen, but still gets recorded.
+    if (added.length === 0 && removed.length === 0 && Object.keys(changes).length > 0) {
+      await logAudit(admin.id, admin.email, "close_date", { meta: { name: "Weekly closed days", recurring: "weekly", changes } });
     }
 
     return NextResponse.json({ weekdays: next, affectedAppointments });

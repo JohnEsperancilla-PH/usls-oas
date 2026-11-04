@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { diffChanges } from "@/lib/audit";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,7 +54,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     await logAudit(admin.id, admin.email, "update_contact", {
       office_id: contact.office_id,
       target_email: email || contact.email,
-      meta: { contact_name: name || contact.name },
+      meta: { contact_name: name || contact.name, changes: diffChanges(contact, updateData) },
     });
 
     return NextResponse.json({ message: "Contact updated" });

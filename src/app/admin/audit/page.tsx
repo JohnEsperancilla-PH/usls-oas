@@ -4,8 +4,81 @@ import { useState, useEffect, useCallback } from "react";
 import type { AuditLog } from "@/types/database";
 import { StatusMessage } from "@/components/admin/StatusMessage";
 import { Pagination, SearchInput } from "@/components/admin/Pagination";
-import { AUDIT_ACTION_OPTIONS, getAuditActionLabel, getAuditSummary, getAuditTarget } from "@/lib/audit";
+import { AUDIT_ACTION_OPTIONS, formatAuditValue, getAuditActionLabel, getAuditChanges, getAuditFieldLabel, getAuditSummary, getAuditTarget } from "@/lib/audit";
 import { Select } from "@/components/ui/Select";
+import { ModalShell } from "@/components/admin/ModalShell";
+
+// Details fields that are shown elsewhere in the modal, or are internal.
+const HIDDEN_DETAIL_KEYS = new Set(["changes", "previous_role", "original_date", "original_time", "new_date", "new_time"]);
+
+function AuditDetailsModal({ log, onClose }: { log: AuditLog | null; onClose: () => void }) {
+  const changes = log ? getAuditChanges(log) : null;
+  const otherDetails = Object.entries(log?.details || {}).filter(([key, v]) => !HIDDEN_DETAIL_KEYS.has(key) && v !== null && v !== undefined && v !== "");
+  const isUpdate = Boolean(log && (log.action.startsWith("update_") || log.action === "postpone"));
+
+  return (
+    <ModalShell open={Boolean(log)} title={log ? getAuditActionLabel(log.action) : ""} subtitle={log ? `${formatManila(log.created_at)} · ${log.admin_email}` : undefined}
+      onClose={onClose} maxWidthClass="max-w-2xl"
+      footer={<button type="button" onClick={onClose} className="btn-secondary w-full btn-sm">Close</button>}>
+      {log && (
+        <div className="space-y-5">
+          <div>
+            <div className="text-sm font-medium text-gray-900">{getAuditTarget(log)}</div>
+            <div className="text-sm text-gray-500">{getAuditSummary(log)}</div>
+          </div>
+
+          {changes && Object.keys(changes).length > 0 ? (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">What changed</h3>
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="hidden sm:grid grid-cols-[minmax(0,10rem)_1fr_1fr] bg-gray-50 text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                  <div className="px-3 py-2">Field</div><div className="px-3 py-2">Before</div><div className="px-3 py-2">After</div>
+                </div>
+                <dl className="divide-y divide-gray-100">
+                  {Object.entries(changes).map(([field, { before, after }]) => (
+                    <div key={field} className="grid grid-cols-1 sm:grid-cols-[minmax(0,10rem)_1fr_1fr] text-sm">
+                      <dt className="px-3 pt-2 sm:py-2 font-medium text-gray-700">{getAuditFieldLabel(field)}</dt>
+                      <dd className="px-3 py-1 sm:py-2">
+                        <span className="sm:hidden text-[10px] uppercase text-gray-400 mr-1">Before</span>
+                        <span className="inline-block rounded px-1.5 py-0.5 bg-red-50 text-red-700 line-through decoration-red-300 whitespace-pre-wrap break-words">{formatAuditValue(before)}</span>
+                      </dd>
+                      <dd className="px-3 pb-2 sm:py-2">
+                        <span className="sm:hidden text-[10px] uppercase text-gray-400 mr-1">After</span>
+                        <span className="inline-block rounded px-1.5 py-0.5 bg-green-50 text-green-800 whitespace-pre-wrap break-words">{formatAuditValue(after)}</span>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </div>
+          ) : isUpdate ? (
+            <p className="text-xs text-gray-500 p-3 rounded-lg bg-gray-50 border border-dashed border-gray-200">
+              This entry was recorded before before-and-after tracking was added, so only the saved values are shown below.
+            </p>
+          ) : null}
+
+          {otherDetails.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{changes ? "Other details" : "Details"}</h3>
+              <dl className="grid grid-cols-1 sm:grid-cols-[minmax(0,10rem)_1fr] gap-x-3 gap-y-1.5 text-sm">
+                {otherDetails.map(([key, v]) => (
+                  <div key={key} className="contents">
+                    <dt className="text-gray-500">{getAuditFieldLabel(key)}</dt>
+                    <dd className="text-gray-800 break-words whitespace-pre-wrap mb-1 sm:mb-0">{formatAuditValue(v)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {log.target_email && (
+            <p className="text-xs text-gray-400">Target: {log.target_email}</p>
+          )}
+        </div>
+      )}
+    </ModalShell>
+  );
+}
 
 const PAGE_SIZE = 25;
 
@@ -31,6 +104,7 @@ export default function AuditPage() {
   const [action, setAction] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [viewing, setViewing] = useState<AuditLog | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -136,6 +210,7 @@ export default function AuditPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actor</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target and summary</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase"><span className="sr-only">Details</span></th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -157,6 +232,18 @@ export default function AuditPage() {
                       <div className="font-medium text-gray-800">{getAuditTarget(log)}</div>
                       <div>{getAuditSummary(log)}</div>
                     </td>
+                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                      {(() => {
+                        const changeCount = Object.keys(getAuditChanges(log) || {}).length;
+                        return (
+                          <button type="button" onClick={() => setViewing(log)}
+                            aria-label={`View details of ${getAuditActionLabel(log.action)} by ${log.admin_email}`}
+                            className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${changeCount > 0 ? "text-primary bg-primary/5 hover:bg-primary/10" : "text-gray-600 bg-gray-50 hover:bg-gray-100"}`}>
+                            {changeCount > 0 ? `View changes (${changeCount})` : "View"}
+                          </button>
+                        );
+                      })()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -166,6 +253,8 @@ export default function AuditPage() {
       </div>
 
       {!loadError && <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} itemLabel="entries" />}
+
+      <AuditDetailsModal log={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }

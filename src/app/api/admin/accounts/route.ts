@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
+import { diffChanges } from "@/lib/audit";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
 export async function GET(request: Request) {
@@ -275,9 +276,20 @@ export async function PUT(request: Request) {
       return NextResponse.json({ message: "Failed to update account" }, { status: 500 });
     }
 
+    const nextOfficeId = role === "office_admin" ? office_id : null;
+    const changes = diffChanges(targetAdmin, { name, role, office_id: nextOfficeId });
+    // Show offices by name rather than ID.
+    if (changes.office_id) {
+      const ids = [targetAdmin.office_id, nextOfficeId].filter((v): v is string => typeof v === "string" && v.length > 0);
+      const { data: officeRows } = ids.length ? await supabase.from("offices").select("id, name").in("id", ids) : { data: [] };
+      const nameOf = (v: unknown) => (officeRows || []).find((o) => o.id === v)?.name ?? null;
+      delete changes.office_id;
+      changes.office = { before: nameOf(targetAdmin.office_id), after: nameOf(nextOfficeId) };
+    }
+
     await logAudit(admin.id, admin.email, "update_account", {
       target_email: targetAdmin.email,
-      meta: { name, role, office_id: role === "office_admin" ? office_id : null, previous_role: targetAdmin.role },
+      meta: { name, role, office_id: nextOfficeId, previous_role: targetAdmin.role, changes },
     });
 
     return NextResponse.json({ message: "Account updated" });

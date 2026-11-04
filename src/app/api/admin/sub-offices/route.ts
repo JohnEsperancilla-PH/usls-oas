@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { diffChanges } from "@/lib/audit";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { OFFICE_ADMIN_FIELDS, validateOfficeSettings } from "@/lib/office-settings";
 import { deleteInactiveOffice, getOfficeDeleteCheck } from "@/lib/office-delete";
@@ -140,6 +141,7 @@ export async function PUT(request: Request) {
     }
     if (Object.keys(updates).length === 0) return NextResponse.json({ message: "No changes to save" }, { status: 400 });
 
+    const { data: before } = await result.supabase.from("offices").select("*").eq("id", id).maybeSingle();
     const { error } = await result.supabase.from("offices").update(updates).eq("id", id);
     if (error) {
       console.error(error);
@@ -148,7 +150,7 @@ export async function PUT(request: Request) {
 
     await logAudit(result.admin.id, result.admin.email, "update_office", {
       office_id: id,
-      meta: { ...updates, parent_office: result.parent.name, source: "sub_offices" },
+      meta: { name: updates.name ?? before?.name, parent_office: result.parent.name, source: "sub_offices", changes: diffChanges(before, updates) },
     });
 
     return NextResponse.json({ message: "Sub-office updated" });

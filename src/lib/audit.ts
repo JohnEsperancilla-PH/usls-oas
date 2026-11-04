@@ -44,6 +44,65 @@ export function getAuditActionLabel(action: string): string {
   return ACTION_LABELS[action as AuditAction] || action.replace(/_/g, " ");
 }
 
+/** Field → its value before and after an update. Stored as `changes` in an audit entry's details. */
+export type AuditChanges = Record<string, { before: unknown; after: unknown }>;
+
+function sameValue(a: unknown, b: unknown): boolean {
+  const norm = (v: unknown) => (v === undefined || v === "" ? null : v);
+  return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+}
+
+/** The fields of `after` whose value differs from `before`, for an audit entry. */
+export function diffChanges(before: object | null | undefined, after: object, keys?: string[]): AuditChanges {
+  const prev = (before || {}) as Record<string, unknown>;
+  const next = after as Record<string, unknown>;
+  const changes: AuditChanges = {};
+  for (const key of keys || Object.keys(next)) {
+    if (!sameValue(prev[key], next[key])) changes[key] = { before: prev[key] ?? null, after: next[key] ?? null };
+  }
+  return changes;
+}
+
+/** Before/after changes for an entry, including older entries that recorded them in their own fields. */
+export function getAuditChanges(log: AuditLog): AuditChanges | null {
+  const details = log.details || {};
+  const stored = details.changes;
+  if (stored && typeof stored === "object" && !Array.isArray(stored) && Object.keys(stored).length > 0) return stored as AuditChanges;
+  if (log.action === "postpone" && ("original_date" in details || "new_date" in details)) {
+    return diffChanges(
+      { date: details.original_date, time_slot: details.original_time },
+      { date: details.new_date, time_slot: details.new_time },
+    );
+  }
+  if (log.action === "update_account" && details.previous_role !== undefined && details.previous_role !== details.role) {
+    return { role: { before: details.previous_role, after: details.role } };
+  }
+  return null;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  name: "Name", email: "Email", description: "Description", operating_hours: "Operating hours",
+  capacity_per_slot: "Capacity per slot", active: "Active", contact_email: "Contact email", contact_phone: "Contact phone",
+  category: "Category", hide_time_slots: "Hide time slots", can_invite_for_other_offices: "Invites for other offices",
+  allow_sub_offices: "Allows sub-offices", parent_office_id: "Main office", parent_office: "Main office",
+  max_advance_days: "Max advance booking (days)", min_notice_hours: "Minimum notice (hours)",
+  role: "Role", office: "Office", office_id: "Office", position: "Position", date: "Date", time_slot: "Time",
+  alert_enabled: "Popup on", alert_start: "Popup starts", alert_end: "Popup ends", alert_headline: "Popup headline",
+  alert_message: "Popup message", alert_audience: "Popup audience", scheduled: "Scheduled", startAt: "Starts",
+  endAt: "Ends", headline: "Headline", message: "Message", contactEmail: "Contact email", weekday: "Weekday",
+};
+
+export function getAuditFieldLabel(key: string): string {
+  return FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+export function formatAuditValue(raw: unknown): string {
+  if (raw === null || raw === undefined || raw === "") return "(empty)";
+  if (typeof raw === "boolean" || raw === "true" || raw === "false") return raw === true || raw === "true" ? "On" : "Off";
+  if (typeof raw === "object") return JSON.stringify(raw);
+  return String(raw);
+}
+
 function value(details: AuditLog["details"], key: string): string | null {
   const item = details?.[key];
   return item === undefined || item === null || item === "" ? null : String(item);

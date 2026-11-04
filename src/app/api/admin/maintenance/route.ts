@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
+import { diffChanges } from "@/lib/audit";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import {
   getMaintenanceState,
@@ -118,6 +119,7 @@ export async function PUT(request: Request) {
         startAt: after.startAt,
         endAt: after.endAt,
         headline: after.headline,
+        changes: diffChanges(before, after, ["enabled", "scheduled", "startAt", "endAt", "headline", "message", "contactEmail"]),
       },
     });
 

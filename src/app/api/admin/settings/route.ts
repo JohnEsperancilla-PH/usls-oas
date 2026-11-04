@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthAdmin, logAudit, requireSuperAdmin } from "@/lib/rbac";
+import { diffChanges } from "@/lib/audit";
 import { createServiceClient } from "@/lib/supabase/server";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { MAX_ENTRY_WINDOW_MINUTES } from "@/lib/entry-window";
@@ -108,12 +109,18 @@ export async function PUT(request: Request) {
         audience: saved.alert_audience,
         startAt: saved.alert_start,
         endAt: saved.alert_end,
+        changes: diffChanges(
+          Object.fromEntries(ALERT_EDITABLE_KEYS.map((key) => [key, alertValue(alertBefore!, key)])),
+          Object.fromEntries(ALERT_EDITABLE_KEYS.filter((key) => key in values).map((key) => [key, values[key]])),
+        ),
       },
     });
   }
 
   if (changedEmails.length > 0) {
-    await logAudit(admin.id, admin.email, "update_email_templates", { meta: { emails: changedEmails.join(", ") } });
+    await logAudit(admin.id, admin.email, "update_email_templates", {
+      meta: { emails: changedEmails.join(", "), changes: diffChanges(emailBefore, Object.fromEntries(emailKeys.map((key) => [key, values[key]]))) },
+    });
   }
 
   return NextResponse.json({ message: "Settings updated" });

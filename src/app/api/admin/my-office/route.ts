@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { diffChanges } from "@/lib/audit";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { getBookingRules } from "@/lib/booking-rules-server";
 import { OFFICE_ADMIN_FIELDS, validateOfficeSettings } from "@/lib/office-settings";
@@ -53,6 +54,7 @@ export async function PUT(request: Request) {
     if (Object.keys(validated.updates).length === 0) return NextResponse.json({ message: "No changes to save" }, { status: 400 });
 
     const supabase = createServiceClient();
+    const { data: before } = await supabase.from("offices").select("*").eq("id", result.officeId).maybeSingle();
     const { error: updateError } = await supabase.from("offices").update(validated.updates).eq("id", result.officeId);
     if (updateError) {
       console.error(updateError);
@@ -61,7 +63,7 @@ export async function PUT(request: Request) {
 
     await logAudit(result.admin.id, result.admin.email, "update_office", {
       office_id: result.officeId,
-      meta: { ...validated.updates, source: "office_settings" },
+      meta: { name: before?.name, source: "office_settings", changes: diffChanges(before, validated.updates) },
     });
 
     return NextResponse.json({ message: "Office settings saved" });
