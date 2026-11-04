@@ -16,6 +16,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   create_office: "Created office",
   update_office: "Updated office",
   delete_office: "Deactivated office",
+  permanently_delete_office: "Permanently deleted office",
   block_time: "Blocked appointment time",
   unblock_time: "Unblocked appointment time",
   reset_qr: "Reset visitor reference",
@@ -98,6 +99,10 @@ export function getAuditSummary(log: AuditLog): string {
     case "update_office":
     case "delete_office":
       return office || "Office settings changed";
+    case "permanently_delete_office": {
+      const removed = value(details, "appointments_deleted");
+      return [office, removed ? `${removed} appointment${removed === "1" ? "" : "s"} deleted` : null].filter(Boolean).join(" - ") || "Office deleted";
+    }
     case "block_time":
     case "unblock_time":
       return [date, timeSlot, reason].filter(Boolean).join(" - ") || "Appointment time changed";

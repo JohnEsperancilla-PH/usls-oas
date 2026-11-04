@@ -5,6 +5,7 @@ import type { BookingData } from "@/components/landing/BookingLanding";
 import type { Office } from "@/types/database";
 import { DEFAULT_BOOKING_RULES, describeNotice, getLatestBookableDate, isTooSoon, type BookingRules } from "@/lib/booking-rules";
 import { getManilaToday } from "@/lib/time";
+import { Select } from "@/components/ui/Select";
 
 interface AppointmentFormProps {
   data: BookingData;
@@ -407,7 +408,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
             </label>
             {selectedOffice.contacts && selectedOffice.contacts.length > 0 ? (
               <>
-                <select
+                <Select
                   id="personToMeet"
                   value={showPersonToMeetOther ? "__other__" : personToMeet}
                   onChange={(e) => {
@@ -420,7 +421,8 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                     }
                     if (errors.personToMeet) setErrors((p) => ({ ...p, personToMeet: "" }));
                   }}
-                  className={`input mt-2 ${errors.personToMeet ? "input-error" : ""}`}
+                  className="mt-2"
+                  invalid={Boolean(errors.personToMeet)}
                 >
                   <option value="">Select a person to meet…</option>
                   {selectedOffice.contacts.map((contact) => (
@@ -429,7 +431,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                     </option>
                   ))}
                   <option value="__other__">Others… (type a name)</option>
-                </select>
+                </Select>
                 {showPersonToMeetOther && (
                   <input
                     type="text"

@@ -181,8 +181,14 @@ List offices. `office_admin` only sees their own office; `super_admin` sees all.
 ### 5.3 `PUT /api/admin/offices`
 **Auth:** `super_admin`. Updates an office. Body: `id` (required) plus any fields above. Audits `update_office`.
 
-### 5.4 `DELETE /api/admin/offices?id=...`
-**Auth:** `super_admin`. Soft-deactivates an office (`active = false`, not a real delete). Audits `delete_office`.
+### 5.4 `DELETE /api/admin/offices`
+**Auth:** `super_admin`. Permanently deletes an office. Body: `{ id, confirmName }`, where `confirmName` must match the office name.
+
+- **Refused (409)** while the office is active, has accounts assigned, or has upcoming pending, approved, or postponed appointments.
+- **Deleted with it** by the database: its appointments (with their visitors, vehicles, contacts, and email logs), office contacts, and blocked times. Audit history is kept, and records already synced to the cPanel archive are not affected.
+- **Side effect:** audit log `permanently_delete_office`. Deactivation uses `PUT` with `active: false` and is audited as `delete_office`.
+
+`GET /api/admin/offices/delete-check?id=...` (`super_admin`) returns `{ name, active, assignedAccounts, upcomingAppointments, totalAppointments, blockers }` without changing anything.
 
 ---
 

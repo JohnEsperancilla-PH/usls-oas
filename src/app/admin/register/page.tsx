@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { validateOfficeAdminEmail } from "@/lib/admin-email";
 import { adminFetch } from "@/lib/admin-fetch";
+import { Select } from "@/components/ui/Select";
 
 interface OfficeOption {
   id: string;
@@ -247,15 +248,15 @@ export default function AdminRegisterPage() {
             </div>
             <div>
               <label htmlFor="office" className="label">Assign Office</label>
-              <select id="office" value={officeId} onChange={(e) => setOfficeId(e.target.value)}
-                className="input" required disabled={officesLoading}>
+              <Select id="office" value={officeId} onChange={(e) => setOfficeId(e.target.value)}
+                required disabled={officesLoading}>
                 <option value="">
                   {officesLoading ? "Loading offices..." : "Select an office"}
                 </option>
                 {offices.map((office) => (
                   <option key={office.id} value={office.id}>{office.name}</option>
                 ))}
-              </select>
+              </Select>
               {!officesLoading && offices.length === 0 && (
                 <p className="text-xs text-red-500 mt-1">
                   No active offices are available. Please contact a super admin.

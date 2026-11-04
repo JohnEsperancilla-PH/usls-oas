@@ -6,6 +6,7 @@ import type { AdminRole, Office } from "@/types/database";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
 import { adminFetch } from "@/lib/admin-fetch";
+import { Select } from "@/components/ui/Select";
 
 interface AdminAccount { id: string; email: string; employee_id: string | null; name: string; role: string; office_id: string | null; approval_status?: "pending" | "approved"; created_at?: string; }
 
@@ -319,17 +320,17 @@ export default function AccountsPage() {
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <label htmlFor="role-filter" className="sr-only">Filter by account type</label>
-          <select
+          <Select
             id="role-filter"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value as "all" | AdminRole)}
-            className="input w-full sm:w-52"
+            className="w-full sm:w-52"
           >
             <option value="all">All account types</option>
             <option value="super_admin">Super Admin</option>
             <option value="office_admin">Office Admin</option>
             <option value="gate_user">Gate User</option>
-          </select>
+          </Select>
           <div className="flex items-center self-start sm:self-auto rounded-lg border border-gray-200 bg-white p-1" role="group" aria-label="View mode">
             <button
               type="button"
@@ -582,10 +583,10 @@ export default function AccountsPage() {
             {form.role === "office_admin" && (
               <div>
                 <label htmlFor="account-office" className="label">Assign Office</label>
-                <select id="account-office" required className="input" value={form.office_id} onChange={(e) => setForm({ ...form, office_id: e.target.value })}>
+                <Select id="account-office" required value={form.office_id} onChange={(e) => setForm({ ...form, office_id: e.target.value })}>
                   <option value="">Select an office</option>
                   {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
+                </Select>
               </div>
             )}
           </form>
@@ -629,10 +630,10 @@ export default function AccountsPage() {
           {editForm.role === "office_admin" && (
             <div>
               <label htmlFor="edit-office" className="label">Assigned Office</label>
-              <select id="edit-office" required className="input" value={editForm.office_id} onChange={(e) => setEditForm({ ...editForm, office_id: e.target.value })}>
+              <Select id="edit-office" required value={editForm.office_id} onChange={(e) => setEditForm({ ...editForm, office_id: e.target.value })}>
                 <option value="">Select an office</option>
                 {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-              </select>
+              </Select>
             </div>
           )}
         </form>

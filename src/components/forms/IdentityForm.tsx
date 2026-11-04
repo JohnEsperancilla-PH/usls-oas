@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { VALID_IDS } from "@/lib/valid-ids";
 import type { BookingData } from "@/components/landing/BookingLanding";
+import { Select } from "@/components/ui/Select";
 
 const VISITOR_CATEGORIES = [
   { value: "external", label: "External (Companies, Organizations, Groups)" },
@@ -141,25 +142,25 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
 
         <div>
           <label htmlFor="visitorCategory" className="label">Visitor Category</label>
-          <select id="visitorCategory" value={visitorCategory} onChange={(e) => { setVisitorCategory(e.target.value); if (errors.visitorCategory) setErrors((p) => ({ ...p, visitorCategory: "" })); }}
-            className={`input ${errors.visitorCategory ? "input-error" : ""}`}>
+          <Select id="visitorCategory" value={visitorCategory} onChange={(e) => { setVisitorCategory(e.target.value); if (errors.visitorCategory) setErrors((p) => ({ ...p, visitorCategory: "" })); }}
+            invalid={Boolean(errors.visitorCategory)}>
             <option value="">Select a visitor category...</option>
             {VISITOR_CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
-          </select>
+          </Select>
           {errors.visitorCategory && <p className="error-text mt-1">{errors.visitorCategory}</p>}
         </div>
 
         <div>
           <label htmlFor="validId" className="label">Valid IDs to Present at the Guard</label>
-          <select id="validId" value={validId} onChange={(e) => { setValidId(e.target.value); if (errors.validId) setErrors((p) => ({ ...p, validId: "" })); }}
-            className={`input ${errors.validId ? "input-error" : ""}`}>
+          <Select id="validId" value={validId} onChange={(e) => { setValidId(e.target.value); if (errors.validId) setErrors((p) => ({ ...p, validId: "" })); }}
+            invalid={Boolean(errors.validId)}>
             <option value="">Select a government-issued ID...</option>
             {VALID_IDS.map((id) => (
               <option key={id} value={id}>{id}</option>
             ))}
-          </select>
+          </Select>
           <p className="text-xs text-gray-400 mt-1.5">
             Choose the government-issued ID you will bring on your appointment day. You will need to present it at the guard to get your visitor&apos;s pass.
           </p>
@@ -199,10 +200,10 @@ export function IdentityForm({ data, onNext }: IdentityFormProps) {
                 <input id={`visitor-${index}-name`} type="text" value={visitor.fullName} onChange={(e) => updateAdditionalVisitor(index, "fullName", e.target.value)} className={`input ${errors[`visitor-${index}-name`] ? "input-error" : ""}`} placeholder="Full name" maxLength={100} />
                 {errors[`visitor-${index}-name`] && <p className="error-text">{errors[`visitor-${index}-name`]}</p>}
                 <label htmlFor={`visitor-${index}-id`} className="sr-only">Visitor {index + 2} valid ID</label>
-                <select id={`visitor-${index}-id`} value={visitor.validId} onChange={(e) => updateAdditionalVisitor(index, "validId", e.target.value)} className={`input mt-2 ${errors[`visitor-${index}-id`] ? "input-error" : ""}`}>
+                <Select id={`visitor-${index}-id`} value={visitor.validId} onChange={(e) => updateAdditionalVisitor(index, "validId", e.target.value)} className="mt-2" invalid={Boolean(errors[`visitor-${index}-id`])}>
                   <option value="">Select a government-issued ID...</option>
                   {VALID_IDS.map((id) => <option key={id} value={id}>{id}</option>)}
-                </select>
+                </Select>
                 {errors[`visitor-${index}-id`] && <p className="error-text">{errors[`visitor-${index}-id`]}</p>}
               </div>
             ))}

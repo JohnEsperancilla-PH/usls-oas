@@ -5,6 +5,7 @@ import type { AuditLog } from "@/types/database";
 import { StatusMessage } from "@/components/admin/StatusMessage";
 import { Pagination, SearchInput } from "@/components/admin/Pagination";
 import { AUDIT_ACTION_OPTIONS, getAuditActionLabel, getAuditSummary, getAuditTarget } from "@/lib/audit";
+import { Select } from "@/components/ui/Select";
 
 const PAGE_SIZE = 25;
 
@@ -96,10 +97,10 @@ export default function AuditPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:flex lg:items-end">
           <div>
             <label htmlFor="audit-action" className="block text-xs font-medium text-gray-600 mb-1">Action</label>
-            <select id="audit-action" value={action} onChange={(e) => withFirstPage(setAction)(e.target.value)} className="input lg:w-56">
+            <Select id="audit-action" value={action} onChange={(e) => withFirstPage(setAction)(e.target.value)} className="lg:w-56">
               <option value="">All actions</option>
               {AUDIT_ACTION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            </Select>
           </div>
           <div>
             <label htmlFor="audit-from" className="block text-xs font-medium text-gray-600 mb-1">From</label>

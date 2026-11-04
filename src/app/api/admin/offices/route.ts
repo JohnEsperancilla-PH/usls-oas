@@ -3,6 +3,7 @@ import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
+import { getOfficeDeleteCheck } from "@/lib/office-delete";
 
 export async function GET(request: Request) {
   try {
@@ -159,27 +160,41 @@ export async function DELETE(request: Request) {
     const check = requireSuperAdmin(admin);
     if (!check.ok) return NextResponse.json({ message: check.error }, { status: check.status });
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-
+    const body = await request.json().catch(() => ({}));
+    const id = typeof body.id === "string" ? body.id : "";
     if (!id) {
       return NextResponse.json({ message: "Office ID is required" }, { status: 400 });
     }
 
-    const supabase = createServiceClient();
-
-    const { error: deleteError } = await supabase
-      .from("offices")
-      .update({ active: false })
-      .eq("id", id);
-
-    if (deleteError) {
-      return NextResponse.json({ message: "Failed to deactivate office" }, { status: 500 });
+    const usage = await getOfficeDeleteCheck(id);
+    if (!usage) return NextResponse.json({ message: "Office not found" }, { status: 404 });
+    if (usage.blockers.length > 0) {
+      return NextResponse.json({ message: usage.blockers.join(" ") }, { status: 409 });
+    }
+    if (typeof body.confirmName !== "string" || body.confirmName.trim() !== usage.name.trim()) {
+      return NextResponse.json({ message: "Type the office name exactly to confirm" }, { status: 400 });
     }
 
-    await logAudit(admin.id, admin.email, "delete_office", { office_id: id });
+    const supabase = createServiceClient();
 
-    return NextResponse.json({ message: "Office deactivated" });
+    // The database deletes the office's appointments, contacts, and blocked times with it.
+    const { error: deleteError } = await supabase
+      .from("offices")
+      .delete()
+      .eq("id", id)
+      .eq("active", false);
+
+    if (deleteError) {
+      console.error(deleteError);
+      return NextResponse.json({ message: "Failed to delete office" }, { status: 500 });
+    }
+
+    // The office row is gone, so its id goes in the details rather than the office_id reference.
+    await logAudit(admin.id, admin.email, "permanently_delete_office", {
+      meta: { name: usage.name, deleted_office_id: id, appointments_deleted: usage.totalAppointments },
+    });
+
+    return NextResponse.json({ message: "Office deleted" });
   } catch (error) {
     return handleRouteError(error);
   }

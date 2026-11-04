@@ -6,6 +6,7 @@ import { VALID_IDS } from "@/lib/valid-ids";
 import type { Office, OfficeContact } from "@/types/database";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { adminFetch } from "@/lib/admin-fetch";
+import { Select } from "@/components/ui/Select";
 
 interface InvitationVehicle {
   plateNumber: string;
@@ -273,11 +274,11 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
               <div className="space-y-4">
                 <div>
                   <RequiredLabel label="Office" htmlFor="inv-office" />
-                  <select id="inv-office" className="input" value={form.officeId || (!isSuperAdmin ? admin.office_id || "" : "")}
+                  <Select id="inv-office" value={form.officeId || (!isSuperAdmin ? admin.office_id || "" : "")}
                     onChange={(e) => { setForm((p) => ({ ...p, officeId: e.target.value, timeSlot: "" })); setTaggedContactIds([]); }} disabled={!isSuperAdmin}>
                     <option value="">Select an office...</option>
                     {selectableOffices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -288,17 +289,17 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
                   </div>
                   <div>
                     <RequiredLabel label="Time" htmlFor="inv-time" />
-                    <select id="inv-time" className="input" value={form.timeSlot} onChange={(e) => setForm((p) => ({ ...p, timeSlot: e.target.value }))}>
+                    <Select id="inv-time" value={form.timeSlot} onChange={(e) => setForm((p) => ({ ...p, timeSlot: e.target.value }))}>
                       <option value="">Select...</option>
                       {timeSlots.map((slot) => <option key={slot} value={slot}>{formatSlot(slot)}</option>)}
-                    </select>
+                    </Select>
                   </div>
                   <div>
                     <label htmlFor="inv-duration" className="label">Duration</label>
-                    <select id="inv-duration" className="input" value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: e.target.value }))}>
+                    <Select id="inv-duration" value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: e.target.value }))}>
                       <option value="30">30 minutes</option>
                       <option value="60">60 minutes</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -330,16 +331,16 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="inv-category" className="label">Visitor Category</label>
-                    <select id="inv-category" className="input" value={form.visitorCategory} onChange={(e) => setForm((p) => ({ ...p, visitorCategory: e.target.value }))}>
+                    <Select id="inv-category" value={form.visitorCategory} onChange={(e) => setForm((p) => ({ ...p, visitorCategory: e.target.value }))}>
                       {VISITOR_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                    </select>
+                    </Select>
                   </div>
                   <div>
                     <label htmlFor="inv-validid" className="label">Valid ID (optional)</label>
-                    <select id="inv-validid" className="input" value={form.validId} onChange={(e) => setForm((p) => ({ ...p, validId: e.target.value }))}>
+                    <Select id="inv-validid" value={form.validId} onChange={(e) => setForm((p) => ({ ...p, validId: e.target.value }))}>
                       <option value="">Not specified</option>
                       {VALID_IDS.map((id) => <option key={id} value={id}>{id}</option>)}
-                    </select>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -403,10 +404,10 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
                         </div>
                         <div>
                           <label htmlFor={`inv-additional-${index}-id`} className="label">Visitor {index + 2} Valid ID <span className="text-red-500">*</span></label>
-                          <select id={`inv-additional-${index}-id`} value={visitor.validId} onChange={(e) => updateAdditionalVisitor(index, "validId", e.target.value)} className="input">
+                          <Select id={`inv-additional-${index}-id`} value={visitor.validId} onChange={(e) => updateAdditionalVisitor(index, "validId", e.target.value)}>
                             <option value="">Select a government-issued ID...</option>
                             {VALID_IDS.map((id) => <option key={id} value={id}>{id}</option>)}
-                          </select>
+                          </Select>
                         </div>
                       </div>
                     ))}

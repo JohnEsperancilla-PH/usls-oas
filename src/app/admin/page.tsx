@@ -9,6 +9,7 @@ import { Pagination, SearchInput } from "@/components/admin/Pagination";
 import type { Appointment, Office, BlockedTime } from "@/types/database";
 import { formatTimeSlot, getManilaToday } from "@/lib/time";
 import { adminFetch } from "@/lib/admin-fetch";
+import { Select } from "@/components/ui/Select";
 
 function parseOperatingHours(hours: string): { startH: number; endH: number } {
   const match = hours.match(/(\d{1,2}):?\d{0,2}\s*(AM|PM)\s*[-–]\s*(\d{1,2}):?\d{0,2}\s*(AM|PM)/i);
@@ -1019,11 +1020,11 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
                   </div>
                   <div>
                     <label htmlFor="postpone-time" className="label">New Time</label>
-                    <select id="postpone-time" className="input" value={postponeTime}
+                    <Select id="postpone-time" value={postponeTime}
                       onChange={(e) => { setPostponeTime(e.target.value); setPostponeError(null); }}>
                       <option value="">Select...</option>
                       {postponeSlots.map((slot) => <option key={slot} value={slot}>{formatTimeSlot(slot || "TBD")}</option>)}
-                    </select>
+                    </Select>
                   </div>
                 </div>
                 <textarea value={postponeReason} onChange={(e) => setPostponeReason(e.target.value)} placeholder="Reason for postponement (optional — included in the visitor's email)" className="input" rows={2} />
@@ -1052,11 +1053,11 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
                     <label htmlFor="approve-time" className="label">
                       Appointment Time <span className="text-red-500">*</span>
                     </label>
-                    <select id="approve-time" className="input mt-1" value={approveTime}
+                    <Select id="approve-time" className="mt-1" value={approveTime}
                       onChange={(e) => { setApproveTime(e.target.value); setApproveError(null); }}>
                       <option value="">Select a time...</option>
                       {postponeSlots.map((slot) => <option key={slot} value={slot}>{formatTimeSlot(slot)}</option>)}
-                    </select>
+                    </Select>
                     <p className="text-xs text-gray-500 mt-1">This office has time selection disabled, so set the time before approving. It will appear in the approval email, the entry QR, and the calendar invite.</p>
                   </div>
                 )}

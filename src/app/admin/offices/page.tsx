@@ -7,6 +7,8 @@ import { OfficeContactsModal } from "@/components/admin/OfficeContactsModal";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
 import { adminFetch } from "@/lib/admin-fetch";
+import type { OfficeDeleteCheck } from "@/lib/office-delete";
+import { Select } from "@/components/ui/Select";
 
 // Operating hours are stored as text like "8:00 AM - 5:00 PM"; the form edits them as two 24-hour times.
 function parseHours(value: string): { start: string; end: string } | null {
@@ -28,6 +30,9 @@ function formatHours(start: string, end: string): string {
   return start && end ? `${to12(start)} - ${to12(end)}` : "";
 }
 
+// Category filter value for offices without a category.
+const NO_CATEGORY = "__none__";
+
 export default function OfficesPage() {
   const { admin } = useAdmin();
   const [offices, setOffices] = useState<Office[]>([]);
@@ -43,6 +48,13 @@ export default function OfficesPage() {
   const [loadError, setLoadError] = useState(false);
   const [confirmingDeactivate, setConfirmingDeactivate] = useState<Office | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [deletingOffice, setDeletingOffice] = useState<Office | null>(null);
+  const [deleteCheck, setDeleteCheck] = useState<OfficeDeleteCheck | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   const fetchOffices = useCallback(async () => {
     setLoading(true);
@@ -95,7 +107,41 @@ export default function OfficesPage() {
     finally { setToggling(false); }
   };
 
+  const openDelete = async (o: Office) => {
+    setMessage(null); setDeletingOffice(o); setDeleteCheck(null); setDeleteError(null); setDeleteConfirmName("");
+    try {
+      const res = await adminFetch(`/api/admin/offices/delete-check?id=${encodeURIComponent(o.id)}`, {});
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || `Could not check whether ${o.name} can be deleted.`);
+      setDeleteCheck(data);
+    } catch (err) { setDeleteError(err instanceof Error ? err.message : `Could not check whether ${o.name} can be deleted.`); }
+  };
+
+  const closeDelete = () => { if (!deleting) setDeletingOffice(null); };
+
+  const handleDelete = async () => {
+    if (!deletingOffice) return;
+    setDeleting(true); setDeleteError(null);
+    try {
+      const res = await adminFetch("/api/admin/offices", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: deletingOffice.id, confirmName: deleteConfirmName }) });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || `Could not delete ${deletingOffice.name}.`); }
+      setMessage({ type: "success", text: `${deletingOffice.name} was permanently deleted.` });
+      setDeletingOffice(null);
+      fetchOffices();
+    } catch (err) { setDeleteError(err instanceof Error ? err.message : `Could not delete ${deletingOffice.name}.`); }
+    finally { setDeleting(false); }
+  };
+
+  const canDelete = Boolean(deleteCheck && deleteCheck.blockers.length === 0 && deleteConfirmName.trim() === deleteCheck.name.trim());
+
+  const categories = [...new Set(offices.map((o) => o.category?.trim()).filter((c): c is string => Boolean(c)))].sort((a, b) => a.localeCompare(b));
+  const filtersActive = Boolean(query.trim()) || statusFilter !== "all" || categoryFilter !== "";
+  const clearFilters = () => { setQuery(""); setStatusFilter("all"); setCategoryFilter(""); };
+
   const filteredOffices = offices.filter((o) => {
+    if (statusFilter === "active" && !o.active) return false;
+    if (statusFilter === "inactive" && o.active) return false;
+    if (categoryFilter === NO_CATEGORY ? Boolean(o.category?.trim()) : categoryFilter && o.category?.trim() !== categoryFilter) return false;
     const q = query.trim().toLowerCase();
     if (!q) return true;
     return o.name.toLowerCase().includes(q) || (o.category || "").toLowerCase().includes(q) || (o.email || "").toLowerCase().includes(q);
@@ -106,7 +152,9 @@ export default function OfficesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Offices</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{offices.length} office{offices.length !== 1 ? "s" : ""} configured</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {filtersActive ? `Showing ${filteredOffices.length} of ${offices.length} offices` : `${offices.length} office${offices.length !== 1 ? "s" : ""} configured`}
+          </p>
         </div>
         <button onClick={openCreate} className="btn-primary btn-sm flex items-center gap-1.5">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -116,7 +164,8 @@ export default function OfficesPage() {
 
       {message && <StatusMessage message={message} onDismiss={() => setMessage(null)} />}
 
-      <div className="relative">
+      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="relative flex-1 min-w-0">
         <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
@@ -137,6 +186,27 @@ export default function OfficesPage() {
           </button>
         )}
       </div>
+        {/* The global .input class forces full width, so the wrapper sets the dropdown's width. */}
+        <div className="sm:w-72 sm:flex-shrink-0">
+          <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="Filter by category">
+            <option value="">All categories</option>
+            {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+            {offices.some((o) => !o.category?.trim()) && <option value={NO_CATEGORY}>No category</option>}
+          </Select>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter by status">
+        {([["all", "All"], ["active", "Active"], ["inactive", "Inactive"]] as const).map(([value, label]) => (
+          <button key={value} type="button" onClick={() => setStatusFilter(value)} aria-pressed={statusFilter === value}
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${statusFilter === value ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
+            {label}
+          </button>
+        ))}
+        {filtersActive && (
+          <button type="button" onClick={clearFilters} className="ml-auto text-sm font-medium text-primary hover:underline whitespace-nowrap">Clear filters</button>
+        )}
+      </div>
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -154,8 +224,8 @@ export default function OfficesPage() {
         </div>
       ) : filteredOffices.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <p className="text-sm text-gray-500">No offices match your search.</p>
-          {query && <button onClick={() => setQuery("")} className="text-sm font-medium text-primary hover:text-primary-light mt-2">Clear search</button>}
+          <p className="text-sm text-gray-500">No offices match these filters.</p>
+          <button onClick={clearFilters} className="text-sm font-medium text-primary hover:text-primary-light mt-2">Clear filters</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -199,6 +269,9 @@ export default function OfficesPage() {
                 <button onClick={() => (o.active ? setConfirmingDeactivate(o) : handleToggle(o))} disabled={toggling} className={`flex-1 text-center text-xs font-medium py-1.5 rounded-lg transition-colors ${o.active ? "text-gray-500 bg-gray-50 hover:bg-gray-100" : "text-green-600 bg-green-50 hover:bg-green-100"}`}>
                   {o.active ? "Deactivate" : "Activate"}
                 </button>
+                {!o.active && (
+                  <button onClick={() => openDelete(o)} className="flex-1 text-center text-xs font-medium text-red-600 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors">Delete</button>
+                )}
               </div>
             </div>
           ))}
@@ -276,6 +349,51 @@ export default function OfficesPage() {
         <p className="text-sm text-gray-600">
           Visitors won&apos;t be able to book <strong>{confirmingDeactivate?.name}</strong> until it&apos;s activated again.
         </p>
+      </ModalShell>
+
+      <ModalShell open={Boolean(deletingOffice)} title="Delete Office Permanently" subtitle={deletingOffice?.name} onClose={closeDelete} maxWidthClass="max-w-md"
+        footer={
+          <>
+            <button type="button" onClick={handleDelete} disabled={!canDelete || deleting} className="btn-danger flex-1 btn-sm disabled:opacity-50">
+              {deleting ? "Deleting..." : "Delete permanently"}
+            </button>
+            <button type="button" onClick={closeDelete} disabled={deleting} className="btn-secondary btn-sm">Cancel</button>
+          </>
+        }>
+        <div className="space-y-3 text-sm text-gray-600">
+          {deleteError && <StatusMessage message={{ type: "error", text: deleteError }} />}
+          {!deleteCheck && !deleteError && <div className="skeleton h-16 rounded-lg" />}
+          {deleteCheck && deleteCheck.blockers.length > 0 && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
+              <p className="font-semibold">This office can&apos;t be deleted yet</p>
+              <ul className="mt-1 list-disc pl-5 text-xs space-y-0.5">
+                {deleteCheck.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+              </ul>
+            </div>
+          )}
+          {deleteCheck && deleteCheck.blockers.length === 0 && (
+            <>
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-900">
+                <p className="font-semibold">This can&apos;t be undone</p>
+                <ul className="mt-1 list-disc pl-5 text-xs space-y-0.5">
+                  <li>
+                    {deleteCheck.totalAppointments > 0
+                      ? <>All <strong>{deleteCheck.totalAppointments}</strong> appointment{deleteCheck.totalAppointments !== 1 ? "s" : ""} for this office, with their visitor and vehicle details, are deleted.</>
+                      : <>This office has no appointments.</>}
+                  </li>
+                  <li>Its contacts and blocked times are deleted.</li>
+                  <li>Its history disappears from analytics. The audit log keeps a record of the deletion.</li>
+                </ul>
+              </div>
+              <p className="text-xs">To keep the history, leave the office deactivated instead.</p>
+              <div>
+                <label htmlFor="office-delete-confirm" className="label">Type <strong>{deleteCheck.name}</strong> to confirm</label>
+                <input id="office-delete-confirm" className="input" value={deleteConfirmName} autoComplete="off"
+                  onChange={(e) => setDeleteConfirmName(e.target.value)} />
+              </div>
+            </>
+          )}
+        </div>
       </ModalShell>
 
       <OfficeContactsModal
