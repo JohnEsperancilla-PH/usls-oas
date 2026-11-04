@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Children, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -44,6 +44,23 @@ function readOptions(children: ReactNode): SelectOption[] {
 const MAX_MENU_HEIGHT = 288;
 const MENU_GAP = 4;
 
+// Phones and tablets get a real <select> so iOS and Android show their own pickers.
+const TOUCH_QUERY = "(pointer: coarse)";
+function subscribeTouch(onChange: () => void) {
+  const mql = window.matchMedia(TOUCH_QUERY);
+  mql.addEventListener("change", onChange);
+  return () => mql.removeEventListener("change", onChange);
+}
+function useIsTouch() {
+  return useSyncExternalStore(subscribeTouch, () => window.matchMedia(TOUCH_QUERY).matches, () => false);
+}
+
+const Chevron = ({ className = "" }: { className?: string }) => (
+  <svg className={`w-4 h-4 flex-shrink-0 text-gray-400 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+  </svg>
+);
+
 // A styled replacement for <select>, built as an ARIA combobox with a listbox popup.
 export function Select({ id, value, onChange, children, className = "", invalid, size = "md", disabled, required, "aria-label": ariaLabel }: SelectProps) {
   const generatedId = useId();
@@ -60,6 +77,7 @@ export function Select({ id, value, onChange, children, className = "", invalid,
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const typeahead = useRef({ text: "", timer: 0 });
+  const isTouch = useIsTouch();
 
   // The menu is portalled and fixed so it isn't clipped by scrolling containers such as modals.
   useLayoutEffect(() => {
@@ -157,6 +175,21 @@ export function Select({ id, value, onChange, children, className = "", invalid,
     }
   };
 
+  if (isTouch) {
+    return (
+      <div className={`relative ${className}`}>
+        <select id={buttonId} value={selectedValue} onChange={(e) => onChange({ target: { value: e.target.value } })}
+          disabled={disabled} required={required} aria-label={ariaLabel} aria-invalid={invalid || undefined}
+          className={`input appearance-none bg-white pr-10 truncate disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed ${size === "sm" ? "!py-1.5" : ""} ${invalid ? "input-error" : ""}`}>
+          {options.map((option, index) => (
+            <option key={`${option.value}-${index}`} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+        <Chevron className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      </div>
+    );
+  }
+
   return (
     <div className={`relative ${className}`}>
       <button ref={buttonRef} id={buttonId} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId}
@@ -164,9 +197,7 @@ export function Select({ id, value, onChange, children, className = "", invalid,
         disabled={disabled} onClick={() => (open ? setOpen(false) : openMenu())} onKeyDown={onKeyDown}
         className={`input flex items-center justify-between gap-2 bg-white text-left disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed ${size === "sm" ? "!py-1.5" : ""} ${invalid ? "input-error" : ""} ${open ? "ring-2 ring-primary/30 border-primary" : ""}`}>
         <span className="truncate">{selected?.label ?? ""}</span>
-        <svg className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <Chevron className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {/* Lets the browser's own required-field check work inside forms. */}
