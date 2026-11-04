@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { getAuthAdmin, logAudit, isDashboardRole } from "@/lib/rbac";
 import { diffChanges } from "@/lib/audit";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 
@@ -15,7 +15,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
-    if (admin.role === "gate_user") return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
+    if (!isDashboardRole(admin.role)) return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
 
     const body = await request.json();
     const name = typeof body.name === "string" ? body.name.trim() : undefined;
@@ -71,7 +71,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const { id } = await params;
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
-    if (admin.role === "gate_user") return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
+    if (!isDashboardRole(admin.role)) return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
 
     const supabase = createServiceClient();
 

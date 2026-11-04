@@ -1,5 +1,5 @@
 export type AppointmentStatus = "pending" | "approved" | "declined" | "postponed" | "entry_denied" | "completed" | "expired";
-export type AdminRole = "super_admin" | "office_admin" | "gate_user";
+export type AdminRole = "super_admin" | "office_admin" | "gate_user" | "gate_admin";
 export type VisitorCategory = "external" | "parents" | "alumni" | "vendor";
 export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "update_account" | "delete_account" | "reset_password" | "approve_account" | "reject_account" | "create_office" | "update_office" | "delete_office" | "permanently_delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation" | "create_contact" | "update_contact" | "delete_contact" | "enable_maintenance" | "disable_maintenance" | "update_maintenance" | "update_system_alert" | "update_email_templates" | "tag_sub_office" | "close_date" | "reopen_date";
 

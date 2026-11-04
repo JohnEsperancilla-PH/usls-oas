@@ -195,16 +195,16 @@ export function OfficeAdminGuide() {
   );
 }
 
-export function GuardGuide({ entryWindow }: { entryWindow: EntryWindow }) {
+export function GuardGuide({ entryWindow, showGuardAdmin = false }: { entryWindow: EntryWindow; showGuardAdmin?: boolean }) {
   return (
     <>
       <p>Guards check visitors in and out at the gate using the <strong>Gate Entry</strong> page.</p>
-      <Contents items={[["gate-signin", "Signing in"], ["screen", "The gate screen"], ["verify", "Verifying a visitor"], ["allow", "Allowing or denying entry"], ["checkout", "Checking visitors out"], ["messages", "Common messages"], ["outage", "Power or internet outage"], ["device", "Device care"]]} />
+      <Contents items={[["gate-signin", "Signing in"], ["screen", "The gate screen"], ["verify", "Verifying a visitor"], ["allow", "Allowing or denying entry"], ["checkout", "Checking visitors out"], ["messages", "Common messages"], ["outage", "Power or internet outage"], ["device", "Device care"], ...(showGuardAdmin ? [["guard-admin", "For guard admins"] as [string, string]] : [])]} />
 
       <Section id="gate-signin" title="1. Signing in">
         <ol>
           <li>Open <strong>/entry</strong> on the gate device.</li>
-          <li>Enter your <strong>Employee ID</strong> (or username) and password, then sign in.</li>
+          <li>Enter your <strong>username</strong> and password, then sign in.</li>
           <li>At the end of your shift, click <strong>Sign Out</strong>.</li>
         </ol>
       </Section>
@@ -262,6 +262,16 @@ export function GuardGuide({ entryWindow }: { entryWindow: EntryWindow }) {
           <li>Report damage or loss to your supervisor right away.</li>
         </ul>
       </Section>
+
+      {showGuardAdmin && (
+        <Section id="guard-admin" title="9. For guard admins">
+          <ul>
+            <li>Sign in at <strong>/admin/login</strong> with your email. You land on <strong>Today&apos;s Visitors</strong>: every office&apos;s appointments for the day, with counts at the top.</li>
+            <li>Search or filter the list, or pick another date. Click <strong>View</strong> to see an appointment&apos;s full details (read-only).</li>
+            <li>Open <strong>Guard Accounts</strong> in the sidebar and click <strong>Add Guard</strong> to create a guard login (name, username, password). You can only create guard accounts.</li>
+          </ul>
+        </Section>
+      )}
     </>
   );
 }

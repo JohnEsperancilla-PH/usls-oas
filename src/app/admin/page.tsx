@@ -65,6 +65,12 @@ function formatDay(date: string, options: Intl.DateTimeFormatOptions) {
 
 export default function AdminDashboardPage() {
   const { admin } = useAdmin();
+  // Guard admins get a read-only list of the day's visitors instead of the appointment dashboard.
+  return admin?.role === "gate_admin" ? <GuardAdminDashboard /> : <AppointmentsDashboard />;
+}
+
+function AppointmentsDashboard() {
+  const { admin } = useAdmin();
   const isSuperAdmin = admin?.role === "super_admin";
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
@@ -722,6 +728,194 @@ function CalendarView({ admin, appointments, offices, loading, loadError, messag
   );
 }
 
+/* ─── Today's Visitors (guard admins) ─── */
+
+type GuardFilter = "all" | "expected" | "inside" | "left" | "pending" | "other";
+
+function GuardAdminDashboard() {
+  const todayStr = getManilaToday();
+  const [date, setDate] = useState(todayStr);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [offices, setOffices] = useState<Office[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [filter, setFilter] = useState<GuardFilter>("all");
+  const [officeFilter, setOfficeFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [viewing, setViewing] = useState<Appointment | null>(null);
+
+  const fetchDay = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await adminFetch(`/api/guard-admin/appointments?date=${date}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setAppointments(Array.isArray(data.appointments) ? data.appointments : []);
+      setLoadError(false);
+    } catch { setLoadError(true); }
+    finally { setLoading(false); }
+  }, [date]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchDay(); }, [fetchDay]);
+
+  useEffect(() => {
+    adminFetch("/api/admin/offices")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setOffices(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const shiftDay = (delta: number) => {
+    const d = new Date(date + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + delta);
+    setDate(d.toISOString().slice(0, 10));
+  };
+
+  // Gate state of an appointment, as a guard sees it.
+  const gateState = (a: Appointment): GuardFilter => {
+    if (a.checked_out_at) return "left";
+    if (a.scanned_at || a.status === "completed") return "inside";
+    if (a.status === "approved") return "expected";
+    if (a.status === "pending" || a.status === "postponed") return "pending";
+    return "other";
+  };
+  const counts = appointments.reduce<Record<GuardFilter, number>>((acc, a) => { acc[gateState(a)]++; acc.all++; return acc; },
+    { all: 0, expected: 0, inside: 0, left: 0, pending: 0, other: 0 });
+
+  const officeName = (a: Appointment) => offices.find((o) => o.id === a.office_id)?.name || (a as Appointment & { offices?: { name?: string } }).offices?.name || "—";
+  const officeOptions = [...new Map(appointments.map((a) => [a.office_id, officeName(a)])).entries()].sort((x, y) => x[1].localeCompare(y[1]));
+
+  const q = search.trim().toLowerCase();
+  const shown = appointments.filter((a) =>
+    (filter === "all" || gateState(a) === filter) &&
+    (!officeFilter || a.office_id === officeFilter) &&
+    (!q || [a.full_name, a.person_to_meet, officeName(a), ...(a.visitors || []).map((v) => v.full_name), ...(a.vehicles || []).map((v) => v.plate_number)]
+      .some((v) => (v || "").toLowerCase().includes(q))));
+
+  const stateBadge: Record<GuardFilter, [string, string]> = {
+    all: ["", ""],
+    expected: ["Expected", "bg-green-50 text-green-700 border-green-200"],
+    inside: ["Checked in", "bg-blue-50 text-blue-700 border-blue-200"],
+    left: ["Checked out", "bg-gray-100 text-gray-600 border-gray-200"],
+    pending: ["Not approved yet", "bg-amber-50 text-amber-700 border-amber-200"],
+    other: ["Declined / expired", "bg-red-50 text-red-600 border-red-200"],
+  };
+  const timeOf = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" }) : null;
+  const getStatusBadge = (status: string) => ({ pending: "status-pending", approved: "status-approved", declined: "status-declined", postponed: "status-postponed", completed: "status-completed", expired: "status-expired" } as Record<string, string>)[status] || "status-expired";
+  const noop = () => {};
+
+  const cards: { key: GuardFilter; label: string; tone: string }[] = [
+    { key: "all", label: "Total today", tone: "text-gray-900" },
+    { key: "expected", label: "Expected", tone: "text-green-700" },
+    { key: "inside", label: "Checked in", tone: "text-blue-700" },
+    { key: "left", label: "Checked out", tone: "text-gray-600" },
+    { key: "pending", label: "Not approved yet", tone: "text-amber-700" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{date === todayStr ? "Today's Visitors" : "Visitors"}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{formatDay(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })} · all offices</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => shiftDay(-1)} aria-label="Previous day" className="p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50">
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="input !py-1.5 !w-auto" aria-label="Date" />
+          <button type="button" onClick={() => shiftDay(1)} aria-label="Next day" className="p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50">
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+          {date !== todayStr && <button type="button" onClick={() => setDate(todayStr)} className="text-sm font-medium text-primary hover:underline ml-1">Today</button>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {cards.map((c) => (
+          <button key={c.key} type="button" onClick={() => setFilter(c.key)} aria-pressed={filter === c.key}
+            className={`text-left bg-white rounded-xl border p-4 transition-all hover:shadow-sm ${filter === c.key ? "border-primary ring-1 ring-primary" : "border-gray-200 hover:border-gray-300"}`}>
+            <div className={`text-2xl font-bold ${c.tone}`}>{loading ? "–" : counts[c.key]}</div>
+            <div className="text-xs text-gray-500">{c.label}</div>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-3">
+        <div className="flex-1"><SearchInput value={search} onChange={setSearch} placeholder="Search visitor, person to meet, office, or plate number..." label="Search today's visitors" /></div>
+        <Select value={officeFilter} onChange={(e) => setOfficeFilter(e.target.value)} aria-label="Filter by office" className="lg:w-72">
+          <option value="">All offices</option>
+          {officeOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </Select>
+        {filter === "other" || counts.other > 0 ? (
+          <button type="button" onClick={() => setFilter(filter === "other" ? "all" : "other")} aria-pressed={filter === "other"}
+            className={`px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${filter === "other" ? "bg-primary text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>
+            Declined / expired ({counts.other})
+          </button>
+        ) : null}
+      </div>
+
+      {loadError && !loading ? (
+        <StatusMessage message={{ type: "error", text: "Could not load the day's appointments. Check your connection and try again." }} onRetry={fetchDay} />
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {loading ? (
+            <div className="p-5 space-y-2">{[1, 2, 3, 4].map((i) => <div key={i} className="skeleton h-12 rounded-lg" />)}</div>
+          ) : shown.length === 0 ? (
+            <div className="p-10 text-center text-sm text-gray-500">
+              {appointments.length === 0 ? "No appointments on this day." : "No appointments match these filters."}
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {shown.map((a) => {
+                const state = gateState(a);
+                const [label, tone] = stateBadge[state];
+                const count = a.visitor_count || a.visitors?.length || 1;
+                return (
+                  <li key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 sm:px-5 py-3 hover:bg-gray-50">
+                    <div className="sm:w-24 flex-shrink-0">
+                      <div className="text-sm font-semibold text-gray-900">{formatTimeSlot(a.time_slot || "TBD")}</div>
+                      <div className="text-[11px] text-gray-400">{a.duration} min</div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">
+                        {a.full_name}{count > 1 && <span className="text-gray-400 font-normal"> +{count - 1}</span>}
+                        {a.is_invitation && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700 align-middle">Invitation</span>}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {officeName(a)}{a.person_to_meet ? ` · meeting ${a.person_to_meet}` : ""}
+                        {a.vehicles && a.vehicles.length > 0 ? ` · ${a.vehicles.map((v) => v.plate_number).join(", ")}` : ""}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 sm:justify-end flex-shrink-0">
+                      <div className="text-right">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold border ${tone}`}>{label}</span>
+                        {(a.scanned_at || a.checked_out_at) && (
+                          <div className="text-[11px] text-gray-400 mt-0.5">
+                            {a.scanned_at && `In ${timeOf(a.scanned_at)}`}{a.checked_out_at && ` · Out ${timeOf(a.checked_out_at)}`}
+                          </div>
+                        )}
+                      </div>
+                      <button type="button" onClick={() => setViewing(a)} aria-label={`View ${a.full_name}`}
+                        className="text-xs font-medium text-primary px-3 py-1.5 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors">View</button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {viewing && (
+        <DetailModal appointment={viewing} offices={offices} readOnly onClose={() => setViewing(null)}
+          onApprove={noop} onDecline={noop} onPostpone={noop} onResetQR={noop} processing={null} getStatusBadge={getStatusBadge} />
+      )}
+    </div>
+  );
+}
+
 /* ─── List by Day (office admin) ─── */
 
 function ListByDay({ byDate, blockedByDate, closedDates, loading, filter, officeId, year, month, onPrevMonth, onNextMonth, onToday, onView, onBlockDate, color }: {
@@ -982,13 +1176,14 @@ function BlockTimeModal({ date, officeId, officeName, blockedSlots, onBlock, onU
 
 /* ─── Detail Modal ─── */
 
-function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, onResetQR, onClose, processing, getStatusBadge, error, startWithDecline = false }: {
+function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, onResetQR, onClose, processing, getStatusBadge, error, startWithDecline = false, readOnly = false }: {
   appointment: Appointment; offices: Office[];
   onApprove: (a: Appointment, personToMeetEmail?: string, timeSlot?: string) => void; onDecline: (a: Appointment, reason?: string) => void;
   onPostpone: (a: Appointment, reason: string, newDate: string, newTimeSlot: string) => void;
   onResetQR: (a: Appointment) => void;
   onClose: () => void; processing: { id: string; action: "approve" | "decline" | "postpone" | "reset" } | null; getStatusBadge: (s: string) => string;
-  error?: string | null; startWithDecline?: boolean;
+  // Read-only (guard admins): details only, no approve/decline/postpone/re-issue.
+  error?: string | null; startWithDecline?: boolean; readOnly?: boolean;
 }) {
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineReason, setShowDeclineReason] = useState(startWithDecline);
@@ -1026,7 +1221,9 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
   return (
     <ModalShell open={true} title="Appointment Details" subtitle={`${officeName} · ${formatDay(appointment.date, { weekday: "short", month: "short", day: "numeric" })}, ${formatTimeSlot(appointment.time_slot || "TBD")} (${appointment.duration} min)`} onClose={onClose} maxWidthClass="max-w-2xl"
       footer={
-        appointment.status === "completed" && confirmReissue ? (
+        readOnly ? (
+          <button onClick={onClose} className="btn-secondary flex-1">Close</button>
+        ) : appointment.status === "completed" && confirmReissue ? (
           <div className="w-full space-y-3">
             <p className="text-sm text-gray-700">
               Replace the reference number and email the new one to <strong>{appointment.email}</strong>? The old reference stops working, the recorded gate entry is cleared, and the appointment goes back to Approved so the visitor can enter again.
@@ -1172,7 +1369,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
           <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
         ))}
       </div>
-      <SubOfficeTags appointmentId={appointment.id} />
+      {!readOnly && <SubOfficeTags appointmentId={appointment.id} />}
       {appointment.purpose_of_visit && (
         <div>
           <div className="text-xs text-gray-400 mb-1">Purpose of Visit</div>

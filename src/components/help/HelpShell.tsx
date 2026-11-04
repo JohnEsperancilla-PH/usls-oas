@@ -8,6 +8,7 @@ const ROLE_LABELS: Record<Exclude<ViewerRole, null>, string> = {
   super_admin: "Super admin",
   office_admin: "Office admin",
   gate_user: "Guard",
+  gate_admin: "Guard admin",
 };
 
 /** Page frame for the public help pages (/guide, /updates). */

@@ -91,7 +91,7 @@ export default function InvitationsPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, []);
 
-  if (admin.role === "gate_user") {
+  if (admin.role === "gate_user" || admin.role === "gate_admin") {
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
         <p className="text-sm text-gray-500">You do not have permission to view invitations.</p>

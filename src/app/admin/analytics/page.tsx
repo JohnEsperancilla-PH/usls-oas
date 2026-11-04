@@ -77,7 +77,7 @@ export default function AnalyticsPage() {
       .catch(() => setOffices([]));
   }, [isSuperAdmin]);
 
-  if (admin.role === "gate_user") {
+  if (admin.role === "gate_user" || admin.role === "gate_admin") {
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
         <p className="text-sm text-gray-500">You do not have permission to view analytics.</p>

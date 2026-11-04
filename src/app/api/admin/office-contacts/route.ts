@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, logAudit } from "@/lib/rbac";
+import { getAuthAdmin, logAudit, isDashboardRole } from "@/lib/rbac";
 import { sanitizeName, sanitizeEmail } from "@/lib/sanitize";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { canInviteForOtherOffices } from "@/lib/invitation-access";
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
-    if (admin.role === "gate_user") return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
+    if (!isDashboardRole(admin.role)) return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const officeId = searchParams.get("officeId");
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
-    if (admin.role === "gate_user") return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
+    if (!isDashboardRole(admin.role)) return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
 
     const body = await request.json();
     const officeId = admin.role === "office_admin" ? admin.office_id : typeof body.officeId === "string" ? body.officeId : "";

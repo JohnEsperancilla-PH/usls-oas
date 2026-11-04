@@ -1,6 +1,6 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
-export type ViewerRole = "super_admin" | "office_admin" | "gate_user" | null;
+export type ViewerRole = "super_admin" | "office_admin" | "gate_user" | "gate_admin" | null;
 
 /** The signed-in staff role for a server-rendered page, or null for visitors and pending accounts. */
 export async function getViewerRole(): Promise<ViewerRole> {

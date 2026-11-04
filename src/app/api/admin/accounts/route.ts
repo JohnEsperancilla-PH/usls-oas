@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     if (role !== "gate_user" && (!emailRegex.test(email) || email.length > 254)) {
       return NextResponse.json({ message: "Invalid email format" }, { status: 400 });
     }
-    if (!["super_admin", "office_admin", "gate_user"].includes(role)) {
+    if (!["super_admin", "office_admin", "gate_user", "gate_admin"].includes(role)) {
       return NextResponse.json({ message: "Invalid role" }, { status: 400 });
     }
     if (password.length < 8) {
@@ -70,14 +70,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Office is required for office admins" }, { status: 400 });
     }
     if (role === "gate_user" && (!employee_id || !/^[A-Za-z0-9-]{3,30}$/.test(employee_id))) {
-      return NextResponse.json({ message: "A valid employee ID is required for gate users" }, { status: 400 });
+      return NextResponse.json({ message: "A valid username is required for gate users (3–30 letters, numbers, or dashes)" }, { status: 400 });
     }
 
     const supabase = createServiceClient();
     const normalizedEmployeeId = typeof employee_id === "string" ? employee_id.trim().toUpperCase() : null;
 
     if (role === "gate_user" && !normalizedEmployeeId) {
-      return NextResponse.json({ message: "A valid employee ID is required for gate users" }, { status: 400 });
+      return NextResponse.json({ message: "A valid username is required for gate users (3–30 letters, numbers, or dashes)" }, { status: 400 });
     }
 
     if (normalizedEmployeeId) {
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
         .eq("employee_id", normalizedEmployeeId)
         .maybeSingle();
       if (existingEmployee) {
-        return NextResponse.json({ message: "That employee ID is already in use" }, { status: 409 });
+        return NextResponse.json({ message: "That username is already in use" }, { status: 409 });
       }
     }
 
@@ -237,7 +237,7 @@ export async function PUT(request: Request) {
     if (name.length > 100) {
       return NextResponse.json({ message: "Name is too long (max 100 characters)" }, { status: 400 });
     }
-    if (!["super_admin", "office_admin", "gate_user"].includes(role)) {
+    if (!["super_admin", "office_admin", "gate_user", "gate_admin"].includes(role)) {
       return NextResponse.json({ message: "Invalid role" }, { status: 400 });
     }
     if (role === "office_admin" && !office_id) {

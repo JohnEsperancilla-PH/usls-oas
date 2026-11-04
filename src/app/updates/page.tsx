@@ -20,7 +20,7 @@ const AUDIENCE_LABELS: Record<SystemAlertAudience, string> = { landing: "Visitor
 function visibleAudiences(role: ViewerRole): SystemAlertAudience[] {
   if (role === "super_admin") return ["landing", "admin", "gate"];
   if (role === "office_admin") return ["landing", "admin"];
-  if (role === "gate_user") return ["landing", "gate"];
+  if (role === "gate_user" || role === "gate_admin") return ["landing", "gate"];
   return ["landing"];
 }
 

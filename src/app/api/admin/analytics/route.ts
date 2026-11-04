@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin } from "@/lib/rbac";
+import { getAuthAdmin, isDashboardRole } from "@/lib/rbac";
 import { getManilaToday } from "@/lib/time";
 import { expireStaleAppointments } from "@/lib/expire-appointments";
 import { computeAnalytics, type AnalyticsAppointment, type DecisionLog } from "@/lib/analytics";
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
-    if (admin.role === "gate_user") {
+    if (!isDashboardRole(admin.role)) {
       return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
     }
 

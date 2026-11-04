@@ -1,7 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin } from "@/lib/rbac";
+import { getAuthAdmin, isDashboardRole } from "@/lib/rbac";
 import { createUniqueReference } from "@/lib/reference";
 import { runInvitationTasks, type AppointmentWithOffice } from "@/lib/appointment-actions";
 import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-mirror";
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   try {
     const { admin, error, status } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: error }, { status });
-    if (admin.role === "gate_user") return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
+    if (!isDashboardRole(admin.role)) return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
 
     const supabase = createServiceClient();
 
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
   try {
     const { admin, error: authError, status: authStatus } = await getAuthAdmin(request);
     if (!admin) return NextResponse.json({ message: authError }, { status: authStatus });
-    if (admin.role === "gate_user") return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
+    if (!isDashboardRole(admin.role)) return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 });
 
     const body = await request.json();
 

@@ -18,7 +18,7 @@ type GuideKey = "visitors" | "office" | "guards" | "super";
 const GUIDES: { key: GuideKey; label: string; title: string; roles: Exclude<ViewerRole, null>[] | null; signIn?: string }[] = [
   { key: "visitors", label: "Visitors", title: "Visitor guide", roles: null },
   { key: "office", label: "Office admins", title: "Office admin guide", roles: ["office_admin", "super_admin"], signIn: "/admin/login" },
-  { key: "guards", label: "Guards", title: "Guard guide", roles: ["gate_user", "super_admin"], signIn: "/entry" },
+  { key: "guards", label: "Guards", title: "Guard guide", roles: ["gate_user", "gate_admin", "super_admin"], signIn: "/entry" },
   { key: "super", label: "Super admins", title: "Super admin guide", roles: ["super_admin"], signIn: "/admin/login" },
 ];
 
@@ -28,7 +28,7 @@ function canView(guide: (typeof GUIDES)[number], role: ViewerRole) {
 
 // Staff land on their own guide; visitors on the visitor guide.
 function defaultGuide(role: ViewerRole): GuideKey {
-  return role === "office_admin" ? "office" : role === "gate_user" ? "guards" : "visitors";
+  return role === "office_admin" ? "office" : role === "gate_user" || role === "gate_admin" ? "guards" : "visitors";
 }
 
 function LockedGuide({ guide, role }: { guide: (typeof GUIDES)[number]; role: ViewerRole }) {
@@ -97,7 +97,7 @@ export default async function GuidePage({ searchParams }: { searchParams: Promis
               <div className="legal-content">
                 {current.key === "visitors" && <VisitorGuide entryWindow={entryWindow} />}
                 {current.key === "office" && <OfficeAdminGuide />}
-                {current.key === "guards" && <GuardGuide entryWindow={entryWindow} />}
+                {current.key === "guards" && <GuardGuide entryWindow={entryWindow} showGuardAdmin={role === "gate_admin" || role === "super_admin"} />}
                 {current.key === "super" && <SuperAdminGuide />}
               </div>
             </>

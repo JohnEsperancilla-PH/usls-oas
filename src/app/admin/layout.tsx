@@ -20,6 +20,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/offices": "Offices",
   "/admin/accounts": "Accounts",
   "/admin/closed-dates": "Closed Dates",
+  "/admin/guard-accounts": "Guard Accounts",
   "/admin/audit": "Audit Log",
   "/admin/settings": "Settings",
   "/admin/maintenance": "Maintenance",
@@ -140,9 +141,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!user || !admin) return null;
 
   const isSuperAdmin = admin.role === "super_admin";
+  const isGuardAdmin = admin.role === "gate_admin";
   const navItems = [
-    { href: "/admin", label: "Appointments", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
-    ...(admin.role !== "gate_user" ? [
+    { href: "/admin", label: isGuardAdmin ? "Today's Visitors" : "Appointments", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
+    ...(isGuardAdmin ? [
+      { href: "/admin/guard-accounts", label: "Guard Accounts", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
+    ] : []),
+    ...(admin.role === "office_admin" || isSuperAdmin ? [
       { href: "/admin/analytics", label: "Analytics", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
       { href: "/admin/invitations", label: "Invitations", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
     ] : []),
@@ -167,7 +172,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <AdminContext.Provider value={{ user, admin }}>
-      <SystemAlertLoader audience={admin.role === "gate_user" ? "gate" : "admin"} />
+      <SystemAlertLoader audience={admin.role === "gate_user" || admin.role === "gate_admin" ? "gate" : "admin"} />
       <div className="min-h-screen bg-gray-50 flex overflow-x-hidden">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-white border-r border-gray-200 z-30">

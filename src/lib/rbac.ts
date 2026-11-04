@@ -6,7 +6,7 @@ export interface AuthAdmin {
   email: string;
   name: string;
   employee_id: string | null;
-  role: "super_admin" | "office_admin" | "gate_user";
+  role: "super_admin" | "office_admin" | "gate_user" | "gate_admin";
   office_id: string | null;
   approval_status?: "pending" | "approved";
 }
@@ -39,10 +39,24 @@ export async function getAuthAdmin(request: Request): Promise<{ admin: AuthAdmin
 
 export const PENDING_APPROVAL_MESSAGE = "Your account is waiting for a super admin to approve it.";
 
+// Roles that manage appointments, offices, and invitations. Listed explicitly (not "anything but a guard"),
+// because office scoping treats every role other than office_admin as all offices.
+export function isDashboardRole(role: string): boolean {
+  return role === "super_admin" || role === "office_admin";
+}
+
 // Admin dashboard data and actions: super admins and office admins, not gate accounts.
 export function requireDashboardAdmin(admin: AuthAdmin): { ok: boolean; error?: string; status?: number } {
-  if (admin.role === "gate_user") {
+  if (!isDashboardRole(admin.role)) {
     return { ok: false, error: "Insufficient permissions", status: 403 };
+  }
+  return { ok: true };
+}
+
+// Guard Admin pages: today's appointments (read-only) and guard account creation.
+export function requireGuardAdmin(admin: AuthAdmin): { ok: boolean; error?: string; status?: number } {
+  if (admin.role !== "gate_admin" && admin.role !== "super_admin") {
+    return { ok: false, error: "Guard admin access required", status: 403 };
   }
   return { ok: true };
 }
@@ -55,7 +69,7 @@ export function requireSuperAdmin(admin: AuthAdmin): { ok: boolean; error?: stri
 }
 
 export function requireEntryUser(admin: AuthAdmin): { ok: boolean; error?: string; status?: number } {
-  if (admin.role !== "gate_user" && admin.role !== "super_admin") {
+  if (admin.role !== "gate_user" && admin.role !== "gate_admin" && admin.role !== "super_admin") {
     return { ok: false, error: "Gate access required", status: 403 };
   }
   return { ok: true };

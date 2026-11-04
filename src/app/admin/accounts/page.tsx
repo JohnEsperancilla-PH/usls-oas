@@ -18,7 +18,7 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [message, setMessage] = useStatusMessage();
-  const [form, setForm] = useState({ email: "", employee_id: "", name: "", password: "", role: "office_admin" as "super_admin" | "office_admin" | "gate_user", office_id: "" });
+  const [form, setForm] = useState({ email: "", employee_id: "", name: "", password: "", role: "office_admin" as "super_admin" | "office_admin" | "gate_user" | "gate_admin", office_id: "" });
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [search, setSearch] = useState("");
@@ -242,12 +242,16 @@ export default function AccountsPage() {
     ? "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200"
     : role === "gate_user"
     ? "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200"
+    : role === "gate_admin"
+    ? "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300"
     : "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200";
 
   const getRoleLabel = (role: string) => role === "super_admin"
     ? "Super Admin"
     : role === "gate_user"
     ? "Gate User"
+    : role === "gate_admin"
+    ? "Guard Admin"
     : "Office Admin";
 
   const openResetPassword = (account: AdminAccount) => {
@@ -330,6 +334,7 @@ export default function AccountsPage() {
             <option value="all">All account types</option>
             <option value="super_admin">Super Admin</option>
             <option value="office_admin">Office Admin</option>
+            <option value="gate_admin">Guard Admin</option>
             <option value="gate_user">Gate User</option>
           </Select>
           <div className="flex items-center self-start sm:self-auto rounded-lg border border-gray-200 bg-white p-1" role="group" aria-label="View mode">
@@ -447,7 +452,7 @@ export default function AccountsPage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Account</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Office / Employee ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Office / Username</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
@@ -506,7 +511,7 @@ export default function AccountsPage() {
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">{a.name || "—"}</div>
                     <div className="text-xs text-gray-400 truncate">{a.email}</div>
-                    {a.role === "gate_user" && <div className="text-xs text-gray-500">Employee ID: {a.employee_id}</div>}
+                    {a.role === "gate_user" && <div className="text-xs text-gray-500">Username: {a.employee_id}</div>}
                   </div>
                 </div>
                   <span className={`${getRoleBadge(a.role)} whitespace-nowrap flex-shrink-0`}>{getRoleLabel(a.role)}</span>
@@ -535,7 +540,7 @@ export default function AccountsPage() {
 
       {/* Modal */}
       {modalOpen && (
-        <ModalShell open={true} title="Add Admin Account" subtitle="Create a new admin, office admin, or gate user" onClose={() => setModalOpen(false)} maxWidthClass="max-w-xl"
+        <ModalShell open={true} title="Add Admin Account" subtitle="Create a super admin, office admin, guard admin, or gate user" onClose={() => setModalOpen(false)} maxWidthClass="max-w-xl"
           footer={
             <>
               <button type="submit" form="account-form" disabled={saving} className="btn-primary flex-1 btn-sm disabled:opacity-50">
@@ -548,9 +553,9 @@ export default function AccountsPage() {
             {formError && <StatusMessage message={{ type: "error", text: formError }} />}
             <div>
               <span id="account-role-label" className="label">Role</span>
-              <div className="flex gap-2" role="group" aria-labelledby="account-role-label">
-                {[{ v: "office_admin", l: "Office Admin" }, { v: "super_admin", l: "Super Admin" }, { v: "gate_user", l: "Gate User" }].map((r) => (
-                  <button key={r.v} type="button" aria-pressed={form.role === r.v} onClick={() => setForm({ ...form, role: r.v as "super_admin" | "office_admin" | "gate_user", email: "" })}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="group" aria-labelledby="account-role-label">
+                {[{ v: "office_admin", l: "Office Admin" }, { v: "super_admin", l: "Super Admin" }, { v: "gate_admin", l: "Guard Admin" }, { v: "gate_user", l: "Gate User" }].map((r) => (
+                  <button key={r.v} type="button" aria-pressed={form.role === r.v} onClick={() => setForm({ ...form, role: r.v as "super_admin" | "office_admin" | "gate_user" | "gate_admin", email: "" })}
                     className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border-2 transition-all ${form.role === r.v ? "border-primary bg-primary/5 text-primary" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"}`}>
                     {r.l}
                   </button>
@@ -559,8 +564,8 @@ export default function AccountsPage() {
             </div>
             {form.role === "gate_user" ? (
               <div>
-                <label htmlFor="account-employee-id" className="label">Employee ID</label>
-                <input id="account-employee-id" required className="input" placeholder="Employee ID number" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} />
+                <label htmlFor="account-employee-id" className="label">Username</label>
+                <input id="account-employee-id" required className="input" placeholder="e.g. SEC-0142" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} />
               </div>
             ) : (
               <div>
@@ -607,12 +612,12 @@ export default function AccountsPage() {
         <form id="edit-account-form" onSubmit={handleEdit} className="space-y-4">
           {editError && <StatusMessage message={{ type: "error", text: editError }} />}
           {editingAccount?.role === "gate_user" ? (
-            <p className="text-xs text-gray-500">Gate accounts keep the Gate User role. Employee ID: <span className="font-medium text-gray-700">{editingAccount.employee_id || "—"}</span></p>
+            <p className="text-xs text-gray-500">Gate accounts keep the Gate User role. Username: <span className="font-medium text-gray-700">{editingAccount.employee_id || "—"}</span></p>
           ) : (
             <div>
               <span id="edit-role-label" className="label">Role</span>
-              <div className="flex gap-2" role="group" aria-labelledby="edit-role-label">
-                {([{ v: "office_admin", l: "Office Admin" }, { v: "super_admin", l: "Super Admin" }] as const).map((r) => (
+              <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby="edit-role-label">
+                {([{ v: "office_admin", l: "Office Admin" }, { v: "super_admin", l: "Super Admin" }, { v: "gate_admin", l: "Guard Admin" }] as const).map((r) => (
                   <button key={r.v} type="button" aria-pressed={editForm.role === r.v}
                     disabled={editingAccount?.id === admin.id}
                     onClick={() => setEditForm({ ...editForm, role: r.v })}
