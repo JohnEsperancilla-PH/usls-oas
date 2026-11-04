@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { readNextPath } from "@/lib/safe-next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -59,7 +60,7 @@ export default function AdminLoginPage() {
         await supabase.auth.signOut();
         return;
       }
-      router.push("/admin");
+      router.push(readNextPath() || "/admin");
       router.refresh();
     } catch {
       setError("An error occurred during login");

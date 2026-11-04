@@ -115,6 +115,28 @@ export async function PUT(request: Request) {
         ),
       },
     });
+
+    // A switched-on popup with new text is a release note on /updates. Same text isn't listed twice.
+    const headline = (saved.alert_headline || "").trim();
+    if (saved.alert_enabled === "true" && headline) {
+      const message = (saved.alert_message || "").trim();
+      const { data: latest } = await supabase
+        .from("system_updates")
+        .select("headline, message")
+        .order("published_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!latest || latest.headline !== headline || latest.message !== message) {
+        const { error: historyError } = await supabase.from("system_updates").insert({
+          headline,
+          message,
+          audience: saved.alert_audience || ALL_SYSTEM_ALERT_AUDIENCES,
+          published_by_email: admin.email,
+        });
+        // Missing table (migration 048 not applied) shouldn't fail the save.
+        if (historyError) console.error("Failed to record system update:", historyError.message);
+      }
+    }
   }
 
   if (changedEmails.length > 0) {

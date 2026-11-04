@@ -266,6 +266,8 @@ export default function BookingLanding({ entryTimingNote, systemAlert }: { entry
         <div className="container mx-auto px-4 text-center text-xs text-gray-400">
           <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 mb-3">
             <a href="/offices" className="text-gray-500 hover:text-primary hover:underline">University Offices</a>
+            <a href="/guide" className="text-gray-500 hover:text-primary hover:underline">How to Book</a>
+            <a href="/updates" className="text-gray-500 hover:text-primary hover:underline">Updates</a>
             <a href="/privacy" className="text-gray-500 hover:text-primary hover:underline">Privacy Policy</a>
             <a href="/terms" className="text-gray-500 hover:text-primary hover:underline">Terms of Service</a>
             <a href="/consent" className="text-gray-500 hover:text-primary hover:underline">Consent to Forms</a>

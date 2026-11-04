@@ -137,6 +137,15 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface SystemUpdate {
+  id: string;
+  headline: string;
+  message: string;
+  audience: string;
+  published_by_email: string | null;
+  published_at: string;
+}
+
 export interface ClosedDate {
   id: string;
   date: string;
@@ -206,6 +215,11 @@ blocked_times: {
         Row: BlockedTime;
         Insert: Omit<BlockedTime, "id" | "created_at">;
         Update: Partial<Omit<BlockedTime, "id" | "created_at">>;
+      };
+      system_updates: {
+        Row: SystemUpdate;
+        Insert: Omit<SystemUpdate, "id" | "published_at"> & { published_at?: string };
+        Update: Partial<Omit<SystemUpdate, "id">>;
       };
       closed_dates: {
         Row: ClosedDate;

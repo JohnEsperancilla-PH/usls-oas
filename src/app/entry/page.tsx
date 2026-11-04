@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { readNextPath } from "@/lib/safe-next";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import type { IScannerControls } from "@zxing/browser";
 import { formatTimeSlot } from "@/lib/time";
@@ -254,6 +255,9 @@ export default function ScanPage() {
         setAuthError("Unable to establish a session. Please try again.");
         return;
       }
+      // Signed in from the guide's "Sign in" link: go back there.
+      const next = readNextPath();
+      if (next) { window.location.assign(next); return; }
       setEmployeeId("");
       setPassword("");
       setAuthenticated(true);
@@ -469,6 +473,7 @@ export default function ScanPage() {
               <p className="text-sm font-semibold text-gray-800">Gate Officer Dashboard</p>
               <p className="text-xs text-gray-500">Logged in as <span className="font-medium text-gray-700">{officerName || employeeId}</span> · {currentDateLabel} · {currentTimeLabel}</p>
             </div>
+            <a href="/guide?for=guards" className="text-sm text-gray-500 hover:text-gray-700">Guide</a>
             <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign Out</button>
           </div>
         </div>
