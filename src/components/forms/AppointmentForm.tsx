@@ -6,6 +6,7 @@ import type { Office } from "@/types/database";
 import { DEFAULT_BOOKING_RULES, describeNotice, getLatestBookableDate, isTooSoon, type BookingRules } from "@/lib/booking-rules";
 import { getManilaToday } from "@/lib/time";
 import { Select } from "@/components/ui/Select";
+import { effectiveCategory, orderOfficesAsTree } from "@/lib/office-tree";
 
 interface AppointmentFormProps {
   data: BookingData;
@@ -181,7 +182,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   });
 
   const groupedOffices = visibleOffices.reduce<Record<string, Office[]>>((acc, o) => {
-    const cat = o.category || "Other Offices";
+    const cat = effectiveCategory(o, offices) || "Other Offices";
     (acc[cat] = acc[cat] || []).push(o);
     return acc;
   }, {});
@@ -334,7 +335,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                           setDaySlots([]);
                           setMonthAvailability({});
                           setErrors({});
-                          setExpandedCategories({ [selectedOffice.category || "Other Offices"]: true });
+                          setExpandedCategories({ [effectiveCategory(selectedOffice, offices) || "Other Offices"]: true });
                         }}
                         className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 bg-primary/5 hover:bg-primary/10 transition-colors text-left">
                         <span className="text-sm font-semibold text-primary truncate">{selectedOffice.name}</span>
@@ -365,15 +366,15 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                             </button>
                             {expanded && (
                               <div className="bg-white">
-                                {list.map((o) => {
+                                {orderOfficesAsTree(list).map(({ office: o, parent }) => {
                                   const isSelected = !changingOffice && selectedOfficeId === o.id;
                                   return (
                                     <button key={o.id} type="button"
                                       onClick={() => handleOfficeChange(o.id)}
-                                      className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors border-b border-gray-50 last:border-0 ${
+                                      className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors border-b border-gray-50 last:border-0 ${parent ? "pl-8" : ""} ${
                                         isSelected ? "bg-primary/5" : "hover:bg-gray-50"
                                       }`}>
-                                      <span className={`text-sm truncate ${isSelected ? "font-semibold text-primary" : "text-gray-700"}`}>{o.name}</span>
+                                      <span className={`text-sm truncate ${isSelected ? "font-semibold text-primary" : "text-gray-700"}`}>{parent && <span className="text-gray-300 mr-1.5" aria-hidden="true">↳</span>}{o.name}{parent && <span className="sr-only"> (part of {parent.name})</span>}</span>
                                       {isSelected && (
                                         <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />

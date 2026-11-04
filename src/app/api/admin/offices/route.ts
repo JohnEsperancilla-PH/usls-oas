@@ -3,8 +3,10 @@ import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, requireSuperAdmin, logAudit } from "@/lib/rbac";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
-import { getOfficeDeleteCheck } from "@/lib/office-delete";
+import { deleteInactiveOffice, getOfficeDeleteCheck } from "@/lib/office-delete";
 import { validateOfficeSettings } from "@/lib/office-settings";
+import { validateParentOffice } from "@/lib/sub-offices";
+import { getAdminOfficeIds } from "@/lib/office-scope";
 
 export async function GET(request: Request) {
   try {
@@ -15,9 +17,9 @@ export async function GET(request: Request) {
 
     let query = supabase.from("offices").select("*").order("name");
 
-    if (admin.role === "office_admin" && admin.office_id) {
-      query = query.eq("id", admin.office_id);
-    }
+    // Office admins get their office and its sub-offices.
+    const scopeOfficeIds = await getAdminOfficeIds(admin);
+    if (scopeOfficeIds !== null) query = query.in("id", scopeOfficeIds);
 
     const { data, error: fetchError } = await query;
 
@@ -73,6 +75,12 @@ export async function POST(request: Request) {
     const limits = validateOfficeSettings({ max_advance_days: body.max_advance_days, min_notice_hours: body.min_notice_hours });
     if ("error" in limits) return NextResponse.json({ message: limits.error }, { status: 400 });
 
+    const parentOfficeId = typeof body.parent_office_id === "string" && body.parent_office_id ? body.parent_office_id : null;
+    if (parentOfficeId) {
+      const parentError = await validateParentOffice(parentOfficeId, null);
+      if (parentError) return NextResponse.json({ message: parentError }, { status: 400 });
+    }
+
     const supabase = createServiceClient();
 
     const { data, error: insertError } = await supabase
@@ -88,6 +96,8 @@ export async function POST(request: Request) {
         category: category || null,
         hide_time_slots: hide_time_slots || false,
         can_invite_for_other_offices: can_invite_for_other_offices === true,
+        allow_sub_offices: !parentOfficeId && body.allow_sub_offices === true,
+        parent_office_id: parentOfficeId,
         ...limits.updates,
         active: true,
       })
@@ -142,6 +152,19 @@ export async function PUT(request: Request) {
     if ("error" in limits) return NextResponse.json({ message: limits.error }, { status: 400 });
     Object.assign(updateData, limits.updates);
 
+    if ("parent_office_id" in body) {
+      const parentOfficeId = typeof body.parent_office_id === "string" && body.parent_office_id ? body.parent_office_id : null;
+      if (parentOfficeId) {
+        const parentError = await validateParentOffice(parentOfficeId, id);
+        if (parentError) return NextResponse.json({ message: parentError }, { status: 400 });
+      }
+      updateData.parent_office_id = parentOfficeId;
+    }
+    if (body.allow_sub_offices !== undefined) {
+      // Sub-offices are one level deep, so a sub-office can't allow its own.
+      updateData.allow_sub_offices = body.allow_sub_offices === true && !updateData.parent_office_id;
+    }
+
     const { error: updateError } = await supabase
       .from("offices")
       .update(updateData)
@@ -185,17 +208,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ message: "Type the office name exactly to confirm" }, { status: 400 });
     }
 
-    const supabase = createServiceClient();
-
-    // The database deletes the office's appointments, contacts, and blocked times with it.
-    const { error: deleteError } = await supabase
-      .from("offices")
-      .delete()
-      .eq("id", id)
-      .eq("active", false);
-
-    if (deleteError) {
-      console.error(deleteError);
+    if (!(await deleteInactiveOffice(id))) {
       return NextResponse.json({ message: "Failed to delete office" }, { status: 500 });
     }
 

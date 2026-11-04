@@ -11,6 +11,7 @@ import {
   formatHours, formatMinutes, formatNumber, formatPercent,
 } from "@/components/admin/analytics/Charts";
 import { Select } from "@/components/ui/Select";
+import { officeOptionLabel, orderOfficesAsTree } from "@/lib/office-tree";
 
 type AnalyticsResponse = AnalyticsResult & {
   scope: { officeId: string | null; officeName: string | null };
@@ -126,7 +127,7 @@ export default function AnalyticsPage() {
               <label htmlFor="analytics-office" className="block text-xs font-medium text-gray-600 mb-1">Office</label>
               <Select id="analytics-office" className="sm:w-64" size="sm" value={officeId} onChange={(e) => setOfficeId(e.target.value)}>
                 <option value="">All offices</option>
-                {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                {orderOfficesAsTree(offices).map((entry) => <option key={entry.office.id} value={entry.office.id}>{officeOptionLabel(entry)}</option>)}
               </Select>
             </div>
           )}

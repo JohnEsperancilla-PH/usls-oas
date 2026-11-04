@@ -5,15 +5,18 @@ import Link from "next/link";
 import { validateOfficeAdminEmail } from "@/lib/admin-email";
 import { adminFetch } from "@/lib/admin-fetch";
 import { Select } from "@/components/ui/Select";
+import { officeOptionLabel, orderOfficesAsTree } from "@/lib/office-tree";
 
 interface OfficeOption {
   id: string;
   name: string;
+  parent_office_id?: string | null;
 }
 
 interface ApiOffice {
   id: string;
   name: string;
+  parent_office_id?: string | null;
 }
 
 export default function AdminRegisterPage() {
@@ -43,7 +46,7 @@ export default function AdminRegisterPage() {
         if (!cancelled) {
           setOffices(
             Array.isArray(data)
-              ? data.map((office: ApiOffice) => ({ id: office.id, name: office.name }))
+              ? data.map((office: ApiOffice) => ({ id: office.id, name: office.name, parent_office_id: office.parent_office_id ?? null }))
               : []
           );
         }
@@ -253,9 +256,8 @@ export default function AdminRegisterPage() {
                 <option value="">
                   {officesLoading ? "Loading offices..." : "Select an office"}
                 </option>
-                {offices.map((office) => (
-                  <option key={office.id} value={office.id}>{office.name}</option>
-                ))}
+                {/* Sub-offices are listed under their main office so their staff can register. */}
+                {orderOfficesAsTree(offices).map((entry) => <option key={entry.office.id} value={entry.office.id}>{officeOptionLabel(entry)}</option>)}
               </Select>
               {!officesLoading && offices.length === 0 && (
                 <p className="text-xs text-red-500 mt-1">

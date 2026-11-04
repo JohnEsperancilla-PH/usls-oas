@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const supabase = createServiceClient();
     const { data: admin, error: fetchError } = await supabase
       .from("admins")
-      .select("*, offices(name)")
+      .select("*, offices(name, allow_sub_offices, parent_office_id)")
       .eq("id", sessionAdmin.id)
       .single();
 

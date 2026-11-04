@@ -12,6 +12,8 @@ import { getAppointmentContacts } from "@/lib/appointment-contacts";
 import type { Database } from "@/types/database";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { canInviteForOtherOffices } from "@/lib/invitation-access";
+import { filterSubOfficeIds, notifyTaggedSubOffices } from "@/lib/sub-office-tags";
+import { canManageOffice, getAppointmentScopeFilter } from "@/lib/office-scope";
 
 const VISITOR_CATEGORIES = ["external", "parents", "alumni", "vendor"] as const;
 
@@ -29,10 +31,9 @@ export async function GET(request: Request) {
       .eq("is_invitation", true)
       .order("created_at", { ascending: false });
 
-    if (admin.role === "office_admin" && admin.office_id) {
-      // Includes invitations this office created on behalf of other offices.
-      query = query.or(`office_id.eq.${admin.office_id},invited_by_office_id.eq.${admin.office_id}`);
-    }
+    // Includes sub-offices, tagged invitations, and invitations this office created on behalf of other offices.
+    const scope = await getAppointmentScopeFilter(admin, admin.office_id ? [`invited_by_office_id.eq.${admin.office_id}`] : []);
+    if (scope !== null) query = query.or(scope);
 
     const { data, error: fetchError } = await query;
     if (fetchError) {
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
     if (!body.officeId) {
       return NextResponse.json({ message: "Office is required" }, { status: 400 });
     }
-    if (admin.role === "office_admin" && admin.office_id !== body.officeId && !(await canInviteForOtherOffices(admin))) {
+    if (admin.role === "office_admin" && !(await canManageOffice(admin, body.officeId)) && !(await canInviteForOtherOffices(admin))) {
       return NextResponse.json({ message: "You can only create invitations for your office" }, { status: 403 });
     }
 
@@ -211,6 +212,11 @@ export async function POST(request: Request) {
       taggedContacts = officeContactIds;
     }
 
+    const taggedSubOfficeIds = await filterSubOfficeIds(body.officeId, body.taggedSubOfficeIds);
+    if (taggedSubOfficeIds === null) {
+      return NextResponse.json({ message: "Only the selected office's sub-offices can be tagged" }, { status: 400 });
+    }
+
     const appointmentId = crypto.randomUUID();
     const referenceNumber = await createUniqueReference(supabase);
     const nowIso = new Date().toISOString();
@@ -279,6 +285,15 @@ export async function POST(request: Request) {
       }
     }
 
+    if (taggedSubOfficeIds.length > 0) {
+      const { error: tagsError } = await supabase.from("appointment_office_tags")
+        .insert(taggedSubOfficeIds.map((officeId) => ({ appointment_id: appointmentId, office_id: officeId, tagged_by_email: admin.email })));
+      if (tagsError) {
+        console.error(tagsError);
+        return NextResponse.json({ message: "Failed to save tagged sub-offices" }, { status: 500 });
+      }
+    }
+
     await mirrorAppointmentToCpanel(
       buildCpanelAppointment({
         id: appointmentId,
@@ -309,8 +324,10 @@ export async function POST(request: Request) {
     const vehiclesForTasks = await getAppointmentVehicles(supabase, appointmentId);
     const contactsForTasks = await getAppointmentContacts(supabase, appointmentId);
     const appointmentForTasks: AppointmentWithOffice = { ...appointment, vehicles: vehiclesForTasks, contacts: contactsForTasks };
+    const origin = new URL(request.url).origin;
     after(async () => {
       await runInvitationTasks(appointmentForTasks, referenceNumber, admin.id, admin.email);
+      await notifyTaggedSubOffices(appointment, taggedSubOfficeIds, origin);
     });
 
     return NextResponse.json(

@@ -5,6 +5,7 @@ import { getAuthAdmin, logAudit } from "@/lib/rbac";
 import { sanitizeName, sanitizeEmail } from "@/lib/sanitize";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { canInviteForOtherOffices } from "@/lib/invitation-access";
+import { canManageOffice } from "@/lib/office-scope";
 import type { Database } from "@/types/database";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
     if (admin.role === "office_admin") {
       if (!admin.office_id) return NextResponse.json({ message: "Office not assigned" }, { status: 403 });
       // Offices that invite on behalf of others need to tag the other office's contacts.
-      if (officeId && officeId !== admin.office_id && !(await canInviteForOtherOffices(admin))) {
+      if (officeId && !(await canManageOffice(admin, officeId)) && !(await canInviteForOtherOffices(admin))) {
         return NextResponse.json({ message: "You can only view contacts for your office" }, { status: 403 });
       }
     } else if (!officeId) {

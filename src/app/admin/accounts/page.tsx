@@ -7,6 +7,7 @@ import { ModalShell } from "@/components/admin/ModalShell";
 import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
 import { adminFetch } from "@/lib/admin-fetch";
 import { Select } from "@/components/ui/Select";
+import { officeOptionLabel, orderOfficesAsTree } from "@/lib/office-tree";
 
 interface AdminAccount { id: string; email: string; employee_id: string | null; name: string; role: string; office_id: string | null; approval_status?: "pending" | "approved"; created_at?: string; }
 
@@ -585,7 +586,7 @@ export default function AccountsPage() {
                 <label htmlFor="account-office" className="label">Assign Office</label>
                 <Select id="account-office" required value={form.office_id} onChange={(e) => setForm({ ...form, office_id: e.target.value })}>
                   <option value="">Select an office</option>
-                  {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  {orderOfficesAsTree(offices).map((entry) => <option key={entry.office.id} value={entry.office.id}>{officeOptionLabel(entry)}</option>)}
                 </Select>
               </div>
             )}
@@ -632,7 +633,7 @@ export default function AccountsPage() {
               <label htmlFor="edit-office" className="label">Assigned Office</label>
               <Select id="edit-office" required value={editForm.office_id} onChange={(e) => setEditForm({ ...editForm, office_id: e.target.value })}>
                 <option value="">Select an office</option>
-                {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                {orderOfficesAsTree(offices).map((entry) => <option key={entry.office.id} value={entry.office.id}>{officeOptionLabel(entry)}</option>)}
               </Select>
             </div>
           )}

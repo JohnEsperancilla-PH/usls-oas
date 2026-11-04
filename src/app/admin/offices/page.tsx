@@ -8,6 +8,7 @@ import { ModalShell } from "@/components/admin/ModalShell";
 import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessage";
 import { adminFetch } from "@/lib/admin-fetch";
 import { formatHours, parseHours } from "@/lib/office-hours";
+import { orderOfficesAsTree } from "@/lib/office-tree";
 import type { OfficeDeleteCheck } from "@/lib/office-delete";
 import { Select } from "@/components/ui/Select";
 
@@ -22,7 +23,7 @@ export default function OfficesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOffice, setEditingOffice] = useState<Office | null>(null);
   const [message, setMessage] = useStatusMessage();
-  const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false, can_invite_for_other_offices: false, max_advance_days: "", min_notice_hours: "" });
+  const [form, setForm] = useState({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false, can_invite_for_other_offices: false, allow_sub_offices: false, parent_office_id: "", max_advance_days: "", min_notice_hours: "" });
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
   const [contactsOffice, setContactsOffice] = useState<Office | null>(null);
@@ -53,8 +54,8 @@ export default function OfficesPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { fetchOffices(); }, []);
 
-  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false, can_invite_for_other_offices: false, max_advance_days: "", min_notice_hours: "" }); setFormError(null); setModalOpen(true); };
-  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "", hide_time_slots: o.hide_time_slots || false, can_invite_for_other_offices: o.can_invite_for_other_offices || false, max_advance_days: o.max_advance_days == null ? "" : String(o.max_advance_days), min_notice_hours: o.min_notice_hours == null ? "" : String(o.min_notice_hours) }); setFormError(null); setModalOpen(true); };
+  const openCreate = () => { setEditingOffice(null); setForm({ name: "", email: "", description: "", operating_hours: "8:00 AM - 5:00 PM", capacity_per_slot: 1, contact_email: "", contact_phone: "", category: "", hide_time_slots: false, can_invite_for_other_offices: false, allow_sub_offices: false, parent_office_id: "", max_advance_days: "", min_notice_hours: "" }); setFormError(null); setModalOpen(true); };
+  const openEdit = (o: Office) => { setEditingOffice(o); setForm({ name: o.name, email: o.email || "", description: o.description || "", operating_hours: o.operating_hours, capacity_per_slot: o.capacity_per_slot, contact_email: o.contact_email || "", contact_phone: o.contact_phone || "", category: o.category || "", hide_time_slots: o.hide_time_slots || false, can_invite_for_other_offices: o.can_invite_for_other_offices || false, allow_sub_offices: o.allow_sub_offices || false, parent_office_id: o.parent_office_id || "", max_advance_days: o.max_advance_days == null ? "" : String(o.max_advance_days), min_notice_hours: o.min_notice_hours == null ? "" : String(o.min_notice_hours) }); setFormError(null); setModalOpen(true); };
 
   const parsedHours = parseHours(form.operating_hours);
   const hours = parsedHours || { start: "08:00", end: "17:00" };
@@ -211,11 +212,19 @@ export default function OfficesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredOffices.map((o) => (
-            <div key={o.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+          {orderOfficesAsTree(filteredOffices).map(({ office: o }) => (
+            <div key={o.id} className={`bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow ${o.parent_office_id ? "border-l-4 border-l-primary/40" : ""}`}>
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1 min-w-0">
+                  {o.parent_office_id && (
+                    <p className="text-[11px] text-gray-500 truncate mb-0.5">↳ Sub-office of {offices.find((p) => p.id === o.parent_office_id)?.name || "a main office"}</p>
+                  )}
                   <h3 className="font-semibold text-gray-900 truncate">{o.name}</h3>
+                  {o.allow_sub_offices && (
+                    <p className="text-[11px] text-purple-700 font-medium truncate mt-0.5">
+                      Allows sub-offices · {offices.filter((child) => child.parent_office_id === o.id).length} sub-office{offices.filter((child) => child.parent_office_id === o.id).length !== 1 ? "s" : ""}
+                    </p>
+                  )}
                   {o.category && <p className="text-[11px] text-primary font-medium truncate mt-0.5">{o.category}</p>}
                   {o.email && <p className="text-xs text-gray-400 truncate mt-0.5">{o.email}</p>}
                 </div>
@@ -281,6 +290,14 @@ export default function OfficesPage() {
             {formError && <StatusMessage message={{ type: "error", text: formError }} />}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2"><label htmlFor="office-name" className="label">Office Name</label><input className="input" id="office-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="e.g. Registrar" /></div>
+              <div className="sm:col-span-2">
+                <label htmlFor="office-parent" className="label">Main Office</label>
+                <Select id="office-parent" value={form.parent_office_id} onChange={(e) => setForm({ ...form, parent_office_id: e.target.value, allow_sub_offices: e.target.value ? false : form.allow_sub_offices })}>
+                  <option value="">None (this is a main office)</option>
+                  {offices.filter((p) => !p.parent_office_id && p.id !== editingOffice?.id && (p.allow_sub_offices || p.id === form.parent_office_id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </Select>
+                <p className="text-[11px] text-gray-400 mt-1">Makes this a sub-office. Only offices with Allow Sub-offices turned on are listed.</p>
+              </div>
               <div className="sm:col-span-2"><label htmlFor="office-category" className="label">Category</label><input className="input" id="office-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Vice Chancellor for Academic Affairs" /><p className="text-[11px] text-gray-400 mt-1">Groups this office under a section on the booking form and encounters list.</p></div>
               <div><label htmlFor="office-email" className="label">Email</label><input type="email" className="input" id="office-email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@email.com" /></div>
               <div><label htmlFor="office-capacity" className="label">Capacity per Slot</label><input type="number" min={1} className="input" id="office-capacity" value={form.capacity_per_slot} onChange={(e) => setForm({ ...form, capacity_per_slot: parseInt(e.target.value) || 1 })} /></div>
@@ -333,6 +350,22 @@ export default function OfficesPage() {
                   </div>
                 </label>
               </div>
+              {!form.parent_office_id && (
+                <div className="sm:col-span-2">
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={form.allow_sub_offices}
+                      onChange={(e) => setForm({ ...form, allow_sub_offices: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-900">Allow Sub-offices</span>
+                      <p className="text-[11px] text-gray-500 mt-0.5">Adds a Sub-offices tab for this office&apos;s admins, where they create sub-offices with their own schedule and accounts. This office can see and act on its sub-offices&apos; appointments and tag them on its own.</p>
+                    </div>
+                  </label>
+                </div>
+              )}
               <div><label htmlFor="office-max-advance" className="label">Max Advance Booking (days)</label><input type="number" min={1} max={365} className="input" id="office-max-advance" value={form.max_advance_days} onChange={(e) => setForm({ ...form, max_advance_days: e.target.value })} placeholder="System setting" /><p className="text-[11px] text-gray-400 mt-1">Leave blank to follow Settings &gt; Booking Rules.</p></div>
               <div><label htmlFor="office-min-notice" className="label">Minimum Notice (hours)</label><input type="number" min={0} max={168} className="input" id="office-min-notice" value={form.min_notice_hours} onChange={(e) => setForm({ ...form, min_notice_hours: e.target.value })} placeholder="System setting" /><p className="text-[11px] text-gray-400 mt-1">Leave blank to follow Settings &gt; Booking Rules.</p></div>
               <div className="sm:col-span-2"><label htmlFor="office-description" className="label">Description</label><textarea className="input" rows={2} id="office-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of the office..." /></div>

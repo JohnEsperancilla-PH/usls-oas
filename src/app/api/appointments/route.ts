@@ -425,7 +425,8 @@ export async function POST(request: Request) {
       const { data: allAdmins } = await supabase
         .from("admins")
         .select("*")
-        .or(`office_id.eq.${body.officeId},role.eq.super_admin`);
+        // A sub-office's bookings also go to its main office.
+        .or([`office_id.eq.${body.officeId}`, ...(officeFull.parent_office_id ? [`office_id.eq.${officeFull.parent_office_id}`] : []), "role.eq.super_admin"].join(","));
       // Accounts awaiting approval get no alerts or action links.
       const admins = (allAdmins || []).filter((a) => a.approval_status !== "pending");
 
@@ -472,7 +473,13 @@ export async function POST(request: Request) {
         }
       }
 
-      if (officeFull.email) {
+      // The office's shared inbox, plus its main office's inbox when it's a sub-office.
+      const officeInboxes = [officeFull.email];
+      if (officeFull.parent_office_id) {
+        const { data: parentOffice } = await supabase.from("offices").select("email").eq("id", officeFull.parent_office_id).maybeSingle();
+        officeInboxes.push(parentOffice?.email ?? null);
+      }
+      for (const inbox of new Set(officeInboxes.filter((email): email is string => Boolean(email)))) {
         const officeEmail = await generateAdminAlertEmail(
           body.fullName,
           body.date,
@@ -481,12 +488,12 @@ export async function POST(request: Request) {
           appointment.id,
           origin,
           body.timeSlot
-            ? { approveUrl: makeActionUrl(officeFull.email, "approve"), declineUrl: makeActionUrl(officeFull.email, "decline") }
+            ? { approveUrl: makeActionUrl(inbox, "approve"), declineUrl: makeActionUrl(inbox, "decline") }
             : undefined,
           visitorRows.map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id, isBooker: visitor.is_booker }))
         );
         await sendMail({
-          to: officeFull.email,
+          to: inbox,
           subject: officeEmail.subject,
           html: officeEmail.html,
           attachments: officeEmail.attachments,

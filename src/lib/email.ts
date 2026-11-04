@@ -543,3 +543,30 @@ export async function generateAccountApprovedEmail(name: string, office: string,
   `);
   return { html: result.html, attachments: result.attachments };
 }
+
+export async function generateSubOfficeTagEmail(
+  subOffice: string,
+  mainOffice: string,
+  visitorName: string,
+  date: string,
+  time: string | null,
+  status: string,
+  baseUrl: string
+) {
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const dashboardUrl = `${baseUrl}/admin`;
+  const result = await wrap("Your Office Was Tagged on an Appointment", `
+    <p style="color:#555;margin:0 0 20px;"><strong>${escapeHtml(mainOffice)}</strong> tagged <strong>${escapeHtml(subOffice)}</strong> on an appointment so your office is aware of the visit.</p>
+    ${bulletList([
+      `Visitor: <strong>${escapeHtml(visitorName)}</strong>`,
+      `Date: <strong>${formattedDate}</strong>`,
+      `Time: <strong>${time ? formatTimeSlot(time) : "To be set by the office"}</strong>`,
+      `Status: <strong>${escapeHtml(status.charAt(0).toUpperCase() + status.slice(1))}</strong>`,
+    ])}
+    <div style="text-align:center;margin:28px 0 12px;">
+      <a href="${dashboardUrl}" style="display:inline-block;background:#006633;color:#fff;padding:13px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Open Dashboard</a>
+    </div>
+    <p style="color:#999;font-size:12px;margin:0;">You are receiving this because your office was tagged on this appointment in USLS OASYS.</p>
+  `);
+  return { html: result.html, attachments: result.attachments };
+}

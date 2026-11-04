@@ -4,6 +4,7 @@ import { verifyActionToken, type ActionType } from "@/lib/action-token";
 import { createUniqueReference } from "@/lib/reference";
 import { runPostApprovalTasks, runPostDeclineTasks, type AppointmentWithOffice } from "@/lib/appointment-actions";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
+import { canAccessAppointment } from "@/lib/office-scope";
 
 function escapeHtml(str: string): string {
   return str
@@ -260,7 +261,7 @@ async function authorizeAdmin(
     }
 
     if (adminRow) {
-      if (adminRow.role === "office_admin" && adminRow.office_id !== appointment.office_id) {
+      if (!(await canAccessAppointment(adminRow, appointment))) {
         return { allowed: false, message: "You do not have permission to act on appointments for this office." };
       }
       return { allowed: true, adminId: adminRow.id };

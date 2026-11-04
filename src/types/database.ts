@@ -1,7 +1,7 @@
 export type AppointmentStatus = "pending" | "approved" | "declined" | "postponed" | "entry_denied" | "completed" | "expired";
 export type AdminRole = "super_admin" | "office_admin" | "gate_user";
 export type VisitorCategory = "external" | "parents" | "alumni" | "vendor";
-export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "update_account" | "delete_account" | "reset_password" | "approve_account" | "reject_account" | "create_office" | "update_office" | "delete_office" | "permanently_delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation" | "create_contact" | "update_contact" | "delete_contact" | "enable_maintenance" | "disable_maintenance" | "update_maintenance" | "update_system_alert" | "update_email_templates";
+export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "update_account" | "delete_account" | "reset_password" | "approve_account" | "reject_account" | "create_office" | "update_office" | "delete_office" | "permanently_delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation" | "create_contact" | "update_contact" | "delete_contact" | "enable_maintenance" | "disable_maintenance" | "update_maintenance" | "update_system_alert" | "update_email_templates" | "tag_sub_office";
 
 export interface Office {
   id: string;
@@ -16,6 +16,10 @@ export interface Office {
   contact_phone: string | null;
   hide_time_slots: boolean;
   can_invite_for_other_offices?: boolean;
+  // Lets this office's admins create sub-offices under it.
+  allow_sub_offices?: boolean;
+  // Set on sub-offices: the main office they belong to.
+  parent_office_id?: string | null;
   // Office booking limits; null follows Settings > Booking Rules.
   max_advance_days?: number | null;
   min_notice_hours?: number | null;

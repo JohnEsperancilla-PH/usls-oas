@@ -8,6 +8,7 @@ import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirr
 import type { AppointmentWithOffice } from "@/lib/appointment-actions";
 import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
+import { canAccessAppointment } from "@/lib/office-scope";
 
 export async function POST(request: Request) {
   const csrfValid = await validateCsrfToken(request);
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
     }
 
-    if (admin.role === "office_admin" && admin.office_id !== appointment.office_id) {
+    if (!(await canAccessAppointment(admin, appointment))) {
       return NextResponse.json({ message: "You can only re-issue reference numbers for appointments in your office" }, { status: 403 });
     }
 

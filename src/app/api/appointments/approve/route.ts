@@ -6,6 +6,7 @@ import { createUniqueReference } from "@/lib/reference";
 import { runPostApprovalTasks } from "@/lib/appointment-actions";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
+import { canAccessAppointment } from "@/lib/office-scope";
 
 export async function POST(request: Request) {
   const csrfValid = await validateCsrfToken(request);
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Appointment not found" }, { status: 404 });
     }
 
-    if (admin.role === "office_admin" && admin.office_id !== appointment.office_id) {
+    if (!(await canAccessAppointment(admin, appointment))) {
       return NextResponse.json({ message: "You can only approve appointments for your office" }, { status: 403 });
     }
 

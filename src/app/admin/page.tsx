@@ -10,6 +10,7 @@ import type { Appointment, Office, BlockedTime } from "@/types/database";
 import { formatTimeSlot, getManilaToday } from "@/lib/time";
 import { adminFetch } from "@/lib/admin-fetch";
 import { Select } from "@/components/ui/Select";
+import { SubOfficeTags } from "@/components/admin/SubOfficeTags";
 
 function parseOperatingHours(hours: string): { startH: number; endH: number } {
   const match = hours.match(/(\d{1,2}):?\d{0,2}\s*(AM|PM)\s*[-–]\s*(\d{1,2}):?\d{0,2}\s*(AM|PM)/i);
@@ -967,7 +968,9 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
   const [postponeTime, setPostponeTime] = useState("");
   const [postponeReason, setPostponeReason] = useState("");
   const [postponeError, setPostponeError] = useState<string | null>(null);
-  const officeName = offices.find((o) => o.id === appointment.office_id)?.name || "Unknown";
+  const appointmentOffice = offices.find((o) => o.id === appointment.office_id);
+  const parentOffice = appointmentOffice?.parent_office_id ? offices.find((o) => o.id === appointmentOffice.parent_office_id) : undefined;
+  const officeName = appointmentOffice ? `${appointmentOffice.name}${parentOffice ? ` (sub-office of ${parentOffice.name})` : ""}` : "Unknown";
   const isProcessing = processing?.id === appointment.id;
   const isBusy = processing !== null;
   const postponeSlots = buildPostponeSlots(offices.find((o) => o.id === appointment.office_id));
@@ -1137,6 +1140,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
           <div key={l}><div className="text-xs text-gray-400">{l}</div><div className="text-sm font-medium text-gray-900 mt-0.5">{v}</div></div>
         ))}
       </div>
+      <SubOfficeTags appointmentId={appointment.id} />
       {appointment.purpose_of_visit && (
         <div>
           <div className="text-xs text-gray-400 mb-1">Purpose of Visit</div>

@@ -5,6 +5,7 @@ import { getAuthAdmin, requireDashboardAdmin } from "@/lib/rbac";
 import { attachAppointmentVisitors } from "@/lib/appointment-visitors";
 import { attachAppointmentVehicles } from "@/lib/appointment-vehicles";
 import { expireStaleAppointments } from "@/lib/expire-appointments";
+import { getAppointmentScopeFilter } from "@/lib/office-scope";
 
 export async function GET(request: Request) {
   try {
@@ -25,9 +26,9 @@ export async function GET(request: Request) {
       .select("*, offices(*)")
       .order("date", { ascending: false });
 
-    if (admin.role === "office_admin" && admin.office_id) {
-      query = query.eq("office_id", admin.office_id);
-    }
+    // Office admins see their office, its sub-offices, and appointments their office was tagged on.
+    const scope = await getAppointmentScopeFilter(admin);
+    if (scope !== null) query = query.or(scope);
 
     if (filterStatus === "history") {
       query = query.in("status", ["declined", "completed", "expired"]);

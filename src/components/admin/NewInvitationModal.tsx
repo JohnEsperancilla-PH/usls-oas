@@ -7,6 +7,7 @@ import type { Office, OfficeContact } from "@/types/database";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { adminFetch } from "@/lib/admin-fetch";
 import { Select } from "@/components/ui/Select";
+import { officeOptionLabel, orderOfficesAsTree } from "@/lib/office-tree";
 
 interface InvitationVehicle {
   plateNumber: string;
@@ -108,6 +109,7 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
   const [created, setCreated] = useState<{ id: string; referenceNumber: string } | null>(null);
   const [contacts, setContacts] = useState<OfficeContact[]>([]);
   const [taggedContactIds, setTaggedContactIds] = useState<string[]>([]);
+  const [taggedSubOfficeIds, setTaggedSubOfficeIds] = useState<string[]>([]);
 
   // Offices allowed to invite on behalf of others pick an office like a super admin does; the server decides.
   const [canChooseOffice, setCanChooseOffice] = useState(isSuperAdmin);
@@ -125,6 +127,7 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
   useEffect(() => { fetchOffices(); }, [fetchOffices]);
 
   const selectableOffices = canChooseOffice ? offices : offices.filter((o) => o.id === admin.office_id);
+  const subOfficesOfSelected = offices.filter((o) => o.parent_office_id && o.parent_office_id === (form.officeId || (!isSuperAdmin ? admin.office_id : "")));
   const selectedOffice = selectableOffices.find((o) => o.id === (form.officeId || (!isSuperAdmin ? admin.office_id : "")));
   const timeSlots = buildTimeSlots(selectedOffice);
   const activeOfficeId = form.officeId || (!isSuperAdmin ? admin.office_id || "" : "");
@@ -215,6 +218,7 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
           additionalVisitors: visitorsEnabled ? additionalVisitors : [],
           vehicles: hasVehicle ? vehicles : [],
           taggedContactIds,
+          taggedSubOfficeIds,
         }),
       });
       const data = await res.json();
@@ -279,9 +283,9 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
                 <div>
                   <RequiredLabel label="Office" htmlFor="inv-office" />
                   <Select id="inv-office" value={form.officeId || (!isSuperAdmin ? admin.office_id || "" : "")}
-                    onChange={(e) => { setForm((p) => ({ ...p, officeId: e.target.value, timeSlot: "" })); setTaggedContactIds([]); }} disabled={!canChooseOffice}>
+                    onChange={(e) => { setForm((p) => ({ ...p, officeId: e.target.value, timeSlot: "" })); setTaggedContactIds([]); setTaggedSubOfficeIds([]); }} disabled={!canChooseOffice}>
                     <option value="">Select an office...</option>
-                    {selectableOffices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    {orderOfficesAsTree(selectableOffices).map((entry) => <option key={entry.office.id} value={entry.office.id}>{officeOptionLabel(entry)}</option>)}
                   </Select>
                 </div>
 
@@ -479,6 +483,26 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
                     <p className="text-[11px] text-primary font-medium mt-2.5">{taggedContactIds.length} contact{taggedContactIds.length !== 1 ? "s" : ""} tagged</p>
                   )}
                 </div>
+
+                {subOfficesOfSelected.length > 0 && (
+                  <div>
+                    <span className="label mb-0 block">Tag Sub-offices (optional)</span>
+                    <HelperText>Tagged sub-offices are emailed about this invitation and can see it on their dashboard.</HelperText>
+                    <div className="mt-3 space-y-2 max-h-44 overflow-y-auto pr-1">
+                      {subOfficesOfSelected.map((office) => (
+                        <label key={office.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors cursor-pointer">
+                          <input type="checkbox" checked={taggedSubOfficeIds.includes(office.id)}
+                            onChange={() => setTaggedSubOfficeIds((prev) => prev.includes(office.id) ? prev.filter((id) => id !== office.id) : [...prev, office.id])}
+                            className="w-4 h-4 rounded border-gray-300 text-primary accent-[#006633]" />
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-gray-800 truncate">{office.name}</span>
+                            {office.email && <span className="block text-xs text-gray-400 truncate">{office.email}</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/invitations": "Invitations",
   "/admin/contacts": "Contacts",
   "/admin/office-settings": "Office Settings",
+  "/admin/sub-offices": "Sub-offices",
   "/admin/offices": "Offices",
   "/admin/accounts": "Accounts",
   "/admin/audit": "Audit Log",
@@ -27,9 +28,16 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/reset-password": "Reset Password",
 };
 
+// The signed-in admin's office, as returned by /api/admin/auth.
+interface AdminOffice {
+  name: string;
+  allow_sub_offices?: boolean;
+  parent_office_id?: string | null;
+}
+
 interface AdminContextType {
   user: User;
-  admin: Admin & { offices?: { name: string } | null };
+  admin: Admin & { offices?: AdminOffice | null };
 }
 
 export const AdminContext = createContext<AdminContextType | null>(null);
@@ -60,7 +68,7 @@ function isActivePath(pathname: string, href: string) {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [admin, setAdmin] = useState<(Admin & { offices?: { name: string } | null }) | null>(null);
+  const [admin, setAdmin] = useState<(Admin & { offices?: AdminOffice | null }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
@@ -140,6 +148,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     ...(admin.role === "office_admin" ? [
       { href: "/admin/contacts", label: "Contacts", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
       { href: "/admin/office-settings", label: "Office Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" },
+      ...(admin.offices?.allow_sub_offices ? [
+        { href: "/admin/sub-offices", label: "Sub-offices", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+      ] : []),
     ] : []),
     ...(isSuperAdmin ? [
       { href: "/admin/offices", label: "Offices", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },

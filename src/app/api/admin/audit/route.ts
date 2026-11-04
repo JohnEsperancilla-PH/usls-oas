@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
+import { getAdminOfficeIds } from "@/lib/office-scope";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -33,9 +34,8 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
-    if (admin.role === "office_admin" && admin.office_id) {
-      query = query.eq("office_id", admin.office_id);
-    }
+    const officeIds = await getAdminOfficeIds(admin);
+    if (officeIds !== null) query = query.in("office_id", officeIds);
     if (q) {
       query = query.or(`admin_email.ilike.%${q}%,target_email.ilike.%${q}%`);
     }

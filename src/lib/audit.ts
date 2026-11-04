@@ -31,6 +31,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   update_maintenance: "Updated maintenance settings",
   update_system_alert: "Updated system update popup",
   update_email_templates: "Updated email text",
+  tag_sub_office: "Tagged sub-offices",
 };
 
 export const AUDIT_ACTION_OPTIONS = (Object.entries(ACTION_LABELS) as [AuditAction, string][])

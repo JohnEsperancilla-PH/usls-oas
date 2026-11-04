@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin } from "@/lib/rbac";
 import { generateTicketPdf } from "@/lib/ticket";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
+import { canAccessAppointment } from "@/lib/office-scope";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -27,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!appointment.is_invitation) {
       return NextResponse.json({ message: "Appointment is not an invitation" }, { status: 400 });
     }
-    if (admin.role === "office_admin" && admin.office_id !== appointment.office_id && admin.office_id !== appointment.invited_by_office_id) {
+    if (admin.role === "office_admin" && admin.office_id !== appointment.invited_by_office_id && !(await canAccessAppointment(admin, appointment))) {
       return NextResponse.json({ message: "You can only access invitations for your office" }, { status: 403 });
     }
     if (!appointment.qr_token) {

@@ -3,6 +3,7 @@ import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit, requireDashboardAdmin } from "@/lib/rbac";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
+import { canManageOffice, getAdminOfficeIds } from "@/lib/office-scope";
 
 // Detect a missing/uncached `blocked_times` table (PostgREST PGRST205) so admins
 // get an actionable message instead of a generic 500.
@@ -37,8 +38,10 @@ export async function GET(request: Request) {
     const supabase = createServiceClient();
     let query = supabase.from("blocked_times").select("*");
 
-    if (admin.role === "office_admin" && admin.office_id) {
-      query = query.eq("office_id", admin.office_id);
+    // Office admins see their office and its sub-offices.
+    const officeIds = await getAdminOfficeIds(admin);
+    if (officeIds !== null) {
+      query = officeId && officeIds.includes(officeId) ? query.eq("office_id", officeId) : query.in("office_id", officeIds);
     } else if (officeId) {
       query = query.eq("office_id", officeId);
     }
@@ -77,8 +80,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "office_id, date, and time_slot are required" }, { status: 400 });
     }
 
-    // Office admins can only block for their own office
-    if (admin.role === "office_admin" && admin.office_id !== office_id) {
+    // Office admins can block for their own office and its sub-offices
+    if (!(await canManageOffice(admin, office_id))) {
       return NextResponse.json({ message: "You can only block times for your assigned office" }, { status: 403 });
     }
 
@@ -142,7 +145,7 @@ export async function DELETE(request: Request) {
       // Delete by id
       const { data: record } = await supabase.from("blocked_times").select("*").eq("id", id).single();
       if (!record) return NextResponse.json({ message: "Not found" }, { status: 404 });
-      if (admin.role === "office_admin" && admin.office_id !== record.office_id) {
+      if (!(await canManageOffice(admin, record.office_id))) {
         return NextResponse.json({ message: "Access denied" }, { status: 403 });
       }
       await supabase.from("blocked_times").delete().eq("id", id);
@@ -152,7 +155,7 @@ export async function DELETE(request: Request) {
       });
     } else if (office_id && date && time_slot) {
       // Delete by composite key
-      if (admin.role === "office_admin" && admin.office_id !== office_id) {
+      if (!(await canManageOffice(admin, office_id))) {
         return NextResponse.json({ message: "Access denied" }, { status: 403 });
       }
       await supabase.from("blocked_times").delete()
