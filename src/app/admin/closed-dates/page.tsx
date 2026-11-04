@@ -8,6 +8,7 @@ import { adminFetch } from "@/lib/admin-fetch";
 import { getManilaToday } from "@/lib/time";
 
 const emptyForm = { date: "", endDate: "", reason: "" };
+const WEEKDAYS = [[1, "Monday"], [2, "Tuesday"], [3, "Wednesday"], [4, "Thursday"], [5, "Friday"]] as const;
 
 function formatDate(date: string, opts: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", year: "numeric" }) {
   return new Date(date + "T00:00:00").toLocaleDateString("en-US", opts);
@@ -58,6 +59,49 @@ export default function ClosedDatesPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchRows(); }, [fetchRows]);
+
+  // Weekdays closed every week: saved = what's stored, weekly = the unsaved edits.
+  const [savedWeekly, setSavedWeekly] = useState<Record<string, string> | null>(null);
+  const [weekly, setWeekly] = useState<Record<string, string>>({});
+  const [savingWeekly, setSavingWeekly] = useState(false);
+  const [weeklyError, setWeeklyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminFetch("/api/admin/closed-dates/weekly")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => { const w = data?.weekdays || {}; setSavedWeekly(w); setWeekly(w); })
+      .catch(() => { setSavedWeekly({}); setWeeklyError("Could not load weekly closed days."); });
+  }, []);
+
+  const weeklyDirty = savedWeekly !== null && JSON.stringify(Object.entries(weekly).sort()) !== JSON.stringify(Object.entries(savedWeekly).sort());
+
+  const toggleWeekday = (day: number, on: boolean) => {
+    setWeekly((prev) => {
+      const next = { ...prev };
+      if (on) next[day] = savedWeekly?.[day] ?? "";
+      else delete next[day];
+      return next;
+    });
+  };
+
+  const saveWeekly = async () => {
+    setSavingWeekly(true); setWeeklyError(null); setMessage(null);
+    try {
+      const res = await adminFetch("/api/admin/closed-dates/weekly", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekdays: weekly }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not save weekly closed days.");
+      setSavedWeekly(data.weekdays || {}); setWeekly(data.weekdays || {});
+      const names = Object.keys(data.weekdays || {}).map((d) => WEEKDAYS.find(([n]) => n === Number(d))?.[1]).filter(Boolean);
+      const parts = [names.length ? `Closed every ${names.join(", ")} at all offices.` : "No weekdays are closed every week."];
+      if (data.affectedAppointments) parts.push(`${data.affectedAppointments} upcoming appointment${data.affectedAppointments !== 1 ? "s are" : " is"} on a newly closed weekday. Review and postpone or decline them.`);
+      setMessage({ type: "success", text: parts.join(" ") });
+    } catch (err) { setWeeklyError(err instanceof Error ? err.message : "Could not save weekly closed days."); }
+    finally { setSavingWeekly(false); }
+  };
 
   if (admin.role !== "super_admin") {
     return (
@@ -120,6 +164,50 @@ export default function ClosedDatesPage() {
       </div>
 
       {message && <StatusMessage message={message} onDismiss={() => setMessage(null)} />}
+
+      <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4" aria-labelledby="weekly-heading">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 id="weekly-heading" className="text-sm font-semibold text-gray-900">Closed every week</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Turn on a weekday to close it every week at all offices. Weekends are always closed.</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {weeklyDirty && (
+              <button type="button" onClick={() => { setWeekly(savedWeekly || {}); setWeeklyError(null); }} disabled={savingWeekly} className="btn-ghost btn-sm">Discard</button>
+            )}
+            <button type="button" onClick={saveWeekly} disabled={!weeklyDirty || savingWeekly} className="btn-primary btn-sm disabled:opacity-50">
+              {savingWeekly ? "Saving..." : "Save weekly days"}
+            </button>
+          </div>
+        </div>
+        {weeklyError && <StatusMessage message={{ type: "error", text: weeklyError }} />}
+        {savedWeekly === null ? (
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">{WEEKDAYS.map(([d]) => <div key={d} className="skeleton h-20 rounded-lg" />)}</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+            {WEEKDAYS.map(([day, name]) => {
+              const on = day in weekly;
+              return (
+                <div key={day} className={`rounded-lg border p-3 transition-colors ${on ? "border-red-200 bg-red-50/50" : "border-gray-200 bg-white"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-sm font-medium ${on ? "text-red-700" : "text-gray-700"}`}>{name}</span>
+                    <button type="button" role="switch" aria-checked={on} aria-label={`Close every ${name}`} onClick={() => toggleWeekday(day, !on)}
+                      className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${on ? "bg-red-500" : "bg-gray-300"}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${on ? "translate-x-4" : ""}`} />
+                    </button>
+                  </div>
+                  <p className={`text-[11px] mt-1 ${on ? "text-red-600" : "text-gray-400"}`}>{on ? "Closed every week" : "Open"}</p>
+                  {on && (
+                    <input className="input !py-1.5 mt-2 !text-sm" maxLength={120} value={weekly[day] ?? ""} placeholder="Reason (optional)"
+                      aria-label={`Reason ${name} is closed`}
+                      onChange={(e) => setWeekly((prev) => ({ ...prev, [day]: e.target.value }))} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,380px)_1fr] gap-6 items-start">
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">

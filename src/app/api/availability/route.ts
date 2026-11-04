@@ -5,7 +5,7 @@ import { isMaintenanceActive } from "@/lib/maintenance-server";
 import { getBookingRules } from "@/lib/booking-rules-server";
 import { isTooFar, isTooSoon } from "@/lib/booking-rules";
 import { getManilaToday } from "@/lib/time";
-import { getClosedDateReason, getClosedDatesInRange } from "@/lib/closed-dates";
+import { getClosedDateReason, getClosedDatesInRange, getClosedWeekdays } from "@/lib/closed-dates";
 
 // All offices run a fixed 8:00 AM - 5:00 PM day, enforced at slot-generation
 // time so it applies to every office automatically, including offices created
@@ -152,6 +152,7 @@ export async function GET(request: Request) {
         slots: allSlots,
         availability,
         closed,
+        weeklyClosed: await getClosedWeekdays().catch(() => ({})),
       });
     }
 

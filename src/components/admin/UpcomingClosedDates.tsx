@@ -5,18 +5,26 @@ import Link from "next/link";
 import type { ClosedDate } from "@/types/database";
 import { adminFetch } from "@/lib/admin-fetch";
 
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 /** Dashboard strip listing the next few campus-wide closed dates, with a link to manage them. */
 export function UpcomingClosedDates() {
   const [rows, setRows] = useState<ClosedDate[] | null>(null);
+  const [weekly, setWeekly] = useState<Record<string, string>>({});
 
   useEffect(() => {
     adminFetch("/api/admin/closed-dates")
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setRows(Array.isArray(data) ? data : []))
       .catch(() => setRows([]));
+    adminFetch("/api/admin/closed-dates/weekly")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setWeekly(data?.weekdays || {}))
+      .catch(() => {});
   }, []);
 
   const upcoming = (rows || []).slice(0, 4);
+  const weeklyEntries = Object.entries(weekly);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -27,10 +35,15 @@ export function UpcomingClosedDates() {
       <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5">
         {rows === null ? (
           <div className="skeleton h-6 w-48 rounded-full" />
-        ) : upcoming.length === 0 ? (
+        ) : upcoming.length === 0 && weeklyEntries.length === 0 ? (
           <span className="text-xs text-gray-400">No upcoming holidays or closures.</span>
         ) : (
           <>
+            {weeklyEntries.map(([day, reason]) => (
+              <span key={`w-${day}`} className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 border border-red-200 whitespace-nowrap">
+                Every {WEEKDAY_SHORT[Number(day)]} · {reason}
+              </span>
+            ))}
             {upcoming.map((row) => (
               <span key={row.id} className="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 border border-red-100 whitespace-nowrap">
                 {new Date(row.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {row.reason}

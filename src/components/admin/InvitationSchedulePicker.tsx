@@ -5,6 +5,8 @@ import type { Office } from "@/types/database";
 import { DEFAULT_BOOKING_RULES, getLatestBookableDate, type BookingRules } from "@/lib/booking-rules";
 import { getManilaToday } from "@/lib/time";
 
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 interface DayAvailability {
   total: number;
   available: number;
@@ -70,6 +72,7 @@ export function InvitationSchedulePicker({ office, date, timeSlot, duration, onC
   });
   const [monthAvailability, setMonthAvailability] = useState<Record<string, DayAvailability>>({});
   const [closedDates, setClosedDates] = useState<Record<string, string>>({});
+  const [weeklyClosed, setWeeklyClosed] = useState<Record<string, string>>({});
   const [daySlots, setDaySlots] = useState<SlotInfo[]>([]);
   const [loadingDay, setLoadingDay] = useState(false);
   const [liveSlots, setLiveSlots] = useState(true);
@@ -89,8 +92,8 @@ export function InvitationSchedulePicker({ office, date, timeSlot, duration, onC
     let cancelled = false;
     fetch(`/api/availability?officeId=${encodeURIComponent(officeId)}&month=${m}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((d) => { if (!cancelled) { setMonthAvailability(d?.availability || {}); setClosedDates(d?.closed || {}); } })
-      .catch(() => { if (!cancelled) { setMonthAvailability({}); setClosedDates({}); } });
+      .then((d) => { if (!cancelled) { setMonthAvailability(d?.availability || {}); setClosedDates(d?.closed || {}); setWeeklyClosed(d?.weeklyClosed || {}); } })
+      .catch(() => { if (!cancelled) { setMonthAvailability({}); setClosedDates({}); setWeeklyClosed({}); } });
     return () => { cancelled = true; };
   }, [officeId, calendarMonth]);
 
@@ -134,6 +137,15 @@ export function InvitationSchedulePicker({ office, date, timeSlot, duration, onC
   };
 
   const selectedSlot = daySlots.find((s) => s.time === timeSlot);
+
+  // Weekly closures read "every Wednesday"; only one-off closed dates are listed by date.
+  const closedSummary = [
+    ...Object.entries(weeklyClosed).map(([day, reason]) => `every ${WEEKDAYS[Number(day)]} (${reason})`),
+    ...Object.entries(closedDates)
+      .filter(([d, reason]) => d >= todayStr && weeklyClosed[new Date(d + "T00:00:00").getDay()] !== reason)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([d, reason]) => `${new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} (${reason})`),
+  ];
 
   const getSlotStyle = (slot: SlotInfo) => {
     if (slot.past) return "bg-gray-50 text-gray-300 cursor-not-allowed border-gray-100";
@@ -210,11 +222,8 @@ export function InvitationSchedulePicker({ office, date, timeSlot, duration, onC
               <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-300" /><span className="text-[10px] text-gray-400">Full</span></div>
             </div>
           </div>
-          {Object.entries(closedDates).filter(([d]) => d >= todayStr).length > 0 && (
-            <p className="text-[11px] text-red-500 mt-1.5">
-              Closed: {Object.entries(closedDates).filter(([d]) => d >= todayStr).sort(([a], [b]) => a.localeCompare(b))
-                .map(([d, reason]) => `${new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} (${reason})`).join(", ")}
-            </p>
+          {closedSummary.length > 0 && (
+            <p className="text-[11px] text-red-500 mt-1.5">Closed: {closedSummary.join(", ")}</p>
           )}
         </div>
 

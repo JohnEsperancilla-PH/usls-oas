@@ -15,6 +15,8 @@ interface AppointmentFormProps {
   isSubmitting: boolean;
 }
 
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 interface DayAvailability {
   total: number;
   available: number;
@@ -71,6 +73,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
 
   const [monthAvailability, setMonthAvailability] = useState<Record<string, DayAvailability>>({});
   const [closedDates, setClosedDates] = useState<Record<string, string>>({});
+  const [weeklyClosed, setWeeklyClosed] = useState<Record<string, string>>({});
   const [daySlots, setDaySlots] = useState<SlotInfo[]>([]);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [loadingDay, setLoadingDay] = useState(false);
@@ -113,6 +116,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
       const d = await res.json();
       setMonthAvailability(d.availability || {});
       setClosedDates(d.closed || {});
+      setWeeklyClosed(d.weeklyClosed || {});
     } catch { /* */ }
     finally { setLoadingMonth(false); }
   }, [visitorCount]);
@@ -274,6 +278,11 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   };
 
   const monthLabel = new Date(calendarMonth.year, calendarMonth.month - 1).toLocaleString("default", { month: "long", year: "numeric" });
+
+  // Weekly closures are listed once ("every Wednesday"), so only one-off closed dates are listed by date.
+  const oneOffClosed = Object.entries(closedDates)
+    .filter(([d, reason]) => d >= todayStr && weeklyClosed[new Date(d + "T00:00:00").getDay()] !== reason)
+    .sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <div className="card">
@@ -537,9 +546,12 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                 <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-200" /><span className="text-[10px] text-gray-400">Full</span></div>
               </div>
             </div>
-            {Object.keys(closedDates).filter((d) => d >= todayStr).length > 0 && (
+            {(Object.keys(weeklyClosed).length > 0 || oneOffClosed.length > 0) && (
               <ul className="mt-1.5 space-y-0.5">
-                {Object.entries(closedDates).filter(([d]) => d >= todayStr).sort(([a], [b]) => a.localeCompare(b)).map(([d, reason]) => (
+                {Object.entries(weeklyClosed).map(([day, reason]) => (
+                  <li key={`w-${day}`} className="text-xs text-red-500">Closed every {WEEKDAYS[Number(day)]}: {reason}</li>
+                ))}
+                {oneOffClosed.map(([d, reason]) => (
                   <li key={d} className="text-xs text-red-500">
                     Closed {new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}: {reason}
                   </li>

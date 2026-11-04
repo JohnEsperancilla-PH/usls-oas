@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getAuthAdmin, logAudit, requireDashboardAdmin, requireSuperAdmin } from "@/lib/rbac";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { getManilaToday } from "@/lib/time";
+import { getClosedDatesInRange } from "@/lib/closed-dates";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_RANGE_DAYS = 31;
@@ -42,13 +43,17 @@ export async function GET(request: Request) {
     const month = searchParams.get("month"); // YYYY-MM
     const includePast = searchParams.get("includePast") === "1";
 
-    const supabase = createServiceClient();
-    let query = supabase.from("closed_dates").select("*").order("date", { ascending: true });
+    // A month view (calendars) includes weekly closed days, as { date, reason } per day.
     if (month && /^\d{4}-\d{2}$/.test(month)) {
       const [year, mon] = month.split("-").map(Number);
       const daysInMonth = new Date(year, mon, 0).getDate();
-      query = query.gte("date", `${month}-01`).lte("date", `${month}-${String(daysInMonth).padStart(2, "0")}`);
-    } else if (!includePast) {
+      const closed = await getClosedDatesInRange(`${month}-01`, `${month}-${String(daysInMonth).padStart(2, "0")}`);
+      return NextResponse.json(Object.entries(closed).sort(([a], [b]) => a.localeCompare(b)).map(([date, reason]) => ({ date, reason })));
+    }
+
+    const supabase = createServiceClient();
+    let query = supabase.from("closed_dates").select("*").order("date", { ascending: true });
+    if (!includePast) {
       query = query.gte("date", getManilaToday());
     }
 
