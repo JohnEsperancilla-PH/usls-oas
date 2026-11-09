@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { EntryWindow } from "@/lib/entry-window";
 import { describeEntryOpening, describeMinutes, getArrivalNote, getEntryRuleNote } from "@/lib/entry-window";
+import { InfographicViewer } from "@/components/help/InfographicViewer";
 
 // e.g. "30 minutes before the scheduled time until 1 hour after the scheduled time"
 function entryRange(w: EntryWindow) {
@@ -40,6 +41,7 @@ export function VisitorGuide({ entryWindow }: { entryWindow: EntryWindow }) {
         No account is needed to book. You fill in a short form, the office reviews it, and you get an email with your
         <strong> reference number</strong>, which is your pass at the gate.
       </p>
+      <InfographicViewer />
       <Contents items={[["book", "Book an appointment"], ["dates", "Picking a date and time"], ["after", "After you book"], ["visit", "On your visit day"], ["statuses", "Appointment statuses"], ["help", "Need help?"]]} />
 
       <Section id="book" title="1. Book an appointment">
