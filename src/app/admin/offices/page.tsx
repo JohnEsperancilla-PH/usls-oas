@@ -38,6 +38,27 @@ export default function OfficesPage() {
   const [deleting, setDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [accountFilter, setAccountFilter] = useState<"all" | "none" | "has">("all");
+  // Office admin accounts per office: approved ones count; pending ones are shown but don't count.
+  const [accountCounts, setAccountCounts] = useState<Record<string, { active: number; pending: number }> | null>(null);
+
+  const fetchAccountCounts = useCallback(async () => {
+    try {
+      const res = await adminFetch("/api/admin/accounts", {});
+      if (!res.ok) throw new Error();
+      const data: { office_id: string | null; role: string; approval_status?: string }[] = await res.json();
+      const counts: Record<string, { active: number; pending: number }> = {};
+      for (const account of Array.isArray(data) ? data : []) {
+        if (account.role !== "office_admin" || !account.office_id) continue;
+        const entry = (counts[account.office_id] ||= { active: 0, pending: 0 });
+        if (account.approval_status === "pending") entry.pending++; else entry.active++;
+      }
+      setAccountCounts(counts);
+    } catch { setAccountCounts(null); }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchAccountCounts(); }, [fetchAccountCounts]);
 
   const fetchOffices = useCallback(async () => {
     setLoading(true);
@@ -118,12 +139,17 @@ export default function OfficesPage() {
   const canDelete = Boolean(deleteCheck && deleteCheck.blockers.length === 0 && deleteConfirmName.trim() === deleteCheck.name.trim());
 
   const categories = [...new Set(offices.map((o) => o.category?.trim()).filter((c): c is string => Boolean(c)))].sort((a, b) => a.localeCompare(b));
-  const filtersActive = Boolean(query.trim()) || statusFilter !== "all" || categoryFilter !== "";
-  const clearFilters = () => { setQuery(""); setStatusFilter("all"); setCategoryFilter(""); };
+  const filtersActive = Boolean(query.trim()) || statusFilter !== "all" || categoryFilter !== "" || accountFilter !== "all";
+  const clearFilters = () => { setQuery(""); setStatusFilter("all"); setCategoryFilter(""); setAccountFilter("all"); };
+
+  const activeAccounts = (o: Office) => accountCounts?.[o.id]?.active ?? 0;
+  const officesWithoutAccounts = accountCounts ? offices.filter((o) => activeAccounts(o) === 0).length : 0;
 
   const filteredOffices = offices.filter((o) => {
     if (statusFilter === "active" && !o.active) return false;
     if (statusFilter === "inactive" && o.active) return false;
+    if (accountCounts && accountFilter === "none" && activeAccounts(o) > 0) return false;
+    if (accountCounts && accountFilter === "has" && activeAccounts(o) === 0) return false;
     if (categoryFilter === NO_CATEGORY ? Boolean(o.category?.trim()) : categoryFilter && o.category?.trim() !== categoryFilter) return false;
     const q = query.trim().toLowerCase();
     if (!q) return true;
@@ -186,6 +212,18 @@ export default function OfficesPage() {
             {label}
           </button>
         ))}
+        {accountCounts && (
+          <>
+            <span className="w-px h-6 bg-gray-200 mx-1 flex-shrink-0" aria-hidden="true" />
+            {([["all", "Any accounts"], ["none", "No accounts", officesWithoutAccounts], ["has", "Has accounts", offices.length - officesWithoutAccounts]] as const).map(([value, label, count]) => (
+              <button key={value} type="button" onClick={() => setAccountFilter(value)} aria-pressed={accountFilter === value}
+                className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${accountFilter === value ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"}`}>
+                {label}
+                {count !== undefined && <span className={`ml-1.5 text-xs ${accountFilter === value ? "text-white/80" : value === "none" && count > 0 ? "text-amber-600 font-semibold" : "text-gray-400"}`}>{count}</span>}
+              </button>
+            ))}
+          </>
+        )}
         {filtersActive && (
           <button type="button" onClick={clearFilters} className="ml-auto text-sm font-medium text-primary hover:underline whitespace-nowrap">Clear filters</button>
         )}
@@ -226,6 +264,14 @@ export default function OfficesPage() {
                     </p>
                   )}
                   {o.category && <p className="text-[11px] text-primary font-medium truncate mt-0.5">{o.category}</p>}
+                  {accountCounts && (
+                    <button type="button" onClick={() => setPeopleOffice(o)}
+                      className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium hover:underline ${activeAccounts(o) > 0 ? "text-gray-500" : "text-amber-700"}`}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      {activeAccounts(o) > 0 ? `${activeAccounts(o)} account${activeAccounts(o) !== 1 ? "s" : ""}` : "No accounts yet"}
+                      {(accountCounts[o.id]?.pending ?? 0) > 0 && <span className="text-amber-700"> · {accountCounts[o.id].pending} pending</span>}
+                    </button>
+                  )}
                   {o.email && <p className="text-xs text-gray-400 truncate mt-0.5">{o.email}</p>}
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ml-2 ${o.active ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-50 text-gray-400 border border-gray-200"}`}>
@@ -438,7 +484,7 @@ export default function OfficesPage() {
         open={Boolean(peopleOffice)}
         officeId={peopleOffice?.id || ""}
         officeName={peopleOffice?.name || "Office"}
-        onClose={() => setPeopleOffice(null)}
+        onClose={() => { setPeopleOffice(null); fetchAccountCounts(); }}
       />
     </div>
   );
