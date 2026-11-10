@@ -10,6 +10,7 @@ import MaintenanceWatcher from "@/components/landing/MaintenanceWatcher";
 import { formatTimeSlot } from "@/lib/time";
 import type { Office } from "@/types/database";
 import { adminFetch } from "@/lib/admin-fetch";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export interface BookingData {
   fullName: string;
@@ -210,8 +211,9 @@ export default function BookingLanding({ entryTimingNote, systemAlert }: { entry
       {welcomeClosed && systemAlert && <SystemAlertModal alert={systemAlert} />}
 
       <header className="bg-white border-b border-gray-100 py-5 overflow-hidden">
-        <div className="container mx-auto px-4 flex items-center justify-center">
+        <div className="container mx-auto px-4 flex items-center justify-center relative">
           <img src="/usls-oas.png" alt="USLS OASYS" className="h-16 sm:h-20 w-auto" />
+          <ThemeToggle className="absolute right-4 top-1/2 -translate-y-1/2" />
         </div>
       </header>
 

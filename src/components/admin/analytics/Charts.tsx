@@ -6,11 +6,11 @@ import { useRef, useState } from "react";
 export const VIZ = {
   series1: "#2a78d6",
   series2: "#eb6834",
-  grid: "#e1e0d9",
-  axis: "#c3c2b7",
-  muted: "#898781",
-  textSecondary: "#52514e",
-  empty: "#f0efec",
+  grid: "var(--viz-grid)",
+  axis: "var(--viz-axis)",
+  muted: "var(--viz-muted)",
+  textSecondary: "var(--viz-text)",
+  empty: "var(--viz-empty)",
 };
 const SEQUENTIAL = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"];
 const ORDINAL = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab"];
@@ -370,7 +370,7 @@ export function LineChart({ labels, series, height = 200, formatLabel = (s: stri
                 <div className="absolute top-0 bottom-0 w-px pointer-events-none" style={{ left: `${x(hoverIndex)}%`, background: VIZ.axis }} />
                 {series.map((s) => (
                   <div key={s.key} className="absolute w-2.5 h-2.5 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                    style={{ left: `${x(hoverIndex)}%`, top: `${y(s.values[hoverIndex])}%`, background: s.color, boxShadow: "0 0 0 2px #fff" }} />
+                    style={{ left: `${x(hoverIndex)}%`, top: `${y(s.values[hoverIndex])}%`, background: s.color, boxShadow: "0 0 0 2px var(--color-white, #fff)" }} />
                 ))}
               </>
             )}

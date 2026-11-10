@@ -10,6 +10,7 @@ import { SystemAlertLoader } from "@/components/SystemAlertModal";
 import { createClient } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 import { adminFetch } from "@/lib/admin-fetch";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 // Headings per gate result. Only an actual refusal reads "Entry Denied"; "too early" is a come-back-later, not a rejection.
 const FAILURE_HEADINGS: Record<string, string> = {
@@ -448,6 +449,7 @@ export default function ScanPage() {
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <ThemeToggle className="fixed top-4 right-4" />
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm w-full max-w-sm">
           <img src="/usls-oas.png" alt="USLS OASYS" className="h-14 w-auto mx-auto mb-5" />
           <h1 className="text-lg font-bold text-gray-900 text-center">Gate Entry Login</h1>
@@ -477,6 +479,7 @@ export default function ScanPage() {
               <p className="text-sm font-semibold text-gray-800">Gate Officer Dashboard</p>
               <p className="text-xs text-gray-500">Logged in as <span className="font-medium text-gray-700">{officerName || employeeId}</span> · {currentDateLabel} · {currentTimeLabel}</p>
             </div>
+            <ThemeToggle />
             <a href="/guide?for=guards" className="text-sm text-gray-500 hover:text-gray-700">Guide</a>
             <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign Out</button>
           </div>
@@ -658,7 +661,7 @@ export default function ScanPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Action</p>
                   <h1 className="text-xl font-bold text-gray-900 mt-1">Gate Entry</h1>
                 </div>
-                <div className="relative rounded-xl overflow-hidden bg-gray-950">
+                <div className="relative rounded-xl overflow-hidden bg-black">
                   <video ref={videoRef} playsInline autoPlay muted className="w-full h-72 object-cover" />
                   {!scanning && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 text-white text-sm">

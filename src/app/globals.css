@@ -15,6 +15,183 @@
   --card-bg: #f9fafb;
   --muted: #6b7280;
   --ring: #006633;
+  --skeleton-a: #f0f0f0;
+  --skeleton-b: #e0e0e0;
+  --scrollbar: #d1d5db;
+  --scrollbar-hover: #9ca3af;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-muted: #898781;
+  --viz-text: #52514e;
+  --viz-empty: #f0efec;
+}
+
+/* ===================================================================
+   Dark mode
+   The "dark" class on <html> is set before paint by THEME_INIT_SCRIPT (src/lib/theme.ts).
+   Components keep their normal Tailwind classes; instead the colour palette is remapped:
+   white becomes the card surface, the gray scale is inverted, and tinted colours
+   (red-50, green-700, ...) become dark tints / light text. Mid shades (400-600) are
+   kept so solid buttons and dots look the same. Screen only, so printing stays light.
+   =================================================================== */
+:root { color-scheme: light; }
+
+@media screen {
+  :root.dark {
+    color-scheme: dark;
+    --surface: #171a21;
+    --background: #0f1218;
+    --foreground: #e5e7eb;
+    --primary: #13794a;
+    --primary-light: #18905a;
+    --primary-dark: #0e5c38;
+    --primary-text: #6fd3a0;
+    --primary-text-hover: #94e2b9;
+    --secondary: var(--surface);
+    --border: #2b303a;
+    --card-bg: #1c2028;
+    --muted: #9aa1ad;
+    --ring: #6fd3a0;
+    --skeleton-a: #1f232b;
+    --skeleton-b: #2b303a;
+    --scrollbar: #3a404b;
+    --scrollbar-hover: #565d6a;
+    --viz-grid: #2b303a;
+    --viz-axis: #4a505c;
+    --viz-muted: #8b919c;
+    --viz-text: #b3b9c3;
+    --viz-empty: #20242c;
+
+    --color-white: var(--surface);
+    --color-gray-50: #0f1218;
+    --color-gray-100: #20242c;
+    --color-gray-200: #2b303a;
+    --color-gray-300: #3a404b;
+    --color-gray-400: #7d8592;
+    --color-gray-500: #9aa1ad;
+    --color-gray-600: #b3b9c3;
+    --color-gray-700: #c9ced6;
+    --color-gray-800: #dfe2e7;
+    --color-gray-900: #eef0f3;
+    --color-gray-950: #f8f9fa;
+
+    --color-red-50: #332327;
+    --color-red-100: #43272b;
+    --color-red-200: #5b2e30;
+    --color-red-300: #7d3536;
+    --color-red-700: #fca5a5;
+    --color-red-800: #ffc0bf;
+    --color-red-900: #ffd2d1;
+    --color-red-950: #ffe0df;
+    --color-orange-50: #332726;
+    --color-orange-100: #432e29;
+    --color-orange-200: #5d392b;
+    --color-orange-300: #80472d;
+    --color-orange-700: #fdba74;
+    --color-orange-800: #ffcfa0;
+    --color-orange-900: #ffddbc;
+    --color-orange-950: #ffe7d0;
+    --color-amber-50: #322b27;
+    --color-amber-100: #41352a;
+    --color-amber-200: #5a442d;
+    --color-amber-300: #7d592f;
+    --color-amber-700: #fcd34d;
+    --color-amber-800: #fde18e;
+    --color-amber-900: #feeab0;
+    --color-amber-950: #fef1c9;
+    --color-yellow-50: #302d28;
+    --color-yellow-100: #3f382b;
+    --color-yellow-200: #574a2e;
+    --color-yellow-300: #786230;
+    --color-yellow-700: #fde047;
+    --color-yellow-800: #fdea8d;
+    --color-yellow-900: #fef1b0;
+    --color-yellow-950: #fef5c9;
+    --color-green-50: #1e2f2b;
+    --color-green-100: #213b30;
+    --color-green-200: #254f38;
+    --color-green-300: #296a42;
+    --color-green-700: #86efac;
+    --color-green-800: #aff5c5;
+    --color-green-900: #c7f8d6;
+    --color-green-950: #d8fae2;
+    --color-emerald-50: #1d2d2e;
+    --color-emerald-100: #203935;
+    --color-emerald-200: #234b40;
+    --color-emerald-300: #26644f;
+    --color-emerald-700: #6ee7b7;
+    --color-emerald-800: #a1efcc;
+    --color-emerald-900: #bef4db;
+    --color-emerald-950: #d2f7e6;
+    --color-teal-50: #1e2d31;
+    --color-teal-100: #21393b;
+    --color-teal-200: #244b4a;
+    --color-teal-300: #27635f;
+    --color-teal-700: #5eead4;
+    --color-teal-800: #9af1e1;
+    --color-teal-900: #baf5e9;
+    --color-teal-950: #cff8f0;
+    --color-cyan-50: #1d2d37;
+    --color-cyan-100: #203843;
+    --color-cyan-200: #244a58;
+    --color-cyan-300: #266374;
+    --color-cyan-700: #67e8f9;
+    --color-cyan-800: #9ef0fb;
+    --color-cyan-900: #bcf4fc;
+    --color-cyan-950: #d1f8fd;
+    --color-blue-50: #1d283b;
+    --color-blue-100: #202f4a;
+    --color-blue-200: #253b62;
+    --color-blue-300: #2b4c84;
+    --color-blue-700: #93c5fd;
+    --color-blue-800: #b4d7ff;
+    --color-blue-900: #c9e2ff;
+    --color-blue-950: #d9ebff;
+    --color-indigo-50: #20253a;
+    --color-indigo-100: #252b49;
+    --color-indigo-200: #2e3461;
+    --color-indigo-300: #3a4082;
+    --color-indigo-700: #a5b4fc;
+    --color-indigo-800: #bfcbfe;
+    --color-indigo-900: #d1daff;
+    --color-indigo-950: #dee5ff;
+    --color-purple-50: #29233b;
+    --color-purple-100: #33294a;
+    --color-purple-200: #443063;
+    --color-purple-300: #5b3a84;
+    --color-purple-700: #d8b4fe;
+    --color-purple-800: #e4cbff;
+    --color-purple-900: #ebdaff;
+    --color-purple-950: #f1e5ff;
+  }
+
+  /* White that must stay white: text and spinners on green/red buttons, the photo viewer's glass buttons. */
+  .dark .text-white,
+  .dark .hover\:text-white:hover,
+  .dark .btn-primary,
+  .dark .btn-danger,
+  .dark .btn-secondary:hover { color: #fff; }
+  .dark .text-white\/80 { color: rgb(255 255 255 / 0.8); }
+  .dark .text-white\/70 { color: rgb(255 255 255 / 0.7); }
+  .dark .border-white { border-color: #fff; }
+  .dark .bg-white\/10 { background-color: rgb(255 255 255 / 0.1); }
+  .dark .bg-white\/20,
+  .dark .hover\:bg-white\/20:hover { background-color: rgb(255 255 255 / 0.2); }
+
+  /* Dark "selected" pills invert to light pills, so their text goes dark. */
+  .dark .bg-gray-900.text-white { color: var(--color-gray-50); }
+
+  /* USLS green is too dark to read as text on a dark surface; links and labels use a lighter green. */
+  .dark .text-primary,
+  .dark .text-primary-dark,
+  .dark .btn-secondary { color: var(--primary-text); }
+  .dark .hover\:text-primary:hover,
+  .dark .hover\:text-primary-light:hover { color: var(--primary-text-hover); }
+  .dark .btn-secondary { border-color: var(--primary-text); }
+  .dark .btn-secondary:hover { border-color: var(--primary); }
+
+  /* The green logo is unreadable on dark; show it in white. */
+  .dark img[src*="usls-oas"] { filter: brightness(0) invert(1); }
 }
 
 @theme inline {
@@ -55,8 +232,8 @@ body {
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
 /* ---- Buttons ---- */
 .btn-primary {
@@ -144,7 +321,7 @@ textarea {
 
 .skeleton {
   @apply rounded-lg;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, var(--skeleton-a) 25%, var(--skeleton-b) 50%, var(--skeleton-a) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }

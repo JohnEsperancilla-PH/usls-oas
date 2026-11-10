@@ -5,6 +5,7 @@ import { readNextPath } from "@/lib/safe-next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -82,6 +83,7 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <ThemeToggle className="fixed top-4 right-4" />
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-8">
           <img src="/usls-oas.png" alt="USLS OASYS" className="h-24 sm:h-20 w-auto mx-auto mb-4" />

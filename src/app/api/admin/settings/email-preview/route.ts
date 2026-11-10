@@ -20,7 +20,7 @@ const OFFICE = "Sample Office";
 const VALID_ID = "Driver's License";
 const REFERENCE = "SAMPLE123";
 const OFFICE_EMAIL = "office@usls.edu.ph";
-const OFFICE_PHONE = "(034) 000-0000";
+const OFFICE_PHONE = "(034) 434-6100";
 
 function renderSample(type: EmailTemplateType, origin: string) {
   const date = addDays(getManilaToday(), 7);

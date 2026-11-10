@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { Office } from "@/types/database";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function OfficesPage() {
   const [offices, setOffices] = useState<Office[]>([]);
@@ -32,8 +33,9 @@ export default function OfficesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 py-5 overflow-hidden">
-        <div className="container mx-auto px-4 flex items-center justify-center">
+        <div className="container mx-auto px-4 flex items-center justify-center relative">
           <img src="/usls-oas.png" alt="USLS OASYS" className="h-16 sm:h-20 w-auto" />
+          <ThemeToggle className="absolute right-4 top-1/2 -translate-y-1/2" />
         </div>
       </header>
 

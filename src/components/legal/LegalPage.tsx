@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export const LEGAL_LINKS = [
   { href: "/privacy", label: "Privacy Policy" },
@@ -18,9 +19,12 @@ export default function LegalPage({ title, updated, children }: { title: string;
           <Link href="/">
             <Image src="/usls-oas.png" alt="USLS OASYS" width={160} height={48} className="h-12 sm:h-14 w-auto" priority />
           </Link>
-          <Link href="/" className="text-sm text-primary hover:underline font-medium">
-            &larr; Back to Booking
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Link href="/" className="text-sm text-primary hover:underline font-medium">
+              &larr; Back to Booking
+            </Link>
+          </div>
         </div>
       </header>
 

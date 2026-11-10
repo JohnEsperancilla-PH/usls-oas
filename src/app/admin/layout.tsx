@@ -7,6 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { Admin } from "@/types/database";
 import { SystemAlertLoader } from "@/components/SystemAlertModal";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const PUBLIC_ADMIN_ROUTES = ["/admin/login", "/admin/register", "/admin/forgot-password", "/admin/reset-password"];
 
@@ -187,6 +188,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             ))}
           </nav>
           <div className="border-t border-gray-100 p-3">
+            <ThemeToggle variant="segmented" className="mb-2" />
             <div className="flex items-center gap-3 px-3 py-2">
               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-xs font-bold text-primary">{(admin.name || user.email || "?")[0].toUpperCase()}</span>
@@ -226,6 +228,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 ))}
               </nav>
               <div className="flex-shrink-0 border-t border-gray-100 p-3 bg-white">
+                <ThemeToggle variant="segmented" className="mb-2" />
                 <div className="flex items-center gap-3 px-3 py-2">
                   <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-xs font-bold text-primary">{(admin.name || user.email || "?")[0].toUpperCase()}</span>

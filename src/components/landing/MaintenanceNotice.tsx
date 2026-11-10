@@ -1,5 +1,6 @@
 import MaintenanceCountdown from "@/components/landing/MaintenanceCountdown";
 import { formatManilaDateTime, type MaintenanceState } from "@/lib/maintenance";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function MaintenanceNotice({ state }: { state: MaintenanceState }) {
   const year = new Date().getFullYear();
@@ -9,8 +10,9 @@ export default function MaintenanceNotice({ state }: { state: MaintenanceState }
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-100 py-5 overflow-hidden">
-        <div className="container mx-auto px-4 flex items-center justify-center">
+        <div className="container mx-auto px-4 flex items-center justify-center relative">
           <img src="/usls-oas.png" alt="USLS OASYS" className="h-16 sm:h-20 w-auto" />
+          <ThemeToggle className="absolute right-4 top-1/2 -translate-y-1/2" />
         </div>
       </header>
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { LEGAL_LINKS } from "@/components/legal/LegalPage";
 import type { ViewerRole } from "@/lib/viewer";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const ROLE_LABELS: Record<Exclude<ViewerRole, null>, string> = {
   super_admin: "Super admin",
@@ -32,6 +33,7 @@ export function HelpShell({ active, role, children }: { active: "guide" | "updat
                 Signed in as {ROLE_LABELS[role]}
               </span>
             )}
+            <ThemeToggle />
             <Link href="/" className="text-sm text-primary hover:underline font-medium">&larr; Back to Booking</Link>
           </div>
         </div>
