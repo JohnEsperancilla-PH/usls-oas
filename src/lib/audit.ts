@@ -34,6 +34,10 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   tag_sub_office: "Tagged sub-offices",
   close_date: "Closed campus date",
   reopen_date: "Reopened campus date",
+  update_settings: "Updated system settings",
+  expire_appointments: "Expired no-show appointments",
+  booking_submitted: "Visitor submitted a booking",
+  download_ticket: "Downloaded invitation ticket",
 };
 
 export const AUDIT_ACTION_OPTIONS = (Object.entries(ACTION_LABELS) as [AuditAction, string][])
@@ -90,6 +94,12 @@ const FIELD_LABELS: Record<string, string> = {
   alert_enabled: "Popup on", alert_start: "Popup starts", alert_end: "Popup ends", alert_headline: "Popup headline",
   alert_message: "Popup message", alert_audience: "Popup audience", scheduled: "Scheduled", startAt: "Starts",
   endAt: "Ends", headline: "Headline", message: "Message", contactEmail: "Contact email", weekday: "Weekday",
+  system_name: "System name", support_email: "Support email", support_phone: "Support phone",
+  booking_max_advance_enabled: "Max advance booking on", booking_min_notice_enabled: "Minimum notice on",
+  entry_early_minutes: "Gate opens (minutes before)", entry_late_minutes: "Gate closes (minutes after)",
+  require_account_approval: "Approve new office admins", notify_confirmation: "Booking confirmation email",
+  notify_admin_alert: "New booking alert email", notify_approval: "Approval email", notify_decline: "Decline email",
+  notify_postponement: "Postponement email", notify_invitation: "Invitation email", notify_qr_resend: "Reference re-send email",
 };
 
 export function getAuditFieldLabel(key: string): string {
@@ -180,6 +190,18 @@ export function getAuditSummary(log: AuditLog): string {
       return value(details, "emails") || "Email text changed";
     case "login":
       return role ? `Role: ${role}` : "Admin session started";
+    case "update_settings": {
+      const changed = details?.changes && typeof details.changes === "object" ? Object.keys(details.changes as object) : [];
+      return changed.length ? `Changed: ${changed.map(getAuditFieldLabel).join(", ")}` : "Settings saved";
+    }
+    case "expire_appointments": {
+      const count = value(details, "count");
+      return count ? `${count} appointment${count === "1" ? "" : "s"} past the entry time marked expired` : "No-show appointments expired";
+    }
+    case "booking_submitted":
+      return [visitor, office, date && timeSlot ? `${date} at ${timeSlot}` : date].filter(Boolean).join(" - ") || "New booking";
+    case "download_ticket":
+      return [visitor, office].filter(Boolean).join(" - ") || "Ticket downloaded";
     default:
       return log.appointment_id ? `Appointment ${log.appointment_id.slice(0, 8)}` : "System activity";
   }

@@ -8,6 +8,8 @@ import { AUDIT_ACTION_OPTIONS, formatAuditValue, getAuditActionLabel, getAuditCh
 import { Select } from "@/components/ui/Select";
 import { ModalShell } from "@/components/admin/ModalShell";
 import { EntryLogs } from "@/components/admin/EntryLogs";
+import { SignInLogs } from "@/components/admin/SignInLogs";
+import { EmailLogs } from "@/components/admin/EmailLogs";
 import { useAdmin } from "@/app/admin/layout";
 
 // Details fields that are shown elsewhere in the modal, or are internal.
@@ -95,49 +97,55 @@ function formatManila(iso: string) {
   });
 }
 
-type AuditTab = "audit" | "entry";
+const TABS = {
+  audit: { label: "Audit log", title: "Audit Log", description: "Who did what, and when, across the system." },
+  entry: { label: "Entry logs", title: "Entry Logs", description: "Every check-in, checkout, denial, and rejected scan at the gate." },
+  signins: { label: "Sign-ins", title: "Sign-in Activity", description: "Every sign-in attempt on the admin and gate login pages, including failures." },
+  email: { label: "Email logs", title: "Email Logs", description: "Every system email, who it went to, and whether it was sent." },
+} as const;
+type AuditTab = keyof typeof TABS;
+const isTab = (value: string | null): value is AuditTab => value !== null && value in TABS;
 
 export default function AuditPage() {
   const { admin } = useAdmin();
-  // Entry logs are for super admins (guard admins have their own page); the audit API scopes office admins.
-  const canSeeEntryLogs = admin.role === "super_admin";
+  // The extra log tabs are for super admins (guard admins have their own Entry Logs page); the audit API scopes office admins.
+  const canSeeAllLogs = admin.role === "super_admin";
   const [tab, setTab] = useState<AuditTab>("audit");
 
   useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL is only readable in the browser
-    if (canSeeEntryLogs && new URLSearchParams(window.location.search).get("tab") === "entry") setTab("entry");
-  }, [canSeeEntryLogs]);
+    if (canSeeAllLogs && isTab(requested)) setTab(requested);
+  }, [canSeeAllLogs]);
 
   const switchTab = (next: AuditTab) => {
     setTab(next);
     const url = new URL(window.location.href);
-    if (next === "entry") url.searchParams.set("tab", "entry"); else url.searchParams.delete("tab");
+    if (next === "audit") url.searchParams.delete("tab"); else url.searchParams.set("tab", next);
     window.history.replaceState(null, "", url);
   };
+
+  const current = canSeeAllLogs ? tab : "audit";
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{tab === "entry" ? "Entry Logs" : "Audit Log"}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {tab === "entry"
-            ? "Every check-in, checkout, denial, and rejected scan at the gate. Times are Philippine Time."
-            : "Who did what, and when, across the system. Times are Philippine Time."}
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900">{TABS[current].title}</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{TABS[current].description} Times are Philippine Time.</p>
       </div>
 
-      {canSeeEntryLogs && (
-        <div className="flex items-center gap-1 border-b border-gray-200" role="tablist" aria-label="Log type">
-          {([["audit", "Audit log"], ["entry", "Entry logs"]] as const).map(([key, label]) => (
-            <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => switchTab(key)}
-              className={`px-4 py-2.5 -mb-px text-sm font-medium border-b-2 transition-colors ${tab === key ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-800"}`}>
-              {label}
+      {canSeeAllLogs && (
+        <div className="flex items-center gap-1 border-b border-gray-200 overflow-x-auto" role="tablist" aria-label="Log type">
+          {(Object.keys(TABS) as AuditTab[]).map((key) => (
+            <button key={key} type="button" role="tab" aria-selected={current === key} onClick={() => switchTab(key)}
+              className={`px-4 py-2.5 -mb-px text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${current === key ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-800"}`}>
+              {TABS[key].label}
             </button>
           ))}
         </div>
       )}
 
-      {tab === "entry" && canSeeEntryLogs ? <EntryLogs /> : <AuditLogPanel />}
+      {current === "entry" ? <EntryLogs /> : current === "signins" ? <SignInLogs /> : current === "email" ? <EmailLogs /> : <AuditLogPanel />}
     </div>
   );
 }

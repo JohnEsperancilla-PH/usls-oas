@@ -5,6 +5,7 @@ import type { EntryLog, EntryLogEvent } from "@/types/database";
 import { StatusMessage } from "@/components/admin/StatusMessage";
 import { Pagination, SearchInput } from "@/components/admin/Pagination";
 import { ModalShell } from "@/components/admin/ModalShell";
+import { LogDateRange } from "@/components/admin/LogDateRange";
 import { adminFetch } from "@/lib/admin-fetch";
 import { formatTimeSlot, getManilaToday } from "@/lib/time";
 
@@ -44,12 +45,6 @@ const FILTERS: { key: "" | EntryLogEvent; label: string }[] = [
   { key: "denied", label: "Denied" },
   { key: "rejected", label: "Rejected scans" },
 ];
-
-function shiftDate(date: string, days: number) {
-  const d = new Date(date + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 function formatDuration(minutes: number) {
   const h = Math.floor(Math.abs(minutes) / 60);
@@ -120,12 +115,6 @@ export function EntryLogs() {
 
   const withFirstPage = <T,>(setter: (value: T) => void) => (value: T) => { setter(value); setPage(1); };
   const setRange = (start: string, end: string) => { setFrom(start); setTo(end); setPage(1); };
-  const presets = [
-    { label: "Today", from: today, to: today },
-    { label: "Yesterday", from: shiftDate(today, -1), to: shiftDate(today, -1) },
-    { label: "Last 7 days", from: shiftDate(today, -6), to: today },
-    { label: "Last 30 days", from: shiftDate(today, -29), to: today },
-  ];
   const allCount = summary.entry + summary.checkout + summary.denied + summary.rejected;
   const multiDay = from !== to;
   const inside = Math.max(0, summary.entry - summary.checkout);
@@ -147,28 +136,12 @@ export function EntryLogs() {
         ))}
       </div>
 
-      <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+      <div className="flex flex-col xl:flex-row xl:items-end gap-3">
         <div className="flex-1"><SearchInput value={search} onChange={withFirstPage(setSearch)} placeholder="Search visitor, guard, office, code, or plate..." label="Search entry log" /></div>
-        <div className="grid grid-cols-2 gap-3 lg:flex lg:items-end">
-          <div>
-            <label htmlFor="entry-from" className="block text-xs font-medium text-gray-600 mb-1">From</label>
-            <input id="entry-from" type="date" value={from} max={to} onChange={(e) => e.target.value && setRange(e.target.value, to < e.target.value ? e.target.value : to)} className="input" />
-          </div>
-          <div>
-            <label htmlFor="entry-to" className="block text-xs font-medium text-gray-600 mb-1">To</label>
-            <input id="entry-to" type="date" value={to} min={from} onChange={(e) => e.target.value && setRange(from, e.target.value)} className="input" />
-          </div>
-        </div>
+        <LogDateRange idPrefix="entry" from={from} to={to} onChange={setRange} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {presets.map((p) => (
-          <button key={p.label} type="button" onClick={() => setRange(p.from, p.to)} aria-pressed={from === p.from && to === p.to}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${from === p.from && to === p.to ? "bg-gray-900 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>
-            {p.label}
-          </button>
-        ))}
-        <span className="flex-1" />
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {isLive && lastLoaded && (
           <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" aria-hidden="true" />

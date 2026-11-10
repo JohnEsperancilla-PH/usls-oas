@@ -3,6 +3,7 @@ import { getAuthAdmin, requireEntryUser } from "@/lib/rbac";
 import { createServiceClient } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { recordSignIn } from "@/lib/sign-in-log";
 import { getGateAuthEmail, normalizeEmployeeId, escapeLikePattern } from "@/lib/entry-auth";
 
 export async function GET(request: Request) {
@@ -16,7 +17,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
   const { allowed } = await checkRateLimit(`entry-auth:${ip}`, 10, 15 * 60 * 1000);
-  if (!allowed) return rateLimitResponse();
+  if (!allowed) {
+    await recordSignIn(request, { portal: "gate", success: false, identifier: "", reason: "rate_limited" });
+    return rateLimitResponse();
+  }
 
   try {
     const body = await request.json();
@@ -31,7 +35,7 @@ export async function POST(request: Request) {
     // 1) Try an exact employee ID match.
     const { data: byId } = await serviceClient
       .from("admins")
-      .select("name, email, role, employee_id")
+      .select("id, name, email, role, employee_id")
       .eq("role", "gate_user")
       .eq("employee_id", normalizedId)
       .maybeSingle();
@@ -43,7 +47,7 @@ export async function POST(request: Request) {
     if (!account) {
       const { data: byName } = await serviceClient
         .from("admins")
-        .select("name, email, role, employee_id")
+        .select("id, name, email, role, employee_id")
         .eq("role", "gate_user")
         .ilike("name", escapeLikePattern(identifier))
         .limit(2);
@@ -57,11 +61,19 @@ export async function POST(request: Request) {
       account = byName?.[0] ?? null;
     }
 
-    if (!account || !account.employee_id) return NextResponse.json({ authenticated: false, message: "Invalid employee ID, username, or password" }, { status: 401 });
+    if (!account || !account.employee_id) {
+      await recordSignIn(request, { portal: "gate", success: false, identifier, reason: "unknown_account" });
+      return NextResponse.json({ authenticated: false, message: "Invalid employee ID, username, or password" }, { status: 401 });
+    }
 
     const authClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
     const { data, error } = await authClient.auth.signInWithPassword({ email: getGateAuthEmail(account.employee_id), password: body.password });
-    if (error || !data.session) return NextResponse.json({ authenticated: false, message: "Invalid employee ID, username, or password" }, { status: 401 });
+    if (error || !data.session) {
+      await recordSignIn(request, { portal: "gate", success: false, identifier, reason: "wrong_password", account });
+      return NextResponse.json({ authenticated: false, message: "Invalid employee ID, username, or password" }, { status: 401 });
+    }
+
+    await recordSignIn(request, { portal: "gate", success: true, identifier, account });
 
     return NextResponse.json({ authenticated: true, session: data.session, officerName: account.name });
   } catch {

@@ -39,8 +39,19 @@ export default function AdminLoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { setError(error.message); return; }
+      // The password is checked on the server so every attempt is logged; the browser then adopts the session.
+      const loginResponse = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const login = await loginResponse.json().catch(() => ({}));
+      if (!loginResponse.ok || !login.session) {
+        setError(loginResponse.status === 429 ? "Too many sign-in attempts. Wait a minute and try again." : login.message || "Could not sign in. Please try again.");
+        return;
+      }
+      const { error } = await supabase.auth.setSession(login.session);
+      if (error) { setError("Could not start your session. Please try again."); return; }
       const authResponse = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

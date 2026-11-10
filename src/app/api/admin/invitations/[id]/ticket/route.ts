@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getAuthAdmin, isDashboardRole } from "@/lib/rbac";
+import { getAuthAdmin, isDashboardRole, logAudit } from "@/lib/rbac";
+import { clientInfo } from "@/lib/sign-in-log";
 import { generateTicketPdf } from "@/lib/ticket";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
 import { canAccessAppointment } from "@/lib/office-scope";
@@ -47,6 +48,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       personToMeet: appointment.person_to_meet,
       purpose: appointment.purpose_of_visit,
       vehicles: vehicles.map((vehicle) => ({ plateNumber: vehicle.plate_number, makeModel: vehicle.make_model })),
+    });
+
+    // The ticket carries the visitor's personal data and gate pass, so each download is recorded.
+    await logAudit(admin.id, admin.email, "download_ticket", {
+      appointment_id: appointment.id,
+      office_id: appointment.office_id,
+      target_email: appointment.email || undefined,
+      meta: { visitor_name: appointment.full_name, office_name: appointment.offices?.name || null, date: appointment.date, ...clientInfo(request) },
     });
 
     return new NextResponse(Buffer.from(pdf), {

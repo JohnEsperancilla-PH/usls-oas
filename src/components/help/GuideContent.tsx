@@ -318,6 +318,7 @@ export function SuperAdminGuide() {
       <Section id="sa-audit" title="5. Audit log">
         <p>Every tracked action, with filters by action and date. Click <strong>View</strong> on an entry for its details. Updates show <strong>View changes</strong> with each field&apos;s value before and after.</p>
         <p>The <strong>Entry logs</strong> tab shows gate activity: check-ins, checkouts, denials, and rejected scans (e.g. unknown or already-used codes), with the guard, timing, and device for each.</p>
+        <p><strong>Sign-ins</strong> lists every sign-in attempt on the admin and gate pages, including failures, and flags accounts with repeated failed attempts. <strong>Email logs</strong> shows every system email, who it went to, and whether it was sent or failed, which helps when a visitor says they never got an email.</p>
       </Section>
 
       <Section id="sa-settings" title="6. Settings">

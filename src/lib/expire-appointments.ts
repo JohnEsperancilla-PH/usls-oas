@@ -2,6 +2,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { mirrorAppointmentToCpanel, fromAppointmentRow } from "@/lib/cpanel-mirror";
 import { getEntryWindow } from "@/lib/entry-window-server";
 import { getEntryTimingStatus, getManilaToday } from "@/lib/time";
+import { logAudit } from "@/lib/rbac";
 
 // Approved visits only become "expired" when a late visitor is scanned at the gate, so no-shows would
 // otherwise stay "approved" forever. This applies the same rule in bulk: an approved appointment is void
@@ -42,6 +43,7 @@ async function run(): Promise<number> {
     a.time_slot ? getEntryTimingStatus(a.date, a.time_slot, entryWindow, now) === "too_late" : a.date < today);
 
   let expiredCount = 0;
+  const expiredNames: string[] = [];
   for (const appointment of stale) {
     const expiredAt = new Date().toISOString();
     // Guarded on status so a visitor scanned in the meantime is never overwritten.
@@ -54,8 +56,15 @@ async function run(): Promise<number> {
       .maybeSingle();
     if (expired) {
       expiredCount++;
+      expiredNames.push(`${appointment.full_name} (${appointment.date}${appointment.time_slot ? ` ${appointment.time_slot}` : ""})`);
       await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, { status: "expired", updated_at: expiredAt }));
     }
+  }
+  // One entry per run, so no-shows turning "expired" on their own are explained in the audit log.
+  if (expiredCount > 0) {
+    await logAudit(null, "system", "expire_appointments", {
+      meta: { name: "Automatic expiry", count: expiredCount, appointments: expiredNames.slice(0, 50).join("; ") + (expiredNames.length > 50 ? ` and ${expiredNames.length - 50} more` : "") },
+    });
   }
   return expiredCount;
 }

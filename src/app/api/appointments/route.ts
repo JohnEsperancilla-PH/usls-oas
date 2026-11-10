@@ -13,6 +13,8 @@ import { mirrorAppointmentToCpanel, buildCpanelAppointment } from "@/lib/cpanel-
 import { validateCsrfToken, csrfErrorResponse, isSafeMethod } from "@/lib/csrf";
 import { getMaintenanceState } from "@/lib/maintenance-server";
 import type { Database } from "@/types/database";
+import { logAudit } from "@/lib/rbac";
+import { clientInfo } from "@/lib/sign-in-log";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -393,6 +395,22 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Failed to save vehicle details" }, { status: 500 });
       }
     }
+
+    // The visitor isn't a signed-in admin, so the entry's actor is "visitor" and their email is the target.
+    await logAudit(null, "visitor", "booking_submitted", {
+      appointment_id: appointment.id,
+      office_id: body.officeId,
+      target_email: body.email,
+      meta: {
+        visitor_name: body.fullName,
+        office_name: officeFull.name,
+        date: body.date,
+        time_slot: body.timeSlot || null,
+        visitor_count: visitorRows.length,
+        vehicle_count: (Array.isArray(body.vehicles) ? body.vehicles.length : 0) || null,
+        ...clientInfo(request),
+      },
+    });
 
     // Send confirmation email to visitor
     let confirmationResult = { success: false };

@@ -90,6 +90,16 @@ export async function PUT(request: Request) {
   const changedEmails = EMAIL_TEMPLATE_GROUPS.filter((group) =>
     getEmailFields(group).some(({ key }) => key in values && values[key] !== (emailBefore[key] ?? "")));
 
+  // Everything else on the page (system info, booking rules, gate entry window, approvals, email switches)
+  // is logged as one "settings" change. The popup and email text have their own entries above and below.
+  const settingKeys = Object.keys(values).filter((key) => !key.startsWith("alert_") && !(EMAIL_TEMPLATE_KEYS as readonly string[]).includes(key));
+  const settingsBefore: Record<string, string> = {};
+  if (settingKeys.length > 0) {
+    const { data: savedSettings } = await supabase.from("system_settings").select("key, value").in("key", settingKeys);
+    savedSettings?.forEach((row) => { settingsBefore[row.key] = row.value; });
+  }
+  const settingChanges = diffChanges(settingsBefore, Object.fromEntries(settingKeys.map((key) => [key, values[key]])));
+
   const updatedAt = new Date().toISOString();
   const { error: upsertError } = await supabase
     .from("system_settings")
@@ -137,6 +147,10 @@ export async function PUT(request: Request) {
         if (historyError) console.error("Failed to record system update:", historyError.message);
       }
     }
+  }
+
+  if (Object.keys(settingChanges).length > 0) {
+    await logAudit(admin.id, admin.email, "update_settings", { meta: { name: "System settings", changes: settingChanges } });
   }
 
   if (changedEmails.length > 0) {
