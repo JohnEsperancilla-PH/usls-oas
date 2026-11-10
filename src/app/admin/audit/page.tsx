@@ -7,6 +7,8 @@ import { Pagination, SearchInput } from "@/components/admin/Pagination";
 import { AUDIT_ACTION_OPTIONS, formatAuditValue, getAuditActionLabel, getAuditChanges, getAuditFieldLabel, getAuditSummary, getAuditTarget } from "@/lib/audit";
 import { Select } from "@/components/ui/Select";
 import { ModalShell } from "@/components/admin/ModalShell";
+import { EntryLogs } from "@/components/admin/EntryLogs";
+import { useAdmin } from "@/app/admin/layout";
 
 // Details fields that are shown elsewhere in the modal, or are internal.
 const HIDDEN_DETAIL_KEYS = new Set(["changes", "previous_role", "original_date", "original_time", "new_date", "new_time"]);
@@ -93,7 +95,54 @@ function formatManila(iso: string) {
   });
 }
 
+type AuditTab = "audit" | "entry";
+
 export default function AuditPage() {
+  const { admin } = useAdmin();
+  // Entry logs are for super admins (guard admins have their own page); the audit API scopes office admins.
+  const canSeeEntryLogs = admin.role === "super_admin";
+  const [tab, setTab] = useState<AuditTab>("audit");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL is only readable in the browser
+    if (canSeeEntryLogs && new URLSearchParams(window.location.search).get("tab") === "entry") setTab("entry");
+  }, [canSeeEntryLogs]);
+
+  const switchTab = (next: AuditTab) => {
+    setTab(next);
+    const url = new URL(window.location.href);
+    if (next === "entry") url.searchParams.set("tab", "entry"); else url.searchParams.delete("tab");
+    window.history.replaceState(null, "", url);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{tab === "entry" ? "Entry Logs" : "Audit Log"}</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {tab === "entry"
+            ? "Every check-in, checkout, denial, and rejected scan at the gate. Times are Philippine Time."
+            : "Who did what, and when, across the system. Times are Philippine Time."}
+        </p>
+      </div>
+
+      {canSeeEntryLogs && (
+        <div className="flex items-center gap-1 border-b border-gray-200" role="tablist" aria-label="Log type">
+          {([["audit", "Audit log"], ["entry", "Entry logs"]] as const).map(([key, label]) => (
+            <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => switchTab(key)}
+              className={`px-4 py-2.5 -mb-px text-sm font-medium border-b-2 transition-colors ${tab === key ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-800"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === "entry" && canSeeEntryLogs ? <EntryLogs /> : <AuditLogPanel />}
+    </div>
+  );
+}
+
+function AuditLogPanel() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -161,11 +210,6 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Audit Log</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Who did what, and when, across the system. Times are Philippine Time.</p>
-      </div>
-
       <div className="flex flex-col lg:flex-row lg:items-end gap-3">
         <SearchInput value={search} onChange={withFirstPage(setSearch)} placeholder="Search by admin or target email..." label="Search audit log" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:flex lg:items-end">

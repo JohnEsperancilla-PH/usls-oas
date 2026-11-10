@@ -58,6 +58,37 @@ export function GuardAccounts() {
     finally { setSaving(false); }
   };
 
+  // Password reset for one guard: their new password, typed twice, plus the guard admin's own password.
+  const [resetting, setResetting] = useState<GuardAccount | null>(null);
+  const [reset, setReset] = useState({ newPassword: "", confirm: "", own: "" });
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  const openReset = (g: GuardAccount) => { setResetting(g); setReset({ newPassword: "", confirm: "", own: "" }); setResetError(null); };
+  const closeReset = () => { if (!resetSaving) setResetting(null); };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetting) return;
+    setResetError(null);
+    if (reset.newPassword.length < 8) { setResetError("New password must be at least 8 characters."); return; }
+    if (reset.newPassword !== reset.confirm) { setResetError("The new passwords don't match."); return; }
+    if (!reset.own) { setResetError("Enter your own password to confirm."); return; }
+    setResetSaving(true);
+    try {
+      const res = await adminFetch("/api/guard-admin/accounts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: resetting.id, new_password: reset.newPassword, password: reset.own }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not reset the password.");
+      setMessage({ type: "success", text: `Password reset for ${resetting.name}. Give them the new password; they sign in with username ${resetting.employee_id || "—"}.` });
+      setResetting(null);
+    } catch (err) { setResetError(err instanceof Error ? err.message : "Could not reset the password."); }
+    finally { setResetSaving(false); }
+  };
+
   const q = query.trim().toLowerCase();
   const shown = q ? guards.filter((g) => g.name.toLowerCase().includes(q) || (g.employee_id || "").toLowerCase().includes(q)) : guards;
 
@@ -96,12 +127,16 @@ export function GuardAccounts() {
                   <div className="text-sm font-medium text-gray-900 truncate">{g.name}</div>
                   <div className="text-xs text-gray-500 font-mono">{g.employee_id || "—"}</div>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 flex-shrink-0">Guard</span>
+                <span className="hidden sm:inline px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 flex-shrink-0">Guard</span>
+                <button type="button" onClick={() => openReset(g)} aria-label={`Reset password for ${g.name}`}
+                  className="whitespace-nowrap text-xs font-medium text-primary px-2.5 py-1.5 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors flex-shrink-0">
+                  Reset Password
+                </button>
               </li>
             ))}
           </ul>
         )}
-        <p className="text-[11px] text-gray-400">To reset a password or remove a guard, ask a super admin.</p>
+        <p className="text-[11px] text-gray-400">To remove a guard, ask a super admin.</p>
       </div>
 
       <ModalShell open={formOpen} title="Add Guard" subtitle="Creates a guard login for the Gate Entry page" onClose={() => setFormOpen(false)} maxWidthClass="max-w-md"
@@ -135,6 +170,36 @@ export function GuardAccounts() {
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
+          </div>
+        </form>
+      </ModalShell>
+
+      <ModalShell open={Boolean(resetting)} title="Reset Password" subtitle={resetting ? `${resetting.name} · ${resetting.employee_id || "—"}` : undefined} onClose={closeReset} maxWidthClass="max-w-md"
+        footer={
+          <>
+            <button type="submit" form="guard-reset-form" disabled={resetSaving} className="btn-primary flex-1 btn-sm disabled:opacity-50">
+              {resetSaving ? "Resetting..." : "Reset Password"}
+            </button>
+            <button type="button" onClick={closeReset} disabled={resetSaving} className="btn-secondary btn-sm">Cancel</button>
+          </>
+        }>
+        <form id="guard-reset-form" onSubmit={handleReset} className="space-y-4">
+          <p className="text-sm text-gray-600">Set a new password for <strong>{resetting?.name}</strong>. Their old password stops working right away.</p>
+          {resetError && <StatusMessage message={{ type: "error", text: resetError }} />}
+          <div>
+            <label htmlFor="guard-reset-new" className="label">New Password</label>
+            <input id="guard-reset-new" type="password" required minLength={8} maxLength={128} autoComplete="new-password" className="input" placeholder="Minimum 8 characters"
+              value={reset.newPassword} autoFocus onChange={(e) => { setReset({ ...reset, newPassword: e.target.value }); setResetError(null); }} />
+          </div>
+          <div>
+            <label htmlFor="guard-reset-confirm" className="label">Confirm New Password</label>
+            <input id="guard-reset-confirm" type="password" required minLength={8} maxLength={128} autoComplete="new-password" className="input" placeholder="Re-enter the new password"
+              value={reset.confirm} onChange={(e) => { setReset({ ...reset, confirm: e.target.value }); setResetError(null); }} />
+          </div>
+          <div>
+            <label htmlFor="guard-reset-own" className="label">Your Password</label>
+            <input id="guard-reset-own" type="password" required autoComplete="current-password" className="input" placeholder="Enter your own password to confirm"
+              value={reset.own} onChange={(e) => { setReset({ ...reset, own: e.target.value }); setResetError(null); }} />
           </div>
         </form>
       </ModalShell>

@@ -271,6 +271,8 @@ export function GuardGuide({ entryWindow, showGuardAdmin = false }: { entryWindo
             <li>Sign in at <strong>/admin/login</strong> with your email. You land on <strong>Today&apos;s Visitors</strong>: every office&apos;s appointments for the day, with counts at the top.</li>
             <li>Search or filter the list, or pick another date. Click <strong>View</strong> to see an appointment&apos;s full details (read-only).</li>
             <li>Open <strong>Guard Accounts</strong> in the sidebar and click <strong>Add Guard</strong> to create a guard login (name, username, password). You can only create guard accounts.</li>
+            <li>To reset a guard's password, click <strong>Reset Password</strong> next to their name, enter the new password twice, and confirm with your own password.</li>
+            <li><strong>Entry Logs</strong> lists every check-in, checkout, denial, and rejected scan, with who scanned it, how the code was entered, and how early or late the visitor arrived. Today's log updates on its own.</li>
           </ul>
         </Section>
       )}
@@ -315,6 +317,7 @@ export function SuperAdminGuide() {
 
       <Section id="sa-audit" title="5. Audit log">
         <p>Every tracked action, with filters by action and date. Click <strong>View</strong> on an entry for its details. Updates show <strong>View changes</strong> with each field&apos;s value before and after.</p>
+        <p>The <strong>Entry logs</strong> tab shows gate activity: check-ins, checkouts, denials, and rejected scans (e.g. unknown or already-used codes), with the guard, timing, and device for each.</p>
       </Section>
 
       <Section id="sa-settings" title="6. Settings">

@@ -7,7 +7,8 @@ import { getAuthAdmin, requireEntryUser, logAudit } from "@/lib/rbac";
 import { formatTimeSlot, getEntryTimingStatus, getManilaToday } from "@/lib/time";
 import { describeEntryCutoff, describeEntryOpening, getArrivalNote } from "@/lib/entry-window";
 import { getEntryWindow } from "@/lib/entry-window-server";
-import type { Appointment } from "@/types/database";
+import type { Appointment, EntryLogEvent } from "@/types/database";
+import { parseEntryMethod, recordEntryLog } from "@/lib/entry-log";
 import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
 
     const reference = normalizeReference(body.token || "");
     const action = body.action === "checkout" ? "checkout" : body.action === "deny_entry" ? "deny_entry" : body.action === "allow_entry" ? "allow_entry" : "preview";
+    const method = parseEntryMethod(body.method);
 
     if (!reference) {
       return NextResponse.json(
@@ -115,6 +117,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (fetchError || !appointment) {
+      await recordEntryLog({ request, admin, event: "rejected", result: "not_found", message: "Reference number not found", method, reference });
       return scanFailure("Reference number not found", "not_found", undefined, 404);
     }
 
@@ -124,8 +127,17 @@ export async function POST(request: Request) {
       await getAppointmentVehicles(supabase, appointment.id)
     );
 
+    // Every gate outcome below is written to the entry log; successful previews (just looking a code up) aren't.
+    const plates = summary.vehicles.map((vehicle) => vehicle.plateNumber);
+    const log = (event: EntryLogEvent, result: string, message: string, at?: string) =>
+      recordEntryLog({ request, admin, event, result, message, method, reference, appointment, vehiclePlates: plates, at });
+    const fail = async (message: string, reason: ScanReason, failed?: Record<string, unknown>, status = 200) => {
+      await log("rejected", reason, message);
+      return scanFailure(message, reason, failed, status);
+    };
+
     if (action === "deny_entry") {
-      if (appointment.status !== "approved") return scanFailure("Only an approved appointment can be denied at the gate", "already_used", summary, 409);
+      if (appointment.status !== "approved") return fail("Only an approved appointment can be denied at the gate", "already_used", summary, 409);
       if (typeof body.reason !== "string" || !body.reason.trim()) return scanFailure("A reason is required when denying entry", "entry_denied", summary, 400);
       const denialTime = new Date().toISOString();
       const denialReason = body.reason.trim().slice(0, 500);
@@ -136,19 +148,20 @@ export async function POST(request: Request) {
         .eq("status", "approved")
         .select()
         .maybeSingle();
-      if (denialError || !denied) return scanFailure("This appointment was already processed", "already_used", summary, 409);
+      if (denialError || !denied) return fail("This appointment was already processed", "already_used", summary, 409);
       await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, { status: "entry_denied", decline_reason: denialReason, updated_at: denialTime }));
       await logAudit(admin.id, admin.email, "entry_denied", {
         appointment_id: appointment.id,
         office_id: appointment.office_id,
         meta: { visitor_name: appointment.full_name, reference_number: reference, reason: denialReason },
       });
+      await log("denied", "entry_denied", denialReason, denialTime);
       return scanFailure(denialReason, "entry_denied", { ...summary, status: "entry_denied" }, 409);
     }
 
     if (action === "checkout") {
-      if (appointment.status !== "completed") return scanFailure("Visitor has not been checked in", "pending", summary, 409);
-      if (appointment.checked_out_at) return scanFailure("Visitor has already been checked out", "checked_out", summary, 409);
+      if (appointment.status !== "completed") return fail("Visitor has not been checked in", "pending", summary, 409);
+      if (appointment.checked_out_at) return fail("Visitor has already been checked out", "checked_out", summary, 409);
       const checkoutTime = new Date().toISOString();
       const { data: checkedOut, error: checkoutError } = await supabase
         .from("appointments")
@@ -158,13 +171,14 @@ export async function POST(request: Request) {
         .is("checked_out_at", null)
         .select()
         .maybeSingle();
-      if (checkoutError || !checkedOut) return scanFailure("Visitor was already checked out", "checked_out", summary, 409);
+      if (checkoutError || !checkedOut) return fail("Visitor was already checked out", "checked_out", summary, 409);
       await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, { checked_out_at: checkoutTime, updated_at: checkoutTime }));
       await logAudit(admin.id, admin.email, "checkout", {
         appointment_id: appointment.id,
         office_id: appointment.office_id,
         meta: { visitor_name: appointment.full_name, reference_number: reference, checked_out_at: checkoutTime },
       });
+      await log("checkout", "checked_out", "Visitor checkout recorded", checkoutTime);
       return NextResponse.json({ success: true, reason: "checked_out", message: "Visitor checkout recorded", checkedOutAt: checkoutTime, appointment: { ...summary, checkedOutAt: checkoutTime } });
     }
 
@@ -185,11 +199,11 @@ export async function POST(request: Request) {
       }
       
       const reason: ScanReason = appointment.status === "declined" ? "cancelled" : appointment.status === "expired" ? "expired" : appointment.status === "pending" || appointment.status === "postponed" ? "pending" : "already_used";
-      return scanFailure(message, reason, summary, 409);
+      return fail(message, reason, summary, 409);
     }
 
     if (appointment.qr_used_at) {
-      return scanFailure("Reference number has already been used", "already_used", summary, 409);
+      return fail("Reference number has already been used", "already_used", summary, 409);
     }
 
     if (action === "preview" || action === "allow_entry") {
@@ -200,7 +214,7 @@ export async function POST(request: Request) {
         const message = appointment.date > getManilaToday()
           ? `This visit is scheduled for ${scheduled}. Entry opens ${describeEntryOpening(entryWindow)} on that day.`
           : `Entry opens ${describeEntryOpening(entryWindow)} (${scheduled}). ${getArrivalNote(entryWindow)}`;
-        return scanFailure(message, "too_early", summary, 409);
+        return fail(message, "too_early", summary, 409);
       }
       if (timingStatus === "too_late") {
         const expiredAt = new Date().toISOString();
@@ -214,7 +228,7 @@ export async function POST(request: Request) {
         if (expired) {
           await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, { status: "expired", updated_at: expiredAt }));
         }
-        return scanFailure(`This gate entry code is void because the visitor arrived ${describeEntryCutoff(entryWindow)}. Please reapply for a new appointment.`, "too_late", { ...summary, status: "expired" }, 409);
+        return fail(`This gate entry code is void because the visitor arrived ${describeEntryCutoff(entryWindow)}. Please reapply for a new appointment.`, "too_late", { ...summary, status: "expired" }, 409);
       }
     }
 
@@ -233,13 +247,13 @@ export async function POST(request: Request) {
       let message = `Appointment is scheduled for ${appointment.date}`;
       if (appointment.date < today) {
         message = "Reference number has expired — appointment date has passed";
-        return scanFailure(message, "expired", summary, 409);
+        return fail(message, "expired", summary, 409);
       }
-      return scanFailure(message, "wrong_date", summary, 409);
+      return fail(message, "wrong_date", summary, 409);
     }
 
     if (body.idVerified === false) {
-      return scanFailure("The visitor's ID does not match the appointment", "invalid_id", summary, 409);
+      return fail("The visitor's ID does not match the appointment", "invalid_id", summary, 409);
     }
 
     const scanTime = now.toISOString();
@@ -258,7 +272,7 @@ export async function POST(request: Request) {
 
     if (updateError || !updated) {
       console.error(updateError);
-      return scanFailure("This reference was scanned moments ago and is already in use", "duplicate_scan", summary, 409);
+      return fail("This reference was scanned moments ago and is already in use", "duplicate_scan", summary, 409);
     }
 
     await mirrorAppointmentToCpanel(
@@ -283,6 +297,7 @@ export async function POST(request: Request) {
         scanned_at: scanTime,
       },
     });
+    await log("entry", "approved", "Entry allowed", scanTime);
 
     return NextResponse.json({
       success: true,

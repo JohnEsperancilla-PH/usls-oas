@@ -93,6 +93,8 @@ export default function ScanPage() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [reference, setReference] = useState("");
+  // How the current code was entered, sent with every gate action for the entry log.
+  const lookupMethodRef = useRef<"qr" | "manual" | "list">("manual");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -177,7 +179,7 @@ export default function ScanPage() {
           } catch {}
           controlsRef.current = null;
           setScanning(false);
-          void verifyReference(result.getText());
+          void verifyReference(result.getText(), "qr");
         }
       );
       controlsRef.current = controls;
@@ -284,6 +286,7 @@ export default function ScanPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const value = reference.trim().toUpperCase();
+    lookupMethodRef.current = "manual";
     if (!value) {
       setError("Please enter a reference number.");
       return;
@@ -295,7 +298,7 @@ export default function ScanPage() {
       const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: value }),
+        body: JSON.stringify({ token: value, method: "manual" }),
       });
       const data = await readScanResponse(response);
       if (!data) return;
@@ -323,14 +326,15 @@ export default function ScanPage() {
     return null;
   };
 
-  const verifyReference = async (token: string) => {
+  const verifyReference = async (token: string, method: "qr" | "list") => {
+    lookupMethodRef.current = method;
     setLoading(true);
     setError(null);
     try {
       const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, method }),
       });
       const data = await readScanResponse(response);
       if (!data) return;
@@ -376,7 +380,7 @@ export default function ScanPage() {
       const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, action: "allow_entry" }),
+        body: JSON.stringify({ token, action: "allow_entry", method: lookupMethodRef.current }),
       });
       const data = await readScanResponse(response);
       if (!data) return;
@@ -397,7 +401,7 @@ export default function ScanPage() {
       const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, action: "checkout" }),
+        body: JSON.stringify({ token, action: "checkout", method: lookupMethodRef.current }),
       });
       const data = await readScanResponse(response);
       if (!data) return;
@@ -424,7 +428,7 @@ export default function ScanPage() {
       const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, action: "deny_entry", reason: denyReason }),
+        body: JSON.stringify({ token, action: "deny_entry", reason: denyReason, method: lookupMethodRef.current }),
       });
       const data = await readScanResponse(response);
       if (!data) return;
@@ -627,7 +631,7 @@ export default function ScanPage() {
                   <div className="relative flex-1 min-h-0">
                   <div className="h-full space-y-1.5 overflow-y-auto pr-1 pb-8">
                     {expectedVisitors.map((visitor) => (
-                      <button type="button" key={visitor.id} onClick={() => void verifyReference(visitor.referenceNumber)} className="w-full text-left border-b border-gray-100 px-2 py-3.5 hover:bg-gray-50 transition-colors">
+                      <button type="button" key={visitor.id} onClick={() => void verifyReference(visitor.referenceNumber, "list")} className="w-full text-left border-b border-gray-100 px-2 py-3.5 hover:bg-gray-50 transition-colors">
                         <div className="flex items-center gap-3">
                           <span className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold flex-shrink-0">{getInitials(visitor.fullName)}</span>
                           <div className="min-w-0 flex-1">

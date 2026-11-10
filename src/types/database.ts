@@ -1,7 +1,7 @@
 export type AppointmentStatus = "pending" | "approved" | "declined" | "postponed" | "entry_denied" | "completed" | "expired";
 export type AdminRole = "super_admin" | "office_admin" | "gate_user" | "gate_admin";
 export type VisitorCategory = "external" | "parents" | "alumni" | "vendor";
-export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "update_account" | "delete_account" | "reset_password" | "approve_account" | "reject_account" | "create_office" | "update_office" | "delete_office" | "permanently_delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation" | "create_contact" | "update_contact" | "delete_contact" | "enable_maintenance" | "disable_maintenance" | "update_maintenance" | "update_system_alert" | "update_email_templates" | "tag_sub_office" | "close_date" | "reopen_date";
+export type AuditAction = "approve" | "decline" | "postpone" | "entry" | "checkout" | "entry_denied" | "create_account" | "update_account" | "delete_account" | "reset_password" | "approve_account" | "reject_account" | "create_office" | "update_office" | "delete_office" | "permanently_delete_office" | "block_time" | "unblock_time" | "reset_qr" | "archive_sync" | "login" | "create_invitation" | "create_contact" | "update_contact" | "delete_contact" | "enable_maintenance" | "disable_maintenance" | "update_maintenance" | "update_system_alert" | "update_email_templates" | "tag_sub_office" | "close_date" | "reopen_date" | "update_settings" | "expire_appointments" | "booking_submitted" | "download_ticket";
 
 export interface Office {
   id: string;
@@ -115,6 +115,20 @@ export interface Admin {
 
 export type AdminApprovalStatus = "pending" | "approved";
 
+export interface SignInLog {
+  id: string;
+  created_at: string;
+  portal: "admin" | "gate";
+  success: boolean;
+  identifier: string | null;
+  admin_id: string | null;
+  name: string | null;
+  role: string | null;
+  reason: string | null;
+  ip: string | null;
+  user_agent: string | null;
+}
+
 export interface EmailLog {
   id: string;
   appointment_id: string;
@@ -135,6 +149,35 @@ export interface AuditLog {
   target_email: string | null;
   details: Record<string, unknown> | null;
   created_at: string;
+}
+
+export type EntryLogEvent = "entry" | "checkout" | "denied" | "rejected";
+
+export interface EntryLog {
+  id: string;
+  created_at: string;
+  event: EntryLogEvent;
+  result: string;
+  message: string | null;
+  method: "qr" | "manual" | "list" | null;
+  reference: string | null;
+  appointment_id: string | null;
+  office_id: string | null;
+  office_name: string | null;
+  visitor_name: string | null;
+  visitor_category: string | null;
+  visitor_count: number | null;
+  vehicle_plates: string | null;
+  appointment_date: string | null;
+  time_slot: string | null;
+  minutes_from_slot: number | null;
+  minutes_on_site: number | null;
+  guard_id: string | null;
+  guard_name: string | null;
+  guard_username: string | null;
+  guard_role: string | null;
+  ip: string | null;
+  user_agent: string | null;
 }
 
 export interface SystemUpdate {
@@ -201,6 +244,11 @@ export interface Database {
         Insert: Omit<Admin, "id" | "created_at">;
         Update: Partial<Omit<Admin, "id" | "created_at">>;
       };
+      sign_in_logs: {
+        Row: SignInLog;
+        Insert: Partial<Omit<SignInLog, "id" | "created_at">> & Pick<SignInLog, "portal" | "success">;
+        Update: Partial<Omit<SignInLog, "id">>;
+      };
       email_logs: {
         Row: EmailLog;
         Insert: Omit<EmailLog, "id" | "created_at">;
@@ -215,6 +263,11 @@ blocked_times: {
         Row: BlockedTime;
         Insert: Omit<BlockedTime, "id" | "created_at">;
         Update: Partial<Omit<BlockedTime, "id" | "created_at">>;
+      };
+      entry_logs: {
+        Row: EntryLog;
+        Insert: Partial<Omit<EntryLog, "id" | "created_at">> & Pick<EntryLog, "event" | "result">;
+        Update: Partial<Omit<EntryLog, "id">>;
       };
       system_updates: {
         Row: SystemUpdate;
