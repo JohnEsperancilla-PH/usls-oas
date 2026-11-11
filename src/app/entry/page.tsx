@@ -299,12 +299,13 @@ export default function ScanPage() {
       const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: value, method: "manual" }),
+        body: JSON.stringify({ token: value, method: "manual", action: "allow_entry" }),
       });
       const data = await readScanResponse(response);
       if (!data) return;
       setScanResult(data);
       setShowManual(false);
+      if (data.success) void loadExpectedVisitors();
     } catch {
       setError("Failed to verify reference number. Please try again.");
     } finally {
@@ -327,9 +328,9 @@ export default function ScanPage() {
     return null;
   };
 
-  // A scanned QR code records the entry straight away (guards were forgetting to tap Allow Entry).
-  // The server still runs every check (approved, today, entry window, not used yet) before recording.
-  // Picking from the list or typing a reference only looks it up, so those still need Allow Entry.
+  // Looking a visitor up (QR scan, typed reference, or Today's list) records the entry straight away,
+  // because guards were forgetting to tap Allow Entry. The server still runs every check (approved,
+  // today, entry window, not used yet) before recording, and records it once.
   const verifyReference = async (token: string, method: "qr" | "list") => {
     lookupMethodRef.current = method;
     setLoading(true);
@@ -338,13 +339,13 @@ export default function ScanPage() {
       const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(method === "qr" ? { token, method, action: "allow_entry" } : { token, method }),
+        body: JSON.stringify({ token, method, action: "allow_entry" }),
       });
       const data = await readScanResponse(response);
       if (!data) return;
       setScanResult(data);
       setReference("");
-      if (method === "qr" && data.success) void loadExpectedVisitors();
+      if (data.success) void loadExpectedVisitors();
     } catch {
       setError("Failed to verify reference number. Please try again.");
     } finally {
@@ -525,6 +526,31 @@ export default function ScanPage() {
               {scanResult.reason && <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-3">Result: {scanResult.reason.replace(/_/g, " ")}</p>}
 
               {/* Gate actions sit right under the result, above the details, so they can't be missed. */}
+              {scanResult.success && scanResult.reason === "approved" && (
+                <div className="w-full max-w-md mx-auto space-y-2 mb-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Entry is already recorded by the lookup; Allow only confirms and moves on, so it never logs twice. */}
+                    <button type="button" onClick={reset} disabled={loading} className="w-full py-3 rounded-lg font-semibold bg-primary text-white hover:bg-primary-light shadow-sm disabled:opacity-50">
+                      Allow Entry
+                    </button>
+                    {/* Deny reverses the automatic check-in; the log's Checked-in line becomes the denial. */}
+                    {!showDenyReason ? (
+                      <button type="button" onClick={() => setShowDenyReason(true)} disabled={loading} className="w-full py-3 rounded-lg font-medium border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50">
+                        Deny Entry
+                      </button>
+                    ) : (
+                      <button type="button" onClick={handleDenyEntry} disabled={loading || !denyReason.trim()} className="w-full py-3 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                        {loading ? "Denying..." : "Confirm Denial"}
+                      </button>
+                    )}
+                  </div>
+                  {showDenyReason && (
+                    <textarea value={denyReason} onChange={(e) => setDenyReason(e.target.value)} maxLength={500} rows={2} placeholder="Reason for denying entry (e.g. ID does not match)" className="input w-full resize-none text-left" autoFocus />
+                  )}
+                  <p className="text-xs text-gray-500">Entry was recorded automatically. Tap Allow Entry to confirm, or Deny Entry if the visitor can&apos;t come in.</p>
+                </div>
+              )}
+
               {scanResult.appointment && scanResult.reason === "preview" && scanResult.appointment.status === "approved" && (
                 <div className="w-full max-w-md mx-auto space-y-2 mb-3">
                   <div className="grid grid-cols-2 gap-3">

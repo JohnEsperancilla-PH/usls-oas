@@ -227,17 +227,17 @@ export function GuardGuide({ entryWindow, showGuardAdmin = false }: { entryWindo
         <Tip>The camera needs a secure (HTTPS) connection and camera permission. If it won&apos;t start, type the reference number instead.</Tip>
       </Section>
 
-      <Section id="allow" title="4. Allowing or denying entry">
+      <Section id="allow" title="4. Recording entry">
         <ul>
-          <li><strong>Scanning a QR code records the entry automatically</strong> if the appointment is valid. You&apos;ll see <strong>Entry Approved</strong> with the entry time, and the appointment becomes Completed. Check the visitor&apos;s ID while they are at the gate.</li>
-          <li>If you <strong>typed the reference number</strong> or picked the visitor from <strong>Today&apos;s list</strong>, tap <strong>Allow Entry</strong> (right below the result) to record the entry.</li>
-          <li><strong>Deny Entry</strong> asks for a reason, then records the denial. It is only available before entry is recorded, so for typed or listed references.</li>
+          <li><strong>Entry is recorded automatically</strong> when you scan the QR code, type the reference number, or pick the visitor from <strong>Today&apos;s list</strong>, as long as the appointment is valid. You&apos;ll see <strong>Entry Approved</strong> with the entry time, and the appointment becomes Completed.</li>
+          <li>Tap <strong>Allow Entry</strong> (right below the result) to confirm and go back to the scanner. It doesn&apos;t record the entry a second time.</li>
+          <li>Check the visitor&apos;s ID while they are still at the gate. If they can&apos;t come in (for example the ID doesn&apos;t match), tap <strong>Deny Entry</strong>, give a reason, and confirm. This cancels the check-in, and the Entry Logs line changes from Checked in to <strong>Denied</strong>. You can deny up to 30 minutes after the check-in, as long as the visitor hasn&apos;t checked out.</li>
           <li>Entry is accepted from <strong>{entryRange(entryWindow)}</strong>.</li>
         </ul>
       </Section>
 
       <Section id="checkout" title="5. Checking visitors out">
-        <p>When a visitor leaves, verify their reference again and click <strong>Record Visitor Checkout</strong>.</p>
+        <p>When a visitor leaves, scan or type their reference again. The screen shows they are already checked in; click <strong>Record Visitor Checkout</strong>. The Entry Logs show this as one <strong>Checked out</strong> line.</p>
       </Section>
 
       <Section id="messages" title="6. Common messages">

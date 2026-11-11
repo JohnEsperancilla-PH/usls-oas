@@ -8,7 +8,7 @@ import { formatTimeSlot, getEntryTimingStatus, getManilaToday } from "@/lib/time
 import { describeEntryCutoff, describeEntryOpening, getArrivalNote } from "@/lib/entry-window";
 import { getEntryWindow } from "@/lib/entry-window-server";
 import type { Appointment, EntryLogEvent } from "@/types/database";
-import { parseEntryMethod, recordEntryLog } from "@/lib/entry-log";
+import { ENTRY_LOG_MERGE_WINDOW_MS, parseEntryMethod, recordEntryLog } from "@/lib/entry-log";
 import { getAppointmentVisitors } from "@/lib/appointment-visitors";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
 import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
@@ -137,23 +137,40 @@ export async function POST(request: Request) {
     };
 
     if (action === "deny_entry") {
-      if (appointment.status !== "approved") return fail("Only an approved appointment can be denied at the gate", "already_used", summary, 409);
+      // Lookups record entry automatically, so a denial usually reverses a check-in made moments ago.
+      // That is allowed until checkout, within the same window the entry log uses to merge the rows.
+      const reversingEntry = appointment.status === "completed"
+        && !appointment.checked_out_at
+        && !!appointment.scanned_at
+        && Date.now() - new Date(appointment.scanned_at).getTime() <= ENTRY_LOG_MERGE_WINDOW_MS;
+      if (appointment.status === "completed" && !reversingEntry) {
+        return fail("Entry was recorded too long ago to be denied now. Ask the office or a Guard Admin for help.", "already_used", summary, 409);
+      }
+      if (appointment.status !== "approved" && !reversingEntry) return fail("Only an approved appointment can be denied at the gate", "already_used", summary, 409);
       if (typeof body.reason !== "string" || !body.reason.trim()) return scanFailure("A reason is required when denying entry", "entry_denied", summary, 400);
       const denialTime = new Date().toISOString();
       const denialReason = body.reason.trim().slice(0, 500);
+      // The reference stays used (qr_used_at kept) so it can't be scanned in again; the visitor never entered.
+      const denialChanges = { status: "entry_denied" as const, decline_reason: denialReason, updated_at: denialTime, ...(reversingEntry ? { scanned_at: null } : {}) };
       const { data: denied, error: denialError } = await supabase
         .from("appointments")
-        .update({ status: "entry_denied", decline_reason: denialReason, updated_at: denialTime })
+        .update(denialChanges)
         .eq("id", appointment.id)
-        .eq("status", "approved")
+        .eq("status", appointment.status)
+        .is("checked_out_at", null)
         .select()
         .maybeSingle();
       if (denialError || !denied) return fail("This appointment was already processed", "already_used", summary, 409);
-      await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, { status: "entry_denied", decline_reason: denialReason, updated_at: denialTime }));
+      await mirrorAppointmentToCpanel(fromAppointmentRow(appointment, denialChanges));
       await logAudit(admin.id, admin.email, "entry_denied", {
         appointment_id: appointment.id,
         office_id: appointment.office_id,
-        meta: { visitor_name: appointment.full_name, reference_number: reference, reason: denialReason },
+        meta: {
+          visitor_name: appointment.full_name,
+          reference_number: reference,
+          reason: denialReason,
+          ...(reversingEntry ? { reversed_entry_at: appointment.scanned_at } : {}),
+        },
       });
       await log("denied", "entry_denied", denialReason, denialTime);
       return scanFailure(denialReason, "entry_denied", { ...summary, status: "entry_denied" }, 409);
