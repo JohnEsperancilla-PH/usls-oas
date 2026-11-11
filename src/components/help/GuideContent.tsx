@@ -229,8 +229,9 @@ export function GuardGuide({ entryWindow, showGuardAdmin = false }: { entryWindo
 
       <Section id="allow" title="4. Allowing or denying entry">
         <ul>
-          <li><strong>Allow Entry</strong> records the entry time. The appointment becomes Completed.</li>
-          <li><strong>Deny Entry</strong> asks for a reason, then records the denial.</li>
+          <li><strong>Scanning a QR code records the entry automatically</strong> if the appointment is valid. You&apos;ll see <strong>Entry Approved</strong> with the entry time, and the appointment becomes Completed. Check the visitor&apos;s ID while they are at the gate.</li>
+          <li>If you <strong>typed the reference number</strong> or picked the visitor from <strong>Today&apos;s list</strong>, tap <strong>Allow Entry</strong> (right below the result) to record the entry.</li>
+          <li><strong>Deny Entry</strong> asks for a reason, then records the denial. It is only available before entry is recorded, so for typed or listed references.</li>
           <li>Entry is accepted from <strong>{entryRange(entryWindow)}</strong>.</li>
         </ul>
       </Section>
@@ -271,8 +272,8 @@ export function GuardGuide({ entryWindow, showGuardAdmin = false }: { entryWindo
             <li>Sign in at <strong>/admin/login</strong> with your email. You land on <strong>Today&apos;s Visitors</strong>: every office&apos;s appointments for the day, with counts at the top.</li>
             <li>Search or filter the list, or pick another date. Click <strong>View</strong> to see an appointment&apos;s full details (read-only).</li>
             <li>Open <strong>Guard Accounts</strong> in the sidebar and click <strong>Add Guard</strong> to create a guard login (name, username, password). You can only create guard accounts.</li>
-            <li>To reset a guard's password, click <strong>Reset Password</strong> next to their name, enter the new password twice, and confirm with your own password.</li>
-            <li><strong>Entry Logs</strong> lists every check-in, checkout, denial, and rejected scan, with who scanned it, how the code was entered, and how early or late the visitor arrived. Today's log updates on its own.</li>
+            <li>To reset a guard&apos;s password, click <strong>Reset Password</strong> next to their name, enter the new password twice, and confirm with your own password.</li>
+            <li><strong>Entry Logs</strong> lists every check-in, checkout, denial, and rejected scan, with who scanned it, how the code was entered, and how early or late the visitor arrived. Today&apos;s log updates on its own.</li>
           </ul>
         </Section>
       )}

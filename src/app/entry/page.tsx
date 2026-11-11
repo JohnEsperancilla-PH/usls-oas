@@ -327,6 +327,9 @@ export default function ScanPage() {
     return null;
   };
 
+  // A scanned QR code records the entry straight away (guards were forgetting to tap Allow Entry).
+  // The server still runs every check (approved, today, entry window, not used yet) before recording.
+  // Picking from the list or typing a reference only looks it up, so those still need Allow Entry.
   const verifyReference = async (token: string, method: "qr" | "list") => {
     lookupMethodRef.current = method;
     setLoading(true);
@@ -335,12 +338,13 @@ export default function ScanPage() {
       const response = await adminFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, method }),
+        body: JSON.stringify(method === "qr" ? { token, method, action: "allow_entry" } : { token, method }),
       });
       const data = await readScanResponse(response);
       if (!data) return;
       setScanResult(data);
       setReference("");
+      if (method === "qr" && data.success) void loadExpectedVisitors();
     } catch {
       setError("Failed to verify reference number. Please try again.");
     } finally {
@@ -520,6 +524,38 @@ export default function ScanPage() {
               <p className={`text-sm mb-2 ${resultTone(scanResult).text}`}>{scanResult.message}</p>
               {scanResult.reason && <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-3">Result: {scanResult.reason.replace(/_/g, " ")}</p>}
 
+              {/* Gate actions sit right under the result, above the details, so they can't be missed. */}
+              {scanResult.appointment && scanResult.reason === "preview" && scanResult.appointment.status === "approved" && (
+                <div className="w-full max-w-md mx-auto space-y-2 mb-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={handleAllowEntry} disabled={loading} className="w-full py-3 rounded-lg font-semibold bg-primary text-white hover:bg-primary-light shadow-sm disabled:opacity-50">
+                      {loading ? "Allowing entry..." : "Allow Entry"}
+                    </button>
+                    {!showDenyReason ? (
+                      <button type="button" onClick={() => setShowDenyReason(true)} disabled={loading} className="w-full py-3 rounded-lg font-medium border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50">
+                        Deny Entry
+                      </button>
+                    ) : (
+                      <button onClick={handleDenyEntry} disabled={loading || !denyReason.trim()} className="w-full py-3 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                        {loading ? "Denying..." : "Confirm Denial"}
+                      </button>
+                    )}
+                  </div>
+                  {showDenyReason && (
+                    <textarea value={denyReason} onChange={(e) => setDenyReason(e.target.value)} maxLength={500} rows={2} placeholder="Reason for denying entry" className="input w-full resize-none text-left" autoFocus />
+                  )}
+                </div>
+              )}
+
+              {scanResult.appointment && scanResult.appointment.status === "completed" && !scanResult.appointment.checkedOutAt && scanResult.reason !== "approved" && (
+                <div className="w-full max-w-md mx-auto mb-3">
+                  <button onClick={handleCheckout} disabled={loading} className="w-full py-3 rounded-lg font-medium border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 disabled:opacity-50">
+                    {loading ? "Recording checkout..." : "Record Visitor Checkout"}
+                  </button>
+                  <p className="text-xs text-gray-500 mt-1.5">Use checkout only when this visitor is leaving campus.</p>
+                </div>
+              )}
+
               {scanResult.appointment && (
                 <div className="bg-white rounded-xl p-3 text-left space-y-2 mb-3 border border-gray-200 lg:grid lg:grid-cols-2 lg:gap-x-6 lg:gap-y-3 lg:space-y-0 lg:items-start">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm lg:col-span-2">
@@ -577,36 +613,6 @@ export default function ScanPage() {
                         ))}
                       </div>
                       <p className="mt-1 text-[11px] text-amber-700">All visitors must enter together. This reference number belongs to the booking person.</p>
-                    </div>
-                  )}
-                  {scanResult.reason === "preview" && scanResult.appointment.status === "approved" && (
-                    <div className="border-t border-gray-100 pt-2 space-y-2 lg:col-start-2 lg:col-span-1">
-                      <div className="grid grid-cols-2 gap-3">
-                        <button onClick={handleAllowEntry} disabled={loading} className="w-full py-2.5 rounded-lg font-medium bg-primary text-white hover:bg-primary-light disabled:opacity-50">
-                        {loading ? "Allowing entry..." : "Allow Entry"}
-                        </button>
-                        {!showDenyReason ? (
-                          <button type="button" onClick={() => setShowDenyReason(true)} disabled={loading} className="w-full py-2.5 rounded-lg font-medium border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50">
-                            Deny Entry
-                          </button>
-                        ) : (
-                          <button onClick={handleDenyEntry} disabled={loading || !denyReason.trim()} className="w-full py-2.5 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
-                            {loading ? "Denying..." : "Confirm Denial"}
-                          </button>
-                        )}
-                      </div>
-                      {showDenyReason && (
-                        <textarea value={denyReason} onChange={(e) => setDenyReason(e.target.value)} maxLength={500} rows={2} placeholder="Reason for denying entry" className="input w-full resize-none" autoFocus />
-                      )}
-                    </div>
-                  )}
-
-                  {scanResult.appointment && scanResult.appointment.status === "completed" && !scanResult.appointment.checkedOutAt && (
-                    <div className="lg:col-start-2 lg:col-span-1">
-                      <p className="text-xs text-gray-400 mb-2">Use checkout only when this reference was previously checked in.</p>
-                      <button onClick={handleCheckout} disabled={loading} className="w-full py-3 rounded-lg font-medium border border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-50">
-                        {loading ? "Recording checkout..." : "Record Visitor Checkout"}
-                      </button>
                     </div>
                   )}
                 </div>
