@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { Office } from "@/types/database";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { effectiveCategory, orderOfficesAsTree, type OfficeTreeEntry } from "@/lib/office-tree";
 
 export default function OfficesPage() {
   const [offices, setOffices] = useState<Office[]>([]);
@@ -18,15 +19,18 @@ export default function OfficesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const visible = offices.filter((o) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return o.name.toLowerCase().includes(q) || (o.category || "").toLowerCase().includes(q);
+  const q = query.trim().toLowerCase();
+  const matches = (o: Office) => o.name.toLowerCase().includes(q) || (effectiveCategory(o, offices) || "").toLowerCase().includes(q);
+  // A matching sub-office keeps its main office visible above it, and a matching main office shows its sub-offices.
+  const visible = orderOfficesAsTree(offices).filter(({ office, parent }) => {
+    if (!q || matches(office)) return true;
+    if (parent) return matches(parent);
+    return offices.some((child) => child.parent_office_id === office.id && matches(child));
   });
 
-  const grouped = visible.reduce<Record<string, Office[]>>((acc, o) => {
-    const cat = o.category || "Other Offices";
-    (acc[cat] = acc[cat] || []).push(o);
+  const grouped = visible.reduce<Record<string, OfficeTreeEntry<Office>[]>>((acc, entry) => {
+    const cat = effectiveCategory(entry.office, offices) || "Other Offices";
+    (acc[cat] = acc[cat] || []).push(entry);
     return acc;
   }, {});
 
@@ -85,10 +89,11 @@ export default function OfficesPage() {
                   <h2 className="text-sm font-bold uppercase tracking-wide truncate">{cat}</h2>
                 </div>
                 <div className="bg-white rounded-b-xl border border-t-0 border-gray-200 divide-y divide-gray-100">
-                  {list.map((o) => (
-                    <div key={o.id} className="px-4 py-3.5 flex items-start justify-between gap-4">
+                  {list.map(({ office: o, parent }) => (
+                    <div key={o.id} className={`py-3.5 flex items-start justify-between gap-4 ${parent ? "pl-8 pr-4 bg-gray-50/60" : "px-4"}`}>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{o.name}</p>
+                        {parent && <p className="text-[10px] text-gray-400 truncate">↳ Under {parent.name}</p>}
+                        <p className={`text-sm truncate ${parent ? "font-medium text-gray-800" : "font-semibold text-gray-900"}`}>{o.name}</p>
                         {o.contact_email && <p className="text-xs text-gray-500 mt-0.5 truncate">{o.contact_email}</p>}
                       </div>
                       <div className="text-right flex-shrink-0">

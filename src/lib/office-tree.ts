@@ -33,9 +33,9 @@ export function officeOptionLabel<T extends TreeOffice>(entry: OfficeTreeEntry<T
   return entry.parent ? `↳ ${entry.office.name} (${entry.parent.name})` : entry.office.name;
 }
 
-// Sub-offices without their own category are grouped with their main office.
+// Sub-offices are grouped under their main office's category so they always sit right below it.
+// A sub-office's own category is only used when the main office has none (or isn't listed).
 export function effectiveCategory<T extends TreeOffice>(office: T, offices: T[]): string | null {
-  if (office.category) return office.category;
   const parent = office.parent_office_id ? offices.find((o) => o.id === office.parent_office_id) : undefined;
-  return parent?.category || null;
+  return parent?.category || office.category || null;
 }
