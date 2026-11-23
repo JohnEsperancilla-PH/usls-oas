@@ -17,6 +17,7 @@ import { logAudit } from "@/lib/rbac";
 import { clientInfo } from "@/lib/sign-in-log";
 import { isOfficeOnline } from "@/lib/office-online-server";
 import { OFFICE_OFFLINE_MESSAGE } from "@/lib/office-online";
+import { MAX_VISITORS } from "@/lib/visitors";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
 
     const visitorCount = Number(body.visitorCount || 1);
     const additionalVisitors = Array.isArray(body.additionalVisitors) ? body.additionalVisitors : [];
-    if (!Number.isInteger(visitorCount) || visitorCount < 1 || visitorCount > 10 || additionalVisitors.length !== visitorCount - 1) {
+    if (!Number.isInteger(visitorCount) || visitorCount < 1 || visitorCount > MAX_VISITORS || additionalVisitors.length !== visitorCount - 1) {
       return NextResponse.json({ message: "Visitor count and visitor details are invalid" }, { status: 400 });
     }
     for (const visitor of additionalVisitors) {

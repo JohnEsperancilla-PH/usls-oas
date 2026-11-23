@@ -9,6 +9,7 @@ import { adminFetch } from "@/lib/admin-fetch";
 import { Select } from "@/components/ui/Select";
 import { officeOptionLabel, orderOfficesAsTree } from "@/lib/office-tree";
 import { InvitationSchedulePicker } from "@/components/admin/InvitationSchedulePicker";
+import { MAX_VISITORS } from "@/lib/visitors";
 
 interface InvitationVehicle {
   plateNumber: string;
@@ -134,7 +135,7 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
   };
 
   const changeVisitorCount = (nextCount: number) => {
-    const count = Math.min(10, Math.max(1, nextCount));
+    const count = Math.min(MAX_VISITORS, Math.max(1, nextCount));
     setVisitorCount(count);
     setAdditionalVisitors((previous) => Array.from({ length: count - 1 }, (_, index) => previous[index] || { fullName: "", validId: "" }));
   };
@@ -350,8 +351,8 @@ function NewInvitationModalInner({ onClose, onSuccess }: Omit<NewInvitationModal
                   {visitorsEnabled && (
                     <div className="mt-4 flex items-center gap-3">
                       <button type="button" onClick={() => changeVisitorCount(visitorCount - 1)} disabled={visitorCount <= 1} aria-label="Decrease number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">-</button>
-                      <input id="inv-visitorCount" type="number" min={1} max={10} value={visitorCount} onChange={(e) => changeVisitorCount(Number(e.target.value))} className="input w-20 text-center" />
-                      <button type="button" onClick={() => changeVisitorCount(visitorCount + 1)} disabled={visitorCount >= 10} aria-label="Increase number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">+</button>
+                      <input id="inv-visitorCount" type="number" min={1} max={MAX_VISITORS} value={visitorCount} onChange={(e) => changeVisitorCount(Number(e.target.value))} className="input w-20 text-center" />
+                      <button type="button" onClick={() => changeVisitorCount(visitorCount + 1)} disabled={visitorCount >= MAX_VISITORS} aria-label="Increase number of visitors" className="w-10 h-10 rounded-lg border border-gray-200 text-xl text-gray-600 hover:bg-gray-50 disabled:opacity-40">+</button>
                       <span className="text-sm text-gray-500">visitors total</span>
                     </div>
                   )}

@@ -48,7 +48,7 @@ export function VisitorGuide({ entryWindow }: { entryWindow: EntryWindow }) {
         <ol>
           <li>Open the booking page and click <strong>Book an Appointment</strong>.</li>
           <li><strong>Your details:</strong> full name, phone, email (your updates go here), visitor category, and the valid ID you&apos;ll show the guard.</li>
-          <li>Coming as a group? Choose <strong>Multiple Visitors</strong> (up to 10) and enter each person&apos;s name and ID. Bringing a vehicle? Add the plate numbers (up to 5).</li>
+          <li>Coming as a group? Choose <strong>Multiple Visitors</strong> (up to 50) and enter each person&apos;s name and ID. Bringing a vehicle? Add the plate numbers (up to 5).</li>
           <li>Tick the consent box and continue.</li>
           <li><strong>Appointment details:</strong> pick the office (grouped by department, or search by name) and the person you&apos;re meeting.</li>
           <li>Pick a date, a time, and a duration (30 or 60 minutes), then type the purpose of your visit.</li>
