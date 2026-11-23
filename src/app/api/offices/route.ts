@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleRouteError } from "@/lib/http";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getOnlineOfficeIds } from "@/lib/office-online-server";
 
 export async function GET() {
   try {
@@ -37,8 +38,11 @@ export async function GET() {
       console.error(contactsError);
     }
 
+    // Offices without an admin account yet are listed, but marked so the booking form can't pick them.
+    const online = await getOnlineOfficeIds(supabase);
     const officesWithContacts = data.map((office: { id: string }) => ({
       ...office,
+      accepting_appointments: online === null || online.has(office.id),
       contacts: (contacts || []).filter((contact: { office_id: string }) => contact.office_id === office.id),
     }));
 

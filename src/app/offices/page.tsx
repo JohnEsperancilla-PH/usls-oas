@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Office } from "@/types/database";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { effectiveCategory, orderOfficesAsTree, type OfficeTreeEntry } from "@/lib/office-tree";
+import { OFFICE_OFFLINE_LABEL } from "@/lib/office-online";
 
 export default function OfficesPage() {
   const [offices, setOffices] = useState<Office[]>([]);
@@ -51,7 +52,7 @@ export default function OfficesPage() {
               Find the office you need. Use the search box to filter by office or category.
             </p>
             <p className="text-xs text-gray-400 mt-1.5">
-              Only the offices listed below accept OASYS appointments.
+              Offices marked Offline are still being set up and don&apos;t accept OASYS appointments yet.
             </p>
           </div>
 
@@ -95,6 +96,12 @@ export default function OfficesPage() {
                         {parent && <p className="text-[10px] text-gray-400 truncate">↳ Under {parent.name}</p>}
                         <p className={`text-sm truncate ${parent ? "font-medium text-gray-800" : "font-semibold text-gray-900"}`}>{o.name}</p>
                         {o.contact_email && <p className="text-xs text-gray-500 mt-0.5 truncate">{o.contact_email}</p>}
+                        {o.accepting_appointments === false && (
+                          <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-gray-500">
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">{OFFICE_OFFLINE_LABEL}</span>
+                            Not accepting OASYS appointments yet. Contact the office directly.
+                          </p>
+                        )}
                       </div>
                       <div className="text-right flex-shrink-0">
                         {o.contact_phone && <p className="text-xs text-gray-600">{o.contact_phone}</p>}

@@ -15,6 +15,8 @@ import { getMaintenanceState } from "@/lib/maintenance-server";
 import type { Database } from "@/types/database";
 import { logAudit } from "@/lib/rbac";
 import { clientInfo } from "@/lib/sign-in-log";
+import { isOfficeOnline } from "@/lib/office-online-server";
+import { OFFICE_OFFLINE_MESSAGE } from "@/lib/office-online";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -221,6 +223,11 @@ export async function POST(request: Request) {
         { message: "Invalid or inactive office" },
         { status: 400 }
       );
+    }
+
+    // Nobody could review a booking for an office without an admin account yet.
+    if (!(await isOfficeOnline(body.officeId, supabase))) {
+      return NextResponse.json({ message: OFFICE_OFFLINE_MESSAGE, reason: "office_offline" }, { status: 409 });
     }
 
     // Validate time slot format only if office does not hide time slots

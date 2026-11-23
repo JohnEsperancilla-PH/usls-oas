@@ -9,6 +9,7 @@ import { StatusMessage, useStatusMessage } from "@/components/admin/StatusMessag
 import { adminFetch } from "@/lib/admin-fetch";
 import { formatHours, parseHours } from "@/lib/office-hours";
 import { orderOfficesAsTree } from "@/lib/office-tree";
+import { OFFICE_OFFLINE_LABEL } from "@/lib/office-online";
 import type { OfficeDeleteCheck } from "@/lib/office-delete";
 import { Select } from "@/components/ui/Select";
 
@@ -271,6 +272,10 @@ export default function OfficesPage() {
                       {activeAccounts(o) > 0 ? `${activeAccounts(o)} account${activeAccounts(o) !== 1 ? "s" : ""}` : "No accounts yet"}
                       {(accountCounts[o.id]?.pending ?? 0) > 0 && <span className="text-amber-700"> · {accountCounts[o.id].pending} pending</span>}
                     </button>
+                  )}
+                  {/* Same rule as booking: no approved office admin here or on the main office means visitors can't book it. */}
+                  {accountCounts && activeAccounts(o) === 0 && !(o.parent_office_id && (accountCounts[o.parent_office_id]?.active ?? 0) > 0) && (
+                    <p className="mt-0.5 text-[11px] text-gray-500">{OFFICE_OFFLINE_LABEL} · visitors can&apos;t book this office until it has an approved office admin</p>
                   )}
                   {o.email && <p className="text-xs text-gray-400 truncate mt-0.5">{o.email}</p>}
                 </div>

@@ -24,6 +24,8 @@ export interface Office {
   max_advance_days?: number | null;
   min_notice_hours?: number | null;
   contacts?: OfficeContact[];
+  // From the public office list: false while the office has no admin account yet (offline, can't be booked).
+  accepting_appointments?: boolean;
   created_at: string;
 }
 

@@ -6,6 +6,8 @@ import { getBookingRules } from "@/lib/booking-rules-server";
 import { isTooFar, isTooSoon } from "@/lib/booking-rules";
 import { getManilaToday } from "@/lib/time";
 import { getClosedDateReason, getClosedDatesInRange, getClosedWeekdays } from "@/lib/closed-dates";
+import { isOfficeOnline } from "@/lib/office-online-server";
+import { OFFICE_OFFLINE_MESSAGE } from "@/lib/office-online";
 
 // All offices run a fixed 8:00 AM - 5:00 PM day, enforced at slot-generation
 // time so it applies to every office automatically, including offices created
@@ -80,6 +82,9 @@ export async function GET(request: Request) {
 
     if (officeError || !office) {
       return NextResponse.json({ message: "Office not found" }, { status: 404 });
+    }
+    if (!(await isOfficeOnline(officeId, supabase))) {
+      return NextResponse.json({ message: OFFICE_OFFLINE_MESSAGE, reason: "office_offline" }, { status: 409 });
     }
 
     const allSlots = generateSlots(OFFICE_START_HOUR, OFFICE_END_HOUR);

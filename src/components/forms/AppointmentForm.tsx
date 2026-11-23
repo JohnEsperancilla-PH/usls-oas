@@ -7,6 +7,7 @@ import { DEFAULT_BOOKING_RULES, describeNotice, getLatestBookableDate, isTooSoon
 import { getManilaToday } from "@/lib/time";
 import { Select } from "@/components/ui/Select";
 import { effectiveCategory, orderOfficesAsTree } from "@/lib/office-tree";
+import { OFFICE_OFFLINE_LABEL, OFFICE_OFFLINE_MESSAGE } from "@/lib/office-online";
 
 interface AppointmentFormProps {
   data: BookingData;
@@ -227,6 +228,7 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
   const validate = () => {
     const e: Record<string, string> = {};
     if (!selectedOfficeId) e.officeId = "Please select an office";
+    else if (selectedOffice?.accepting_appointments === false) e.officeId = OFFICE_OFFLINE_MESSAGE;
     if (!personToMeet.trim()) e.personToMeet = "Please enter the person you intend to meet";
     if (!selectedDate) e.date = "Please select a date";
     else {
@@ -379,6 +381,19 @@ export function AppointmentForm({ data, onBack, onSubmit, isSubmitting }: Appoin
                               <div className="bg-white">
                                 {orderOfficesAsTree(list).map(({ office: o, parent }) => {
                                   const isSelected = !changingOffice && selectedOfficeId === o.id;
+                                  // No admin account yet: listed so visitors know it exists, but it can't be booked.
+                                  if (o.accepting_appointments === false) {
+                                    return (
+                                      <div key={o.id} aria-disabled="true" title={OFFICE_OFFLINE_MESSAGE}
+                                        className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 border-b border-gray-50 last:border-0 cursor-not-allowed ${parent ? "pl-8" : ""}`}>
+                                        <span className="min-w-0">
+                                          <span className="block text-sm text-gray-400 truncate">{parent && <span className="text-gray-300 mr-1.5" aria-hidden="true">↳</span>}{o.name}</span>
+                                          <span className="block text-[11px] text-gray-400">Still offline · not accepting appointments yet</span>
+                                        </span>
+                                        <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">{OFFICE_OFFLINE_LABEL}</span>
+                                      </div>
+                                    );
+                                  }
                                   return (
                                     <button key={o.id} type="button"
                                       onClick={() => handleOfficeChange(o.id)}
