@@ -16,7 +16,7 @@ function buildCalendarDescription(appointment: AppointmentWithOffice, referenceN
   const officeName = appointment.offices?.name || "Unknown Office";
   const officeContact = appointment.offices?.contact_email || appointment.offices?.email || "Not provided";
   const phone = appointment.offices?.contact_phone || "Not provided";
-  const visitorLines = (appointment.visitors || []).map((visitor) => `${visitor.full_name} (${visitor.valid_id})`);
+  const visitorLines = (appointment.visitors || []).map((visitor) => `${visitor.full_name}${visitor.valid_id ? ` (${visitor.valid_id})` : ""}`);
   const vehicleLines = (appointment.vehicles || []).map((vehicle) => `${vehicle.plate_number}${vehicle.make_model ? ` (${vehicle.make_model})` : ""}`);
   const contactLines = (appointment.contacts || []).map((contact) => `${contact.name}${contact.position ? ` (${contact.position})` : ""} <${contact.email}>`);
 
@@ -349,6 +349,7 @@ export async function runInvitationTasks(
           personToMeet: appointment.person_to_meet,
           purpose: appointment.purpose_of_visit,
           vehicles: (appointment.vehicles || []).map((vehicle) => ({ plateNumber: vehicle.plate_number, makeModel: vehicle.make_model })),
+          additionalVisitors: (appointment.visitors || []).filter((visitor) => !visitor.is_booker).map((visitor) => ({ fullName: visitor.full_name, validId: visitor.valid_id })),
         });
         attachments.push({
           filename: `USLS-OASYS-Ticket-${referenceNumber}.pdf`,

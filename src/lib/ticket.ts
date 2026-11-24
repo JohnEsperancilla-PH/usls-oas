@@ -24,6 +24,8 @@ export interface TicketData {
   personToMeet?: string | null;
   purpose?: string | null;
   vehicles?: TicketVehicle[];
+  /** Everyone entering with the main visitor on this one code, listed after the main visitor. */
+  additionalVisitors?: { fullName: string; validId?: string | null }[];
 }
 
 // Single-page ticket in the style of the approval / invitation email: edge-to-edge green header with
@@ -162,6 +164,7 @@ export async function generateTicketPdf(data: TicketData): Promise<Uint8Array> {
   const vehicles = data.vehicles || [];
   const rows: [string, string][] = [
     ["Visitor", data.visitorName],
+    ...(data.additionalVisitors || []).map((v, i) => [`Visitor ${i + 2}`, `${v.fullName}${v.validId ? ` (${v.validId})` : ""}`] as [string, string]),
     ["Office", data.officeName],
     ["Date", formatDate(data.date)],
     ["Time", `${formatTimeSlot(data.timeSlot)} (${data.duration} minutes)`],

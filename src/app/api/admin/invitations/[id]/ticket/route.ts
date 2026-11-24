@@ -6,6 +6,8 @@ import { clientInfo } from "@/lib/sign-in-log";
 import { generateTicketPdf } from "@/lib/ticket";
 import { getAppointmentVehicles } from "@/lib/appointment-vehicles";
 import { canAccessAppointment } from "@/lib/office-scope";
+import { getAppointmentVisitors } from "@/lib/appointment-visitors";
+import { currentInvitationVisitors } from "@/lib/invitation-visitors";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -36,7 +38,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ message: "Invitation has no reference number" }, { status: 409 });
     }
 
+    // Built from the current record on every download, so edited visitor names show up here.
     const vehicles = await getAppointmentVehicles(supabase, appointment.id);
+    const visitors = currentInvitationVisitors(appointment, await getAppointmentVisitors(supabase, appointment.id));
     const pdf = await generateTicketPdf({
       referenceNumber: appointment.qr_token,
       visitorName: appointment.full_name,
@@ -48,6 +52,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       personToMeet: appointment.person_to_meet,
       purpose: appointment.purpose_of_visit,
       vehicles: vehicles.map((vehicle) => ({ plateNumber: vehicle.plate_number, makeModel: vehicle.make_model })),
+      additionalVisitors: visitors.slice(1),
     });
 
     // The ticket carries the visitor's personal data and gate pass, so each download is recorded.

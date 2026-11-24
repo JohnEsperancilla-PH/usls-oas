@@ -1387,7 +1387,7 @@ function DetailModal({ appointment, offices, onApprove, onDecline, onPostpone, o
             {appointment.visitors.map((visitor) => (
               <div key={visitor.id} className="flex items-center justify-between gap-3 text-sm">
                 <span className="font-medium text-gray-900">{visitor.full_name}{visitor.is_booker ? " (booker)" : ""}</span>
-                <span className="text-gray-600 text-right">{visitor.valid_id}</span>
+                <span className="text-gray-600 text-right">{visitor.valid_id || "—"}</span>
               </div>
             ))}
             <p className="text-xs text-amber-700 pt-1">All visitors must enter together using the booking person&apos;s reference number.</p>

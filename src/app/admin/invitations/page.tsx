@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAdmin } from "@/app/admin/layout";
 import { NewInvitationModal } from "@/components/admin/NewInvitationModal";
+import { EditInvitationVisitorsModal } from "@/components/admin/EditInvitationVisitorsModal";
 import { StatusMessage } from "@/components/admin/StatusMessage";
 import { Pagination, SearchInput } from "@/components/admin/Pagination";
 
@@ -31,6 +32,9 @@ interface Invitation {
   visitorCategory: string;
   personToMeet: string | null;
   purposeOfVisit: string | null;
+  visitorCount: number;
+  visitors: { fullName: string; validId: string }[];
+  canEditVisitors: boolean;
   createdAt: string;
   emailStatus: "sent" | "failed" | "none" | string;
   vehicles: InvitationVehicle[];
@@ -62,6 +66,7 @@ export default function InvitationsPage() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Invitation | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -70,7 +75,7 @@ export default function InvitationsPage() {
   const searchTerm = search.trim().toLowerCase();
   const filteredInvitations = searchTerm
     ? invitations.filter((i) =>
-        [i.fullName, i.email, i.phone, i.officeName, i.referenceNumber, i.personToMeet]
+        [i.fullName, i.email, i.phone, i.officeName, i.referenceNumber, i.personToMeet, ...(i.visitors || []).map((v) => v.fullName)]
           .some((v) => (v || "").toLowerCase().includes(searchTerm)))
     : invitations;
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filteredInvitations.length / PAGE_SIZE)));
@@ -165,6 +170,14 @@ export default function InvitationsPage() {
                     )}
                     {invitation.email && <div>{invitation.email}{invitation.phone ? ` · ${invitation.phone}` : ""}</div>}
                     {invitation.personToMeet && <div>Meeting: {invitation.personToMeet}</div>}
+                    {invitation.visitors.length > 1 && (
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                        <span className="text-gray-400">Also entering ({invitation.visitors.length - 1}):</span>
+                        {invitation.visitors.slice(1).map((visitor, index) => (
+                          <span key={index} className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-100 text-[11px]">{visitor.fullName}</span>
+                        ))}
+                      </div>
+                    )}
                     {invitation.vehicles.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap mt-1">
                         <span className="text-gray-400">Vehicles:</span>
@@ -194,6 +207,12 @@ export default function InvitationsPage() {
                       <div className="font-mono text-sm font-bold text-primary tracking-wider">{invitation.referenceNumber}</div>
                     </div>
                   )}
+                  {invitation.canEditVisitors && (
+                    <button type="button" onClick={() => setEditing(invitation)} className="btn-secondary btn-sm flex items-center gap-1.5">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                      Edit Names
+                    </button>
+                  )}
                   <a href={`/api/admin/invitations/${invitation.id}/ticket`} className="btn-secondary btn-sm flex items-center gap-1.5">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Ticket PDF
@@ -213,6 +232,12 @@ export default function InvitationsPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSuccess={fetchData}
-      />    </div>
+      />
+      <EditInvitationVisitorsModal
+        invitation={editing}
+        onClose={() => setEditing(null)}
+        onSaved={fetchData}
+      />
+    </div>
   );
 }

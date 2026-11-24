@@ -15,6 +15,9 @@ import { validateCsrfToken, csrfErrorResponse } from "@/lib/csrf";
 import { canInviteForOtherOffices } from "@/lib/invitation-access";
 import { filterSubOfficeIds, notifyTaggedSubOffices } from "@/lib/sub-office-tags";
 import { canManageOffice, getAppointmentScopeFilter } from "@/lib/office-scope";
+import { attachAppointmentVisitors, getAppointmentVisitors } from "@/lib/appointment-visitors";
+import { MAX_VISITORS } from "@/lib/visitors";
+import { buildInvitationVisitorRows, canEditInvitationVisitors, currentInvitationVisitors, parseAdditionalInvitationVisitors } from "@/lib/invitation-visitors";
 
 const VISITOR_CATEGORIES = ["external", "parents", "alumni", "vendor"] as const;
 
@@ -42,7 +45,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Failed to fetch invitations" }, { status: 500 });
     }
 
-    const appointments = data || [];
+    const appointments = await attachAppointmentVisitors(supabase, data || []);
     const ids = appointments.map((appointment) => appointment.id);
 
     const creatorOfficeIds = [...new Set(appointments
@@ -81,6 +84,9 @@ export async function GET(request: Request) {
         visitorCategory: appointment.visitor_category,
         personToMeet: appointment.person_to_meet,
         purposeOfVisit: appointment.purpose_of_visit,
+        visitorCount: appointment.visitor_count || 1,
+        visitors: currentInvitationVisitors(appointment, appointment.visitors),
+        canEditVisitors: canEditInvitationVisitors(appointment),
         createdAt: appointment.created_at,
         emailStatus: appointment.email ? emailSentByAppointment.get(appointment.id) || "failed" : "none",
         vehicles: (await getAppointmentVehicles(supabase, appointment.id)).map((vehicle) => ({
@@ -172,6 +178,16 @@ export async function POST(request: Request) {
     }
     const duration = body.duration === 60 ? 60 : 30;
 
+    const visitorCount = body.visitorCount === undefined ? 1 : Number(body.visitorCount);
+    if (!Number.isInteger(visitorCount) || visitorCount < 1 || visitorCount > MAX_VISITORS) {
+      return NextResponse.json({ message: `Number of visitors must be between 1 and ${MAX_VISITORS}` }, { status: 400 });
+    }
+    const parsedVisitors = parseAdditionalInvitationVisitors(body.additionalVisitors, visitorCount - 1);
+    if (!parsedVisitors.ok) {
+      return NextResponse.json({ message: parsedVisitors.message }, { status: 400 });
+    }
+    const additionalVisitors = parsedVisitors.visitors;
+
     const vehicles = Array.isArray(body.vehicles) ? body.vehicles : [];
     if (vehicles.length > 5) {
       return NextResponse.json({ message: "Maximum of 5 vehicles allowed" }, { status: 400 });
@@ -238,7 +254,7 @@ export async function POST(request: Request) {
       date: body.date,
       time_slot: body.timeSlot,
       duration,
-      visitor_count: 1,
+      visitor_count: visitorCount,
       vehicle_count: vehicles.length,
       is_invitation: true,
       invited_by_office_id: admin.role === "office_admin" ? admin.office_id : null,
@@ -259,6 +275,17 @@ export async function POST(request: Request) {
     if (insertError || !appointment) {
       console.error(insertError);
       return NextResponse.json({ message: "Failed to create invitation" }, { status: 500 });
+    }
+
+    const visitorRows = buildInvitationVisitorRows(
+      appointmentId,
+      { fullName: appointment.full_name, validId: appointment.valid_id || "" },
+      additionalVisitors
+    );
+    const { error: visitorsError } = await supabase.from("appointment_visitors").insert(visitorRows);
+    if (visitorsError) {
+      console.error(visitorsError);
+      return NextResponse.json({ message: "Failed to save visitor details" }, { status: 500 });
     }
 
     if (vehicles.length > 0) {
@@ -307,7 +334,7 @@ export async function POST(request: Request) {
         email: appointment.email,
         valid_id: appointment.valid_id,
         visitor_category: appointment.visitor_category,
-        visitor_count: 1,
+        visitor_count: visitorCount,
         vehicle_count: vehicles.length,
         purpose_of_visit: appointment.purpose_of_visit,
         person_to_meet: appointment.person_to_meet,
@@ -328,7 +355,8 @@ export async function POST(request: Request) {
     // Invitation email (with PDF ticket) and calendar run post-response.
     const vehiclesForTasks = await getAppointmentVehicles(supabase, appointmentId);
     const contactsForTasks = await getAppointmentContacts(supabase, appointmentId);
-    const appointmentForTasks: AppointmentWithOffice = { ...appointment, vehicles: vehiclesForTasks, contacts: contactsForTasks };
+    const visitorsForTasks = await getAppointmentVisitors(supabase, appointmentId);
+    const appointmentForTasks: AppointmentWithOffice = { ...appointment, visitors: visitorsForTasks, vehicles: vehiclesForTasks, contacts: contactsForTasks };
     const origin = new URL(request.url).origin;
     after(async () => {
       await runInvitationTasks(appointmentForTasks, referenceNumber, admin.id, admin.email);

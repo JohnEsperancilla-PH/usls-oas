@@ -38,6 +38,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   expire_appointments: "Expired no-show appointments",
   booking_submitted: "Visitor submitted a booking",
   download_ticket: "Downloaded invitation ticket",
+  update_invitation_visitors: "Updated invitation visitor names",
 };
 
 export const AUDIT_ACTION_OPTIONS = (Object.entries(ACTION_LABELS) as [AuditAction, string][])
